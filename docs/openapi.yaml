@@ -739,6 +739,124 @@ paths:
                     description: Error message describing the server issue.
       security:
         - basicAuth: []
+  /time_tracking/hour_entries/store:
+    post:
+      summary: Add/Edit Timesheet Hour Entries
+      description: Add or edit timesheet hour entries for employees.
+      operationId: storeTimesheetHourEntries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entries:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      employeeId:
+                        type: string
+                        description: The ID of the employee.
+                        required: true
+                      date:
+                        type: string
+                        format: date
+                        description: The date of the hour entry.
+                        required: true
+                      hours:
+                        type: number
+                        format: float
+                        description: The number of hours worked.
+                        required: true
+                      id:
+                        type: string
+                        description: Unique identifier for the hour entry.
+                      projectId:
+                        type: string
+                        description: The ID of the associated project.
+                      taskId:
+                        type: string
+                        description: The ID of the associated task.
+                      note:
+                        type: string
+                        description: Additional notes for the entry.
+              required:
+                - entries
+      responses:
+        '200':
+          description: Timesheet hour entries successfully stored or updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Success message.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '406':
+          description: Not Acceptable - The request not acceptable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '409':
+          description: Conflict - There was a conflict with the request.
+          contene:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
 components:
   securitySchemes:
     basicAuth:
