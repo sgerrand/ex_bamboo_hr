@@ -284,7 +284,7 @@ paths:
           description: Internal server error.
       security:
         - basicAuth: []
-  /metadata/fields:
+  /meta/fields:
     get:
       summary: Retrieve a List of Fields
       description: Fetches metadata for available fields that can be used in other API endpoints, such as employee information.
@@ -322,7 +322,7 @@ paths:
           description: Internal server error.
       security:
         - basicAuth: []
-  /metadata/tabular-fields:
+  /meta/tables:
     get:
       summary: Retrieve a List of Tabular Fields
       description: Fetches metadata for available tabular fields that can be used in API endpoints.
