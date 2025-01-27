@@ -426,29 +426,29 @@ paths:
           description: Internal server error.
       security:
         - basicAuth: []
-  /timesheet/entries:
+  /time_tracking/timesheet_entries:
     get:
       summary: Get Timesheet Entries
       description: Retrieve timesheet entries for a specific employee or all employees within a date range.
       operationId: getTimesheetEntries
       parameters:
-        - name: employeeId
+        - name: employeeIds
           in: query
           required: false
-          description: The ID of the employee to filter the timesheet entries.
+          description: A comma separated list of employee IDs. When specified, only entries that match these employee IDs are returned.
           schema:
             type: string
         - name: start
           in: query
           required: true
-          description: The start date for filtering timesheet entries (in YYYY-MM-DD format).
+          description: The start date for filtering timesheet entries (in YYYY-MM-DD format). Must be within the last 365 days.
           schema:
             type: string
             format: date
         - name: end
           in: query
           required: true
-          description: The end date for filtering timesheet entries (in YYYY-MM-DD format).
+          description: The end date for filtering timesheet entries (in YYYY-MM-DD format). Must be within the last 365 days.
           schema:
             type: string
             format: date
