@@ -322,6 +322,44 @@ paths:
           description: Internal server error.
       security:
         - basicAuth: []
+  /metadata/tabular-fields:
+    get:
+      summary: Retrieve a List of Tabular Fields
+      description: Fetches metadata for available tabular fields that can be used in API endpoints.
+      operationId: getTabularFieldsMetadata
+      responses:
+        '200':
+          description: Successful retrieval of tabular field metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tabularFields:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: The unique identifier of the tabular field.
+                        name:
+                          type: string
+                          description: The name of the tabular field.
+                        type:
+                          type: string
+                          description: The data type of the tabular field (e.g., text, numeric).
+                        description:
+                          type: string
+                          description: A brief description of the tabular field.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
 components:
   securitySchemes:
     basicAuth:
