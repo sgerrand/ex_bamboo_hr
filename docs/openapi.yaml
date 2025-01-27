@@ -514,6 +514,129 @@ paths:
                     description: Error message describing the server issue.
       security:
         - basicAuth: []
+  /time_tracking/clock_entries/store:
+    post:
+      summary: Add/Edit Timesheet Clock Entries
+      description: Add or edit timesheet clock entries for employees.
+      operationId: storeTimesheetClockEntries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entries:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      employeeId:
+                        type: string
+                        description: The ID of the employee.
+                        required: true
+                      date:
+                        type: string
+                        format: date
+                        description: The date of the clock entry.
+                        required: true
+                      start:
+                        type: string
+                        format: time
+                        description: The clock-in time (in HH:mm:ss format).
+                        required: true
+                      end:
+                        type: string
+                        format: time
+                        description: The clock-out time (in HH:mm:ss format).
+                        required: true
+                      id:
+                        type: string
+                        description: The ID of an existing timesheet entry. This can be specified to edit an existing entry.
+                      projectId:
+                        type: string
+                        description: The ID of the project to associate with the timesheet entry.
+                      taskId:
+                        type: string
+                        description: The ID of the task to associate with the timesheet entry.
+                      note:
+                        type: string
+                        description: Optional note to associate with the timesheet entry.
+              required:
+                - entries
+      responses:
+        '200':
+          description: Timesheet clock entries successfully stored or updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Success message.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '406':
+          description: Not Acceptable - The request not acceptable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '409':
+          description: Conflict - There was a conflict with the request.
+          contene:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
 components:
   securitySchemes:
     basicAuth:
