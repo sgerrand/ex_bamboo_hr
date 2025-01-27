@@ -284,6 +284,44 @@ paths:
           description: Internal server error.
       security:
         - basicAuth: []
+  /metadata/fields:
+    get:
+      summary: Retrieve a List of Fields
+      description: Fetches metadata for available fields that can be used in other API endpoints, such as employee information.
+      operationId: getFieldsMetadata
+      responses:
+        '200':
+          description: Successful retrieval of field metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fields:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: The unique identifier of the field.
+                        name:
+                          type: string
+                          description: The name of the field.
+                        type:
+                          type: string
+                          description: The data type of the field (e.g., text, date, numeric).
+                        description:
+                          type: string
+                          description: A brief description of the field.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
 components:
   securitySchemes:
     basicAuth:
