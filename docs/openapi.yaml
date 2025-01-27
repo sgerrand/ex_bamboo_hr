@@ -1220,6 +1220,135 @@ paths:
                     description: Error message describing the server issue.
       security:
         - basicAuth: []
+  /time_tracking/projects:
+    post:
+      summary: Create Time Tracking Project
+      description: Create a time tracking project with optional tasks.
+      operationId: createTimeTrackingProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Name of the project.
+                  required: true
+                billable:
+                  type: boolean
+                  description: Indicates if the project is billable. Defaults to true if not provided.
+                allowAllEmployees:
+                  type: boolean
+                  description: Indicates if all employees can log time for this project. Defaults to true if not provided.
+                employeeIds:
+                  type: array
+                  description: A list of employee IDs that can log time for this project.
+                  properties:
+                    items:
+                      type: integer
+                hasTasks:
+                  type: boolean
+                  description: Indicates if the project has tasks. Defaults to false if not provided.
+                tasks:
+                  type: array
+                  description: List of tasks to create and associate with the project.
+                  properties:
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          description: Name of the task.
+                        billable:
+                          type: boolean
+                          description: Indicates if the task is billable. Defaults to true if not provided.
+      responses:
+        '200':
+          description: Time Tracking Project successfully created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    description: Name of the project.
+                  billable:
+                    type: boolean
+                    description: Whether the project is boolean
+                allowAllEmployees:
+                  type: boolean
+                  description: Whether all employees can log time for this project.
+                hasTasks:
+                  type: boolean
+                  description: Whether the project has tasks or not.
+                tasks:
+                  type: array
+                  description: List of tasks to associated with the project.
+                  properties:
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          description: Name of the task.
+                        billable:
+                          type: boolean
+                          description: Indicates if the task is billable.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '406':
+          description: Not Acceptable - The request not acceptable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
 components:
   securitySchemes:
     basicAuth:
