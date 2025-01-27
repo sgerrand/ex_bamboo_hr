@@ -1138,6 +1138,88 @@ paths:
                     description: Error message describing the server issue.
       security:
         - basicAuth: []
+  /time_tracking/employees/{employeeId}/projects:
+    get:
+      summary: Get Employee Projects
+      description: Get the projects an employee can track time for.
+      operationId: getEmployeeProjects
+      parameters:
+        - in: path
+          name: employeeId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the employee.
+      responses:
+        '200':
+          description: Employee projects successfully retrieved.
+          content:
+            application/json:
+              schema:
+                type: array
+                properties:
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        description: The ID of the employee project.
+                      name:
+                        type: string
+                        description: The name of the employee project.
+                      tasks:
+                        type: array
+                        description: List of project tasks.
+                        properties:
+                          items:
+                            id:
+                              type: integer
+                              description: The ID of the project task.
+                            name:
+                              type: string
+                              description: The name of the project task.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
 components:
   securitySchemes:
     basicAuth:
