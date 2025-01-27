@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: BambooHR API
-  description: API for accessing company information from BambooHR.
+  description: API for accessing company and employee information from BambooHR.
   version: 1.0.0
 servers:
   - url: https://api.bamboohr.com/api/gateway.php/{companyDomain}/v1
@@ -102,6 +102,54 @@ paths:
                         name:
                           type: string
                           description: The name associated with the EIN.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '404':
+          description: The requested resource was not found.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
+  /employees/{id}:
+    get:
+      summary: Retrieve Employee Information
+      description: Fetches specified fields for a given employee.
+      operationId: getEmployee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ID of the employee.
+          schema:
+            type: integer
+        - name: fields
+          in: query
+          required: true
+          description: Comma-separated list of field names to retrieve.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful retrieval of employee information.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    description: The ID of the employee.
+                  firstName:
+                    type: string
+                    description: The first name of the employee.
+                  lastName:
+                    type: string
+                    description: The last name of the employee.
+                  # Add additional fields based on the specified `fields` parameter.
+        '400':
+          description: Bad request due to invalid parameters.
         '401':
           description: Unauthorized access due to invalid or missing API key.
         '403':
