@@ -137,6 +137,11 @@ paths:
       responses:
         '201':
           description: Employee successfully added. The ID of the newly created employee is included in the Location header of the response.
+          headers:
+            Location:
+              description: The URL of the newly created employee resource.
+              schema:
+                type: string
         '400':
           description: Bad request due to invalid parameters or missing required fields.
         '401':
