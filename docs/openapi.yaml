@@ -360,6 +360,72 @@ paths:
           description: Internal server error.
       security:
         - basicAuth: []
+  /meta/lists/:
+    get:
+      summary: Retrieve a List of List Fields
+      description: Fetches metadata for available list fields that can be used in API endpoints.
+      operationId: getListFieldsMetadata
+      responses:
+        '200':
+          description: Successful retrieval of list field metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        fieldId:
+                          type: string
+                          description: The identifier for the list field item.
+                        alias:
+                          type: string
+                          description: The alias for the list item.
+                        manageable:
+                          type: string
+                          enum:
+                            - yes
+                            - no
+                          description: Whether the list items can be edited.
+                        name:
+                          type: string
+                          description: The name for the list field item.
+                        options:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                description: The identifier for the option item.
+                              archived:
+                                type: string
+                                enum:
+                                  - yes
+                                  - no
+                                description: Whether the option item has been archived.
+                              createdDate:
+                                type: string
+                                format: date
+                                description: When the option item was created.
+                              archivedDate:
+                                type: string
+                                format: date
+                                description: When the option item was archived.
+                              name:
+                                type: string
+                                description: The name of the option item.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
 components:
   securitySchemes:
     basicAuth:
