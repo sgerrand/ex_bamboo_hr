@@ -943,6 +943,108 @@ paths:
                     description: Error message describing the server issue.
       security:
         - basicAuth: []
+  /time_tracking/employees/{employeeId}/clock_in:
+    post:
+      summary: Clock In Employee
+      description: Clock in an employee.
+      operationId: clockInEmployee
+      parameters:
+        - in: path
+          name: employeeId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the employee to clock in.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                projectId:
+                  type: string
+                  description: The ID of the project to associate with the timesheet entry.
+                taskId:
+                  type: string
+                  description: The ID of the task to associate with the timesheet entry.
+                note:
+                  type: string
+                  description: Optional note to associate with the timesheet entry.
+                date:
+                  type: string
+                  format: date
+                  description: Date for the timesheet entry. Must be in YYYY-MM-DD format.
+                start:
+                  type: string
+                  format: time
+                  description: The time for the clock in. In 24 hour format HH:MM.
+                timezone:
+                  type: string
+                  description: The timezone associated with the clock in.
+      responses:
+        '200':
+          description: Employee successfully clocked in.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Success message.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '406':
+          description: Not Acceptable - The request not acceptable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
 components:
   securitySchemes:
     basicAuth:
