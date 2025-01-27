@@ -1,0 +1,85 @@
+openapi: 3.0.0
+info:
+  title: BambooHR API
+  description: API for accessing company information from BambooHR.
+  version: 1.0.0
+servers:
+  - url: https://api.bamboohr.com/api/gateway.php/{companyDomain}/v1
+    variables:
+      companyDomain:
+        default: yourCompanyDomain
+        description: The subdomain of your BambooHR account.
+paths:
+  /company_information:
+    get:
+      summary: Retrieve Company Information
+      description: Fetches detailed information about the company.
+      operationId: getCompanyInformation
+      responses:
+        '200':
+          description: Successful retrieval of company information.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    description: The name of the company.
+                  domain:
+                    type: string
+                    description: The domain of the company.
+                  currencyCode:
+                    type: string
+                    description: The currency code used by the company.
+                  country:
+                    type: string
+                    description: The country where the company is located.
+                  state:
+                    type: string
+                    description: The state or region where the company is located.
+                  timeZone:
+                    type: string
+                    description: The time zone of the company's primary location.
+                  locale:
+                    type: string
+                    description: The locale setting of the company.
+                  phone:
+                    type: string
+                    description: The primary phone number of the company.
+                  fax:
+                    type: string
+                    description: The primary fax number of the company.
+                  website:
+                    type: string
+                    description: The company's website URL.
+                  employeeCount:
+                    type: integer
+                    description: The total number of employees in the company.
+                  address1:
+                    type: string
+                    description: The first line of the company's address.
+                  address2:
+                    type: string
+                    description: The second line of the company's address.
+                  city:
+                    type: string
+                    description: The city where the company is located.
+                  zipCode:
+                    type: string
+                    description: The postal code of the company's location.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '404':
+          description: The requested resource was not found.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
