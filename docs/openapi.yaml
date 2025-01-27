@@ -657,16 +657,8 @@ paths:
               required:
                 - clockEntryIds
       responses:
-        '200':
+        '204':
           description: Timesheet clock entries successfully deleted.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    description: Success message.
         '400':
           description: Bad Request - Invalid parameters or missing required fields.
           content:
