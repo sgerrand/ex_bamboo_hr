@@ -426,6 +426,94 @@ paths:
           description: Internal server error.
       security:
         - basicAuth: []
+  /timesheet/entries:
+    get:
+      summary: Get Timesheet Entries
+      description: Retrieve timesheet entries for a specific employee or all employees within a date range.
+      operationId: getTimesheetEntries
+      parameters:
+        - name: employeeId
+          in: query
+          required: false
+          description: The ID of the employee to filter the timesheet entries.
+          schema:
+            type: string
+        - name: start
+          in: query
+          required: true
+          description: The start date for filtering timesheet entries (in YYYY-MM-DD format).
+          schema:
+            type: string
+            format: date
+        - name: end
+          in: query
+          required: true
+          description: The end date for filtering timesheet entries (in YYYY-MM-DD format).
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Successful response with timesheet entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: Unique identifier for the timesheet entry.
+                        employeeId:
+                          type: string
+                          description: The ID of the employee associated with the entry.
+                        date:
+                          type: string
+                          format: date
+                          description: The date of the timesheet entry.
+                        hours:
+                          type: number
+                          format: float
+                          description: The number of hours worked.
+                        note:
+                          type: string
+                          description: Additional notes associated with the entry.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
 components:
   securitySchemes:
     basicAuth:
