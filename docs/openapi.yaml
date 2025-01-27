@@ -243,6 +243,47 @@ paths:
           description: Internal server error.
       security:
         - basicAuth: []
+  /employees/directory:
+    get:
+      summary: Retrieve Employee Directory
+      description: Fetches a directory of all employees, including basic information such as name, job title, and contact details.
+      operationId: getEmployeeDirectory
+      responses:
+        '200':
+          description: Successful retrieval of employee directory.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  employees:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: The ID of the employee.
+                        displayName:
+                          type: string
+                          description: The display name of the employee.
+                        jobTitle:
+                          type: string
+                          description: The job title of the employee.
+                        workEmail:
+                          type: string
+                          description: The work email of the employee.
+                        workPhone:
+                          type: string
+                          description: The work phone number of the employee.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
 components:
   securitySchemes:
     basicAuth:
