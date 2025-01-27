@@ -112,6 +112,41 @@ paths:
           description: Internal server error.
       security:
         - basicAuth: []
+  /employees:
+    post:
+      summary: Add New Employee
+      description: Adds a new employee to the company. At a minimum, `firstName` and `lastName` are required. Additional fields can be included as necessary.
+      operationId: addEmployee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                  description: The first name of the employee.
+                lastName:
+                  type: string
+                  description: The last name of the employee.
+                # Include additional fields as necessary.
+              required:
+                - firstName
+                - lastName
+      responses:
+        '201':
+          description: Employee successfully added. The ID of the newly created employee is included in the Location header of the response.
+        '400':
+          description: Bad request due to invalid parameters or missing required fields.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
   /employees/{id}:
     get:
       summary: Retrieve Employee Information
