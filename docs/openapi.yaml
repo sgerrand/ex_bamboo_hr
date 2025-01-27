@@ -78,6 +78,40 @@ paths:
           description: Internal server error.
       security:
         - basicAuth: []
+  /company_eins:
+    get:
+      summary: Retrieve Company EINs
+      description: Fetches the Employer Identification Numbers (EINs) associated with the company.
+      operationId: getCompanyEINs
+      responses:
+        '200':
+          description: Successful retrieval of company EINs.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  eins:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ein:
+                          type: string
+                          description: The Employer Identification Number.
+                        name:
+                          type: string
+                          description: The name associated with the EIN.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '404':
+          description: The requested resource was not found.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
 components:
   securitySchemes:
     basicAuth:
