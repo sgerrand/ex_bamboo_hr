@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: BambooHR API
-  description: API for accessing company and employee information from BambooHR.
+  description: API for accessing and managing company and employee information in BambooHR.
   version: 1.0.0
 servers:
   - url: https://api.bamboohr.com/api/gateway.php/{companyDomain}/v1
@@ -147,9 +147,52 @@ paths:
                   lastName:
                     type: string
                     description: The last name of the employee.
-                  # Add additional fields based on the specified `fields` parameter.
+                  # Additional fields based on the specified `fields` parameter.
         '400':
           description: Bad request due to invalid parameters.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '404':
+          description: The requested resource was not found.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
+    post:
+      summary: Update Employee Information
+      description: Updates specified fields for a given employee.
+      operationId: updateEmployee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ID of the employee to update.
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                  description: The first name of the employee.
+                lastName:
+                  type: string
+                  description: The last name of the employee.
+                # Include additional fields as necessary.
+              required:
+                - firstName
+                - lastName
+      responses:
+        '200':
+          description: Successful update of employee information.
+        '400':
+          description: Bad request due to invalid parameters or missing required fields.
         '401':
           description: Unauthorized access due to invalid or missing API key.
         '403':
