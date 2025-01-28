@@ -360,7 +360,7 @@ paths:
           description: Internal server error.
       security:
         - basicAuth: []
-  /meta/lists/:
+  /meta/lists:
     get:
       summary: Retrieve a List of List Fields
       description: Fetches metadata for available list fields that can be used in API endpoints.
@@ -526,7 +526,7 @@ paths:
             schema:
               type: object
               properties:
-                entries:
+                items:
                   type: array
                   items:
                     type: object
@@ -534,22 +534,18 @@ paths:
                       employeeId:
                         type: string
                         description: The ID of the employee.
-                        required: true
                       date:
                         type: string
                         format: date
                         description: The date of the clock entry.
-                        required: true
                       start:
                         type: string
                         format: time
                         description: The clock-in time (in HH:mm:ss format).
-                        required: true
                       end:
                         type: string
                         format: time
                         description: The clock-out time (in HH:mm:ss format).
-                        required: true
                       id:
                         type: string
                         description: The ID of an existing timesheet entry. This can be specified to edit an existing entry.
@@ -562,6 +558,11 @@ paths:
                       note:
                         type: string
                         description: Optional note to associate with the timesheet entry.
+                    required:
+                      - employeeId
+                      - date
+                      - start
+                      - end
               required:
                 - entries
       responses:
@@ -617,7 +618,7 @@ paths:
                     description: Error message describing the issue.
         '409':
           description: Conflict - There was a conflict with the request.
-          contene:
+          content:
             application/json:
               schema:
                 type: object
@@ -701,7 +702,7 @@ paths:
                     description: Error message describing the issue.
         '409':
           description: Conflict - There was a conflict with the request.
-          contene:
+          content:
             application/json:
               schema:
                 type: object
@@ -711,7 +712,7 @@ paths:
                     description: Error message describing the issue.
         '412':
           description: Precondition Failed - Invalid time tracking configuration or timezone.
-          contene:
+          content:
             application/json:
               schema:
                 type: object
@@ -751,17 +752,14 @@ paths:
                       employeeId:
                         type: string
                         description: The ID of the employee.
-                        required: true
                       date:
                         type: string
                         format: date
                         description: The date of the hour entry.
-                        required: true
                       hours:
                         type: number
                         format: float
                         description: The number of hours worked.
-                        required: true
                       id:
                         type: string
                         description: Unique identifier for the hour entry.
@@ -774,6 +772,10 @@ paths:
                       note:
                         type: string
                         description: Additional notes for the entry.
+                    required:
+                      - employeeId
+                      - date
+                      - hours
               required:
                 - entries
       responses:
@@ -829,7 +831,7 @@ paths:
                     description: Error message describing the issue.
         '409':
           description: Conflict - There was a conflict with the request.
-          contene:
+          content:
             application/json:
               schema:
                 type: object
@@ -913,7 +915,7 @@ paths:
                     description: Error message describing the issue.
         '409':
           description: Conflict - There was a conflict with the request.
-          contene:
+          content:
             application/json:
               schema:
                 type: object
@@ -923,7 +925,7 @@ paths:
                     description: Error message describing the issue.
         '412':
           description: Precondition Failed - Invalid time tracking configuration or timezone.
-          contene:
+          content:
             application/json:
               schema:
                 type: object
@@ -1172,12 +1174,14 @@ paths:
                         description: List of project tasks.
                         properties:
                           items:
-                            id:
-                              type: integer
-                              description: The ID of the project task.
-                            name:
-                              type: string
-                              description: The name of the project task.
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                                description: The ID of the project task.
+                              name:
+                                type: string
+                                description: The name of the project task.
         '400':
           description: Bad Request - Invalid parameters or missing required fields.
           content:
@@ -1235,7 +1239,6 @@ paths:
                 name:
                   type: string
                   description: Name of the project.
-                  required: true
                 billable:
                   type: boolean
                   description: Indicates if the project is billable. Defaults to true if not provided.
@@ -1264,6 +1267,8 @@ paths:
                         billable:
                           type: boolean
                           description: Indicates if the task is billable. Defaults to true if not provided.
+              required:
+                - name
       responses:
         '200':
           description: Time Tracking Project successfully created.
@@ -1278,25 +1283,25 @@ paths:
                   billable:
                     type: boolean
                     description: Whether the project is boolean
-                allowAllEmployees:
-                  type: boolean
-                  description: Whether all employees can log time for this project.
-                hasTasks:
-                  type: boolean
-                  description: Whether the project has tasks or not.
-                tasks:
-                  type: array
-                  description: List of tasks to associated with the project.
-                  properties:
-                    items:
-                      type: object
-                      properties:
-                        name:
-                          type: string
-                          description: Name of the task.
-                        billable:
-                          type: boolean
-                          description: Indicates if the task is billable.
+                  allowAllEmployees:
+                    type: boolean
+                    description: Whether all employees can log time for this project.
+                  hasTasks:
+                    type: boolean
+                    description: Whether the project has tasks or not.
+                  tasks:
+                    type: array
+                    description: List of tasks to associated with the project.
+                    properties:
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                            description: Name of the task.
+                          billable:
+                            type: boolean
+                            description: Indicates if the task is billable.
         '400':
           description: Bad Request - Invalid parameters or missing required fields.
           content:
