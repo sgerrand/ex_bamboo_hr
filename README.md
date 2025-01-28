@@ -15,6 +15,30 @@ def deps do
 end
 ```
 
+## Usage
+
+To use this client, you'll need information from BambooHR:
+- Your company's subdomain
+- An API key
+
+### Example
+
+The following code sample illustrates how to use
+`BambooHR.Client.get_company_information/1` to fetch information about your
+company stored in BambooHR via their API.
+
+```elixir
+config = BambooHR.Client.new("your_company", "your_api_key")
+{:ok,
+ %{
+   "name" => "Acme Corp",
+   "employeeCount" => 100,
+   "city" => "San Francisco"
+ }} = BambooHR.Client.get_company_information(config)
+```
+
+## Documentation
+
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at <https://hexdocs.pm/bamboo_hr>.
