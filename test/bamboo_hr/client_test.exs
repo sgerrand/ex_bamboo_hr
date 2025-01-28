@@ -334,4 +334,69 @@ defmodule BambooHR.ClientTest do
                BambooHR.Client.get_timesheet_entries(config, params)
     end
   end
+
+  describe "store_timesheet_clock_entries/2" do
+    test "successfully stores timesheet clock entries", %{bypass: bypass, config: config} do
+      entries = [
+        %{
+          "employeeId" => "123",
+          "date" => "2024-01-15",
+          "start" => "09:00:00",
+          "end" => "17:00:00",
+          "note" => "Regular work day"
+        },
+        %{
+          "employeeId" => "124",
+          "date" => "2024-01-15",
+          "start" => "09:00:00",
+          "end" => "13:00:00",
+          "note" => "Half day"
+        }
+      ]
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time_tracking/clock_entries/store",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"items" => entries}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"message" => "Entries stored successfully"}))
+        end
+      )
+
+      assert {:ok, %{"message" => "Entries stored successfully"}} =
+               BambooHR.Client.store_timesheet_clock_entries(config, entries)
+    end
+
+    test "handles error when storing timesheet clock entries", %{bypass: bypass, config: config} do
+      entries = [
+        %{
+          "employeeId" => "123",
+          "date" => "2024-01-15",
+          "start" => "invalid_time",
+          "end" => "17:00:00"
+        }
+      ]
+
+      error_response = %{"error" => "Invalid time format"}
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time_tracking/clock_entries/store",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(400, Jason.encode!(error_response))
+        end
+      )
+
+      assert {:error, %{status: 400, body: ^error_response}} =
+               BambooHR.Client.store_timesheet_clock_entries(config, entries)
+    end
+  end
 end
