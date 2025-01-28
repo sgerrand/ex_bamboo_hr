@@ -170,6 +170,12 @@ paths:
           description: Comma-separated list of field names to retrieve.
           schema:
             type: string
+        - name: onlyCurrent
+          in: query
+          required: false
+          description: Indicates whether to return past dated values from historical table fields. Defaults to true.
+          schema:
+            type: boolean
       responses:
         '200':
           description: Successful retrieval of employee information.
