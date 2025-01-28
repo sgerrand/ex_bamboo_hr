@@ -63,6 +63,22 @@ defmodule BambooHR.ClientTest do
       assert {:error, %{status: 401, body: ^error_response}} =
                BambooHR.Client.get_company_information(config)
     end
+
+    test "handles unexpected error", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/company_information",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, "bad")
+        end
+      )
+
+      assert {:error, %Jason.DecodeError{}} =
+               BambooHR.Client.get_company_information(config)
+    end
   end
 
   describe "get_company_eins/1" do
