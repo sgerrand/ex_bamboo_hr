@@ -30,7 +30,7 @@ defmodule BambooHR.ClientTest do
     end
 
     test "handles error response", %{bypass: bypass, config: config} do
-      error_response = %{error: "Unauthorized"}
+      error_response = %{"error" => "Unauthorized"}
 
       Bypass.expect_once(
         bypass,
