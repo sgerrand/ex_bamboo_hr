@@ -267,4 +267,71 @@ defmodule BambooHR.ClientTest do
                BambooHR.Client.get_employee_directory(config)
     end
   end
+
+  describe "get_timesheet_entries/2" do
+    test "successfully retrieves timesheet entries", %{bypass: bypass, config: config} do
+      params = %{
+        "start" => "2024-01-01",
+        "end" => "2024-01-31",
+        "employeeIds" => "123,124"
+      }
+
+      timesheet_data = %{
+        "entries" => [
+          %{
+            "id" => "1",
+            "employeeId" => "123",
+            "date" => "2024-01-15",
+            "hours" => 8.0,
+            "note" => "Regular work day"
+          },
+          %{
+            "id" => "2",
+            "employeeId" => "124",
+            "date" => "2024-01-15",
+            "hours" => 7.5,
+            "note" => "Half day"
+          }
+        ]
+      }
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time_tracking/timesheet_entries",
+        fn conn ->
+          assert conn.query_string == "employeeIds=123%2C124&end=2024-01-31&start=2024-01-01"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(timesheet_data))
+        end
+      )
+
+      assert {:ok, ^timesheet_data} = BambooHR.Client.get_timesheet_entries(config, params)
+    end
+
+    test "handles error when retrieving timesheet entries", %{bypass: bypass, config: config} do
+      params = %{
+        "start" => "2024-01-01",
+        "end" => "2024-01-31"
+      }
+
+      error_response = %{"error" => "Invalid date range"}
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time_tracking/timesheet_entries",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(400, Jason.encode!(error_response))
+        end
+      )
+
+      assert {:error, %{status: 400, body: ^error_response}} =
+               BambooHR.Client.get_timesheet_entries(config, params)
+    end
+  end
 end
