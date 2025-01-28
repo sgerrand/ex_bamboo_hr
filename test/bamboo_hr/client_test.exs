@@ -399,4 +399,62 @@ defmodule BambooHR.ClientTest do
                BambooHR.Client.store_timesheet_clock_entries(config, entries)
     end
   end
+
+  describe "clock_in_employee/3" do
+    test "successfully clocks in employee", %{bypass: bypass, config: config} do
+      employee_id = 123
+
+      clock_data = %{
+        "date" => "2024-01-15",
+        "start" => "09:00",
+        "timezone" => "America/New_York",
+        "projectId" => "456",
+        "taskId" => "789",
+        "note" => "Starting work on project X"
+      }
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time_tracking/employees/#{employee_id}/clock_in",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == clock_data
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"message" => "Successfully clocked in"}))
+        end
+      )
+
+      assert {:ok, %{"message" => "Successfully clocked in"}} =
+               BambooHR.Client.clock_in_employee(config, employee_id, clock_data)
+    end
+
+    test "handles error when clocking in employee", %{bypass: bypass, config: config} do
+      employee_id = 123
+
+      clock_data = %{
+        "date" => "2024-01-15",
+        "start" => "09:00",
+        "timezone" => "Invalid/Timezone"
+      }
+
+      error_response = %{"error" => "Invalid timezone"}
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time_tracking/employees/#{employee_id}/clock_in",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(400, Jason.encode!(error_response))
+        end
+      )
+
+      assert {:error, %{status: 400, body: ^error_response}} =
+               BambooHR.Client.clock_in_employee(config, employee_id, clock_data)
+    end
+  end
 end
