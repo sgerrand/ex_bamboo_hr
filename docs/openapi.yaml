@@ -1,0 +1,1361 @@
+openapi: 3.0.0
+info:
+  title: BambooHR API
+  description: API for accessing and managing company and employee information in BambooHR.
+  version: 1.0.0
+servers:
+  - url: https://api.bamboohr.com/api/gateway.php/{companyDomain}/v1
+    variables:
+      companyDomain:
+        default: yourCompanyDomain
+        description: The subdomain of your BambooHR account.
+paths:
+  /company_information:
+    get:
+      summary: Retrieve Company Information
+      description: Fetches detailed information about the company.
+      operationId: getCompanyInformation
+      responses:
+        '200':
+          description: Successful retrieval of company information.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    description: The name of the company.
+                  domain:
+                    type: string
+                    description: The domain of the company.
+                  currencyCode:
+                    type: string
+                    description: The currency code used by the company.
+                  country:
+                    type: string
+                    description: The country where the company is located.
+                  state:
+                    type: string
+                    description: The state or region where the company is located.
+                  timeZone:
+                    type: string
+                    description: The time zone of the company's primary location.
+                  locale:
+                    type: string
+                    description: The locale setting of the company.
+                  phone:
+                    type: string
+                    description: The primary phone number of the company.
+                  fax:
+                    type: string
+                    description: The primary fax number of the company.
+                  website:
+                    type: string
+                    description: The company's website URL.
+                  employeeCount:
+                    type: integer
+                    description: The total number of employees in the company.
+                  address1:
+                    type: string
+                    description: The first line of the company's address.
+                  address2:
+                    type: string
+                    description: The second line of the company's address.
+                  city:
+                    type: string
+                    description: The city where the company is located.
+                  zipCode:
+                    type: string
+                    description: The postal code of the company's location.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '404':
+          description: The requested resource was not found.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
+  /company_eins:
+    get:
+      summary: Retrieve Company EINs
+      description: Fetches the Employer Identification Numbers (EINs) associated with the company.
+      operationId: getCompanyEINs
+      responses:
+        '200':
+          description: Successful retrieval of company EINs.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  eins:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ein:
+                          type: string
+                          description: The Employer Identification Number.
+                        name:
+                          type: string
+                          description: The name associated with the EIN.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '404':
+          description: The requested resource was not found.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
+  /employees:
+    post:
+      summary: Add New Employee
+      description: Adds a new employee to the company. At a minimum, `firstName` and `lastName` are required. Additional fields can be included as necessary.
+      operationId: addEmployee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                  description: The first name of the employee.
+                lastName:
+                  type: string
+                  description: The last name of the employee.
+                # Include additional fields as necessary.
+              required:
+                - firstName
+                - lastName
+      responses:
+        '201':
+          description: Employee successfully added. The ID of the newly created employee is included in the Location header of the response.
+          headers:
+            Location:
+              description: The URL of the newly created employee resource.
+              schema:
+                type: string
+        '400':
+          description: Bad request due to invalid parameters or missing required fields.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
+  /employees/{id}:
+    get:
+      summary: Retrieve Employee Information
+      description: Fetches specified fields for a given employee.
+      operationId: getEmployee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ID of the employee.
+          schema:
+            type: integer
+        - name: fields
+          in: query
+          required: true
+          description: Comma-separated list of field names to retrieve.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful retrieval of employee information.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    description: The ID of the employee.
+                  firstName:
+                    type: string
+                    description: The first name of the employee.
+                  lastName:
+                    type: string
+                    description: The last name of the employee.
+                  # Additional fields based on the specified `fields` parameter.
+        '400':
+          description: Bad request due to invalid parameters.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '404':
+          description: The requested resource was not found.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
+    post:
+      summary: Update Employee Information
+      description: Updates specified fields for a given employee.
+      operationId: updateEmployee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ID of the employee to update.
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                  description: The first name of the employee.
+                lastName:
+                  type: string
+                  description: The last name of the employee.
+                # Include additional fields as necessary.
+              required:
+                - firstName
+                - lastName
+      responses:
+        '200':
+          description: Successful update of employee information.
+        '400':
+          description: Bad request due to invalid parameters or missing required fields.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '404':
+          description: The requested resource was not found.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
+  /employees/directory:
+    get:
+      summary: Retrieve Employee Directory
+      description: Fetches a directory of all employees, including basic information such as name, job title, and contact details.
+      operationId: getEmployeeDirectory
+      responses:
+        '200':
+          description: Successful retrieval of employee directory.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  employees:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: The ID of the employee.
+                        displayName:
+                          type: string
+                          description: The display name of the employee.
+                        jobTitle:
+                          type: string
+                          description: The job title of the employee.
+                        workEmail:
+                          type: string
+                          description: The work email of the employee.
+                        workPhone:
+                          type: string
+                          description: The work phone number of the employee.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
+  /meta/fields:
+    get:
+      summary: Retrieve a List of Fields
+      description: Fetches metadata for available fields that can be used in other API endpoints, such as employee information.
+      operationId: getFieldsMetadata
+      responses:
+        '200':
+          description: Successful retrieval of field metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fields:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: The unique identifier of the field.
+                        name:
+                          type: string
+                          description: The name of the field.
+                        type:
+                          type: string
+                          description: The data type of the field (e.g., text, date, numeric).
+                        description:
+                          type: string
+                          description: A brief description of the field.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
+  /meta/tables:
+    get:
+      summary: Retrieve a List of Tabular Fields
+      description: Fetches metadata for available tabular fields that can be used in API endpoints.
+      operationId: getTabularFieldsMetadata
+      responses:
+        '200':
+          description: Successful retrieval of tabular field metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tabularFields:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: The unique identifier of the tabular field.
+                        name:
+                          type: string
+                          description: The name of the tabular field.
+                        type:
+                          type: string
+                          description: The data type of the tabular field (e.g., text, numeric).
+                        description:
+                          type: string
+                          description: A brief description of the tabular field.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
+  /meta/lists:
+    get:
+      summary: Retrieve a List of List Fields
+      description: Fetches metadata for available list fields that can be used in API endpoints.
+      operationId: getListFieldsMetadata
+      responses:
+        '200':
+          description: Successful retrieval of list field metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        fieldId:
+                          type: string
+                          description: The identifier for the list field item.
+                        alias:
+                          type: string
+                          description: The alias for the list item.
+                        manageable:
+                          type: string
+                          enum:
+                            - yes
+                            - no
+                          description: Whether the list items can be edited.
+                        name:
+                          type: string
+                          description: The name for the list field item.
+                        options:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                description: The identifier for the option item.
+                              archived:
+                                type: string
+                                enum:
+                                  - yes
+                                  - no
+                                description: Whether the option item has been archived.
+                              createdDate:
+                                type: string
+                                format: date
+                                description: When the option item was created.
+                              archivedDate:
+                                type: string
+                                format: date
+                                description: When the option item was archived.
+                              name:
+                                type: string
+                                description: The name of the option item.
+        '401':
+          description: Unauthorized access due to invalid or missing API key.
+        '403':
+          description: Forbidden access due to insufficient permissions.
+        '500':
+          description: Internal server error.
+      security:
+        - basicAuth: []
+  /time_tracking/timesheet_entries:
+    get:
+      summary: Get Timesheet Entries
+      description: Retrieve timesheet entries for a specific employee or all employees within a date range.
+      operationId: getTimesheetEntries
+      parameters:
+        - name: employeeIds
+          in: query
+          required: false
+          description: A comma separated list of employee IDs. When specified, only entries that match these employee IDs are returned.
+          schema:
+            type: string
+        - name: start
+          in: query
+          required: true
+          description: The start date for filtering timesheet entries (in YYYY-MM-DD format). Must be within the last 365 days.
+          schema:
+            type: string
+            format: date
+        - name: end
+          in: query
+          required: true
+          description: The end date for filtering timesheet entries (in YYYY-MM-DD format). Must be within the last 365 days.
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Successful response with timesheet entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: Unique identifier for the timesheet entry.
+                        employeeId:
+                          type: string
+                          description: The ID of the employee associated with the entry.
+                        date:
+                          type: string
+                          format: date
+                          description: The date of the timesheet entry.
+                        hours:
+                          type: number
+                          format: float
+                          description: The number of hours worked.
+                        note:
+                          type: string
+                          description: Additional notes associated with the entry.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
+  /time_tracking/clock_entries/store:
+    post:
+      summary: Add/Edit Timesheet Clock Entries
+      description: Add or edit timesheet clock entries for employees.
+      operationId: storeTimesheetClockEntries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      employeeId:
+                        type: string
+                        description: The ID of the employee.
+                      date:
+                        type: string
+                        format: date
+                        description: The date of the clock entry.
+                      start:
+                        type: string
+                        format: time
+                        description: The clock-in time (in HH:mm:ss format).
+                      end:
+                        type: string
+                        format: time
+                        description: The clock-out time (in HH:mm:ss format).
+                      id:
+                        type: string
+                        description: The ID of an existing timesheet entry. This can be specified to edit an existing entry.
+                      projectId:
+                        type: string
+                        description: The ID of the project to associate with the timesheet entry.
+                      taskId:
+                        type: string
+                        description: The ID of the task to associate with the timesheet entry.
+                      note:
+                        type: string
+                        description: Optional note to associate with the timesheet entry.
+                    required:
+                      - employeeId
+                      - date
+                      - start
+                      - end
+              required:
+                - entries
+      responses:
+        '200':
+          description: Timesheet clock entries successfully stored or updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Success message.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '406':
+          description: Not Acceptable - The request not acceptable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '409':
+          description: Conflict - There was a conflict with the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
+  /time_tracking/clock_entries/delete:
+    post:
+      summary: Delete Timesheet Clock Entries
+      description: Delete specific timesheet clock entries for employees.
+      operationId: deleteTimesheetClockEntries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clockEntryIds:
+                  type: array
+                  items:
+                    type: integer
+                  description: A list of clock entry IDs to delete.
+              required:
+                - clockEntryIds
+      responses:
+        '204':
+          description: Timesheet clock entries successfully deleted.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '406':
+          description: Not Acceptable - The request not acceptable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '409':
+          description: Conflict - There was a conflict with the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '412':
+          description: Precondition Failed - Invalid time tracking configuration or timezone.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
+  /time_tracking/hour_entries/store:
+    post:
+      summary: Add/Edit Timesheet Hour Entries
+      description: Add or edit timesheet hour entries for employees.
+      operationId: storeTimesheetHourEntries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entries:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      employeeId:
+                        type: string
+                        description: The ID of the employee.
+                      date:
+                        type: string
+                        format: date
+                        description: The date of the hour entry.
+                      hours:
+                        type: number
+                        format: float
+                        description: The number of hours worked.
+                      id:
+                        type: string
+                        description: Unique identifier for the hour entry.
+                      projectId:
+                        type: string
+                        description: The ID of the associated project.
+                      taskId:
+                        type: string
+                        description: The ID of the associated task.
+                      note:
+                        type: string
+                        description: Additional notes for the entry.
+                    required:
+                      - employeeId
+                      - date
+                      - hours
+              required:
+                - entries
+      responses:
+        '200':
+          description: Timesheet hour entries successfully stored or updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Success message.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '406':
+          description: Not Acceptable - The request not acceptable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '409':
+          description: Conflict - There was a conflict with the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
+  /time_tracking/hour_entries/delete:
+    post:
+      summary: Delete Timesheet Hour Entries
+      description: Delete specific timesheet hour entries for employees.
+      operationId: deleteTimesheetHourEntries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hourEntryIds:
+                  type: array
+                  items:
+                    type: integer
+                  description: A list of hour entry IDs to delete.
+              required:
+                - hourEntryIds
+      responses:
+        '204':
+          description: Timesheet hour entries successfully deleted.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '406':
+          description: Not Acceptable - The request not acceptable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '409':
+          description: Conflict - There was a conflict with the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '412':
+          description: Precondition Failed - Invalid time tracking configuration or timezone.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
+  /time_tracking/employees/{employeeId}/clock_in:
+    post:
+      summary: Clock In Employee
+      description: Clock in an employee.
+      operationId: clockInEmployee
+      parameters:
+        - in: path
+          name: employeeId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the employee to clock in.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                projectId:
+                  type: string
+                  description: The ID of the project to associate with the timesheet entry.
+                taskId:
+                  type: string
+                  description: The ID of the task to associate with the timesheet entry.
+                note:
+                  type: string
+                  description: Optional note to associate with the timesheet entry.
+                date:
+                  type: string
+                  format: date
+                  description: Date for the timesheet entry. Must be in YYYY-MM-DD format.
+                start:
+                  type: string
+                  format: time
+                  description: The time for the clock in. In 24 hour format HH:MM.
+                timezone:
+                  type: string
+                  description: The timezone associated with the clock in.
+      responses:
+        '200':
+          description: Employee successfully clocked in.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Success message.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '406':
+          description: Not Acceptable - The request not acceptable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
+  /time_tracking/employees/{employeeId}/clock_out:
+    post:
+      summary: Clock Out Employee
+      description: Clock in an employee.
+      operationId: clockOutEmployee
+      parameters:
+        - in: path
+          name: employeeId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the employee to clock out.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date:
+                  type: string
+                  format: date
+                  description: Date for the timesheet entry. Must be in YYYY-MM-DD format.
+                end:
+                  type: string
+                  format: time
+                  description: The time for the clock out. In 24 hour format HH:MM.
+                timezone:
+                  type: string
+                  description: The timezone associated with the clock out.
+      responses:
+        '200':
+          description: Employee successfully clocked out.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Success message.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '406':
+          description: Not Acceptable - The request not acceptable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
+  /time_tracking/employees/{employeeId}/projects:
+    get:
+      summary: Get Employee Projects
+      description: Get the projects an employee can track time for.
+      operationId: getEmployeeProjects
+      parameters:
+        - in: path
+          name: employeeId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the employee.
+      responses:
+        '200':
+          description: Employee projects successfully retrieved.
+          content:
+            application/json:
+              schema:
+                type: array
+                properties:
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        description: The ID of the employee project.
+                      name:
+                        type: string
+                        description: The name of the employee project.
+                      tasks:
+                        type: array
+                        description: List of project tasks.
+                        properties:
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                                description: The ID of the project task.
+                              name:
+                                type: string
+                                description: The name of the project task.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
+  /time_tracking/projects:
+    post:
+      summary: Create Time Tracking Project
+      description: Create a time tracking project with optional tasks.
+      operationId: createTimeTrackingProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Name of the project.
+                billable:
+                  type: boolean
+                  description: Indicates if the project is billable. Defaults to true if not provided.
+                allowAllEmployees:
+                  type: boolean
+                  description: Indicates if all employees can log time for this project. Defaults to true if not provided.
+                employeeIds:
+                  type: array
+                  description: A list of employee IDs that can log time for this project.
+                  properties:
+                    items:
+                      type: integer
+                hasTasks:
+                  type: boolean
+                  description: Indicates if the project has tasks. Defaults to false if not provided.
+                tasks:
+                  type: array
+                  description: List of tasks to create and associate with the project.
+                  properties:
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          description: Name of the task.
+                        billable:
+                          type: boolean
+                          description: Indicates if the task is billable. Defaults to true if not provided.
+              required:
+                - name
+      responses:
+        '200':
+          description: Time Tracking Project successfully created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    description: Name of the project.
+                  billable:
+                    type: boolean
+                    description: Whether the project is boolean
+                  allowAllEmployees:
+                    type: boolean
+                    description: Whether all employees can log time for this project.
+                  hasTasks:
+                    type: boolean
+                    description: Whether the project has tasks or not.
+                  tasks:
+                    type: array
+                    description: List of tasks to associated with the project.
+                    properties:
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                            description: Name of the task.
+                          billable:
+                            type: boolean
+                            description: Indicates if the task is billable.
+        '400':
+          description: Bad Request - Invalid parameters or missing required fields.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '401':
+          description: Unauthorized - Invalid or missing API key.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '403':
+          description: Forbidden - Insufficient user permissions or API access is not turned on.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the authentication issue.
+        '406':
+          description: Not Acceptable - The request not acceptable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the issue.
+        '500':
+          description: Internal Server Error - Something went wrong on the server.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message describing the server issue.
+      security:
+        - basicAuth: []
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
