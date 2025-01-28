@@ -116,7 +116,9 @@ defmodule BambooHR.Client do
   """
   @spec get_employee(config(), integer(), list(String.t())) :: response()
   def get_employee(config, employee_id, fields) when is_integer(employee_id) do
-    client_module().get("/employees/#{employee_id}", config, params: [fields: Enum.join(fields, ",")])
+    client_module().get("/employees/#{employee_id}", config,
+      params: [fields: Enum.join(fields, ",")]
+    )
   end
 
   @doc """
@@ -261,7 +263,9 @@ defmodule BambooHR.Client do
   """
   @spec clock_in_employee(config(), integer(), map()) :: response()
   def clock_in_employee(config, employee_id, clock_data) when is_integer(employee_id) do
-    client_module().post("/time_tracking/employees/#{employee_id}/clock_in", config, json: clock_data)
+    client_module().post("/time_tracking/employees/#{employee_id}/clock_in", config,
+      json: clock_data
+    )
   end
 
   @doc """
@@ -285,7 +289,9 @@ defmodule BambooHR.Client do
   """
   @spec clock_out_employee(config(), integer(), map()) :: response()
   def clock_out_employee(config, employee_id, clock_data) when is_integer(employee_id) do
-    client_module().post("/time_tracking/employees/#{employee_id}/clock_out", config, json: clock_data)
+    client_module().post("/time_tracking/employees/#{employee_id}/clock_out", config,
+      json: clock_data
+    )
   end
 
   def client_module, do: Application.get_env(:bamboo_hr, :http_client, BambooHR.Client.Req)
