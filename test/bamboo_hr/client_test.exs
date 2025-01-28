@@ -65,6 +65,54 @@ defmodule BambooHR.ClientTest do
     end
   end
 
+  describe "get_company_eins/1" do
+    test "successfully retrieves company EINs", %{bypass: bypass, config: config} do
+      eins_data = %{
+        "eins" => [
+          %{
+            "ein" => "12-3456789",
+            "name" => "Main Company"
+          },
+          %{
+            "ein" => "98-7654321",
+            "name" => "Subsidiary"
+          }
+        ]
+      }
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/company_eins",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(eins_data))
+        end
+      )
+
+      assert {:ok, ^eins_data} = BambooHR.Client.get_company_eins(config)
+    end
+
+    test "handles error response for EINs", %{bypass: bypass, config: config} do
+      error_response = %{"error" => "Forbidden"}
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/company_eins",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(403, Jason.encode!(error_response))
+        end
+      )
+
+      assert {:error, %{status: 403, body: ^error_response}} =
+               BambooHR.Client.get_company_eins(config)
+    end
+  end
+
   describe "get_employee/3" do
     test "successfully retrieves employee information", %{bypass: bypass, config: config} do
       employee_id = 123
