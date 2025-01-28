@@ -213,4 +213,58 @@ defmodule BambooHR.ClientTest do
                BambooHR.Client.update_employee(config, employee_id, update_data)
     end
   end
+
+  describe "get_employee_directory/1" do
+    test "successfully retrieves employee directory", %{bypass: bypass, config: config} do
+      directory_data = %{
+        "employees" => [
+          %{
+            "id" => 123,
+            "displayName" => "John Doe",
+            "jobTitle" => "Developer",
+            "workEmail" => "john.doe@example.com",
+            "workPhone" => "555-0123"
+          },
+          %{
+            "id" => 124,
+            "displayName" => "Jane Smith",
+            "jobTitle" => "Designer",
+            "workEmail" => "jane.smith@example.com",
+            "workPhone" => "555-0124"
+          }
+        ]
+      }
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/employees/directory",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(directory_data))
+        end
+      )
+
+      assert {:ok, ^directory_data} = BambooHR.Client.get_employee_directory(config)
+    end
+
+    test "handles error when retrieving directory", %{bypass: bypass, config: config} do
+      error_response = %{"error" => "Unauthorized"}
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/employees/directory",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(401, Jason.encode!(error_response))
+        end
+      )
+
+      assert {:error, %{status: 401, body: ^error_response}} =
+               BambooHR.Client.get_employee_directory(config)
+    end
+  end
 end
