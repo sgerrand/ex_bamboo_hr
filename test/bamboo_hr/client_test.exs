@@ -160,4 +160,57 @@ defmodule BambooHR.ClientTest do
       assert {:ok, %{"id" => 1}} = BambooHR.Client.add_employee(config, employee_data)
     end
   end
+
+  describe "update_employee/3" do
+    test "successfully updates an employee", %{bypass: bypass, config: config} do
+      employee_id = 123
+
+      update_data = %{
+        "firstName" => "Jane",
+        "lastName" => "Doe",
+        "department" => "Engineering"
+      }
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/employees/#{employee_id}",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == update_data
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, "")
+        end
+      )
+
+      assert {:ok, _} = BambooHR.Client.update_employee(config, employee_id, update_data)
+    end
+
+    test "handles error when updating employee", %{bypass: bypass, config: config} do
+      employee_id = 999
+
+      update_data = %{
+        "firstName" => "Jane",
+        "lastName" => "Doe"
+      }
+
+      error_response = %{"error" => "Employee not found"}
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/employees/#{employee_id}",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(404, Jason.encode!(error_response))
+        end
+      )
+
+      assert {:error, %{status: 404, body: ^error_response}} =
+               BambooHR.Client.update_employee(config, employee_id, update_data)
+    end
+  end
 end
