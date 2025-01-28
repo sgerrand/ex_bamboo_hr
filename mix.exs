@@ -8,6 +8,7 @@ defmodule BambooHR.MixProject do
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      elixirc_paths: elixirc_paths(Mix.env()),
 
       # Hex
       description: "Elixir client for the Bamboo HR API",
@@ -23,9 +24,16 @@ defmodule BambooHR.MixProject do
 
   defp deps do
     [
+      {:jason, "~> 1.4"},
+      {:req, "~> 0.5.0"},
+      {:bypass, "~> 2.1", only: :test},
+      {:mox, "~> 1.0", only: :test},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   defp package do
     [
