@@ -12,7 +12,9 @@ defmodule BambooHR.MixProject do
 
       # Hex
       description: "Elixir client for the Bamboo HR API",
-      package: package()
+      homepage_url: "https://github.com/sgerrand/ex_bamboo_hr",
+      package: package(),
+      source_url: "https://github.com/sgerrand/ex_bamboo_hr"
     ]
   end
 
