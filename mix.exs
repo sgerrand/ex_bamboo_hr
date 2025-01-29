@@ -4,7 +4,7 @@ defmodule BambooHR.MixProject do
   def project do
     [
       app: :bamboo_hr,
-      version: "0.0.0-dev",
+      version: "0.0.0",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
