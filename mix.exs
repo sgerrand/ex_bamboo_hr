@@ -12,7 +12,9 @@ defmodule BambooHR.MixProject do
 
       # Hex
       description: "Elixir client for the Bamboo HR API",
-      package: package()
+      homepage_url: "https://github.com/sgerrand/ex_bamboo_hr",
+      package: package(),
+      source_url: "https://github.com/sgerrand/ex_bamboo_hr"
     ]
   end
 
@@ -28,7 +30,8 @@ defmodule BambooHR.MixProject do
       {:req, "~> 0.5.0"},
       {:bypass, "~> 2.1", only: :test},
       {:mox, "~> 1.0", only: :test},
-      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
+      {:expublish, "~> 2.5", only: [:dev], runtime: false}
     ]
   end
 
