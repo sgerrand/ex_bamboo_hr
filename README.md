@@ -4,13 +4,13 @@ An Elixir client for the [Bamboo HR API][bamboohr-api-docs].
 
 ## Installation
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `bamboo_hr` to your list of dependencies in `mix.exs`:
+The package can be installed by adding `bamboo_hr` to your
+list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:bamboo_hr, "~> 0.0.0-dev"}
+    {:bamboo_hr, "~> 0.1.0"}
   ]
 end
 ```
