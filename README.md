@@ -44,3 +44,7 @@ and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at <https://hexdocs.pm/bamboo_hr>.
 
 [bamboohr-api-docs]: https://documentation.bamboohr.com/reference/
+
+## License
+
+BambooHR is [released under the MIT license](LICENSE).
