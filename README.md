@@ -1,5 +1,7 @@
 # BambooHR
 
+[![Hex Version](https://img.shields.io/hexpm/v/bamboo_hr.svg)](https://hex.pm/packages/bamboo_hr) [![Hex Docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/bamboo_hr/)
+
 An Elixir client for the [Bamboo HR API][bamboohr-api-docs].
 
 ## Installation
@@ -37,14 +39,8 @@ config = BambooHR.Client.new("your_company", "your_api_key")
  }} = BambooHR.Client.get_company_information(config)
 ```
 
-## Documentation
-
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/bamboo_hr>.
-
-[bamboohr-api-docs]: https://documentation.bamboohr.com/reference/
-
 ## License
 
 BambooHR is [released under the MIT license](LICENSE).
+
+[bamboohr-api-docs]: https://documentation.bamboohr.com/reference/
