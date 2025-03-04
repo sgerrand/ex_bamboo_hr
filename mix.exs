@@ -13,8 +13,12 @@ defmodule BambooHR.MixProject do
       # Hex
       description: "Elixir client for the Bamboo HR API",
       homepage_url: "https://github.com/sgerrand/ex_bamboo_hr",
+      source_url: "https://github.com/sgerrand/ex_bamboo_hr",
       package: package(),
-      source_url: "https://github.com/sgerrand/ex_bamboo_hr"
+
+      # Docs
+      name: "BambooHR",
+      docs: docs()
     ]
   end
 
@@ -35,6 +39,15 @@ defmodule BambooHR.MixProject do
     ]
   end
 
+  defp docs do
+    [
+      main: "readme",
+      source_ref: "v#{@version}",
+      source_url: @source_url,
+      extras: ["README.md", "CHANGELOG.md", "LICENSE"]
+    ]
+  end
+
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
@@ -44,6 +57,7 @@ defmodule BambooHR.MixProject do
       licenses: ["MIT"],
       links: %{
         "GitHub" => "https://github.com/sgerrand/ex_bamboo_hr",
+        "Changelog" => "https://hexdocs.pm/bamboo_hr/changelog.html",
         "Sponsor" => "https://github.com/sponsors/sgerrand"
       },
       files: ~w(lib LICENSE mix.exs README.md)
