@@ -23,20 +23,79 @@ To use this client, you'll need information from BambooHR:
 - Your company's subdomain
 - An API key
 
-### Example
+### API Structure
 
-The following code sample illustrates how to use
-`BambooHR.Client.get_company_information/1` to fetch information about your
-company stored in BambooHR via their API.
+The library is organized into several modules, each representing different API resources:
+
+- `BambooHR.Client` - Core client functionality and configuration
+- `BambooHR.Company` - Company information and EINs
+- `BambooHR.Employee` - Employee management
+- `BambooHR.TimeTracking` - Time entries and timesheets
+
+### Examples
+
+#### Getting Started
+
+First, create a client configuration:
 
 ```elixir
 config = BambooHR.Client.new("your_company", "your_api_key")
-{:ok,
- %{
-   "name" => "Acme Corp",
-   "employeeCount" => 100,
-   "city" => "San Francisco"
- }} = BambooHR.Client.get_company_information(config)
+```
+
+#### Company Information
+
+```elixir
+# Get basic company information
+{:ok, company_info} = BambooHR.Company.get_information(config)
+
+# Get company EINs
+{:ok, eins_data} = BambooHR.Company.get_eins(config)
+```
+
+#### Employee Management
+
+```elixir
+# Get employee directory
+{:ok, directory} = BambooHR.Employee.get_directory(config)
+
+# Get specific employee details
+{:ok, employee} = BambooHR.Employee.get(config, 123, ["firstName", "lastName", "jobTitle"])
+
+# Add a new employee
+employee_data = %{"firstName" => "Jane", "lastName" => "Smith"}
+{:ok, result} = BambooHR.Employee.add(config, employee_data)
+
+# Update an employee
+update_data = %{"firstName" => "Jane", "lastName" => "Smith-Jones"}
+{:ok, _} = BambooHR.Employee.update(config, 124, update_data)
+```
+
+#### Time Tracking
+
+```elixir
+# Get timesheet entries
+params = %{
+  "start" => "2024-01-01",
+  "end" => "2024-01-31",
+  "employeeIds" => "123,124"
+}
+{:ok, timesheet_data} = BambooHR.TimeTracking.get_timesheet_entries(config, params)
+
+# Clock in an employee
+clock_data = %{
+  "date" => "2024-01-15",
+  "start" => "09:00",
+  "timezone" => "America/New_York"
+}
+{:ok, _} = BambooHR.TimeTracking.clock_in(config, 123, clock_data)
+
+# Clock out an employee
+clock_out_data = %{
+  "date" => "2024-01-15",
+  "end" => "17:00",
+  "timezone" => "America/New_York"
+}
+{:ok, _} = BambooHR.TimeTracking.clock_out(config, 123, clock_out_data)
 ```
 
 ## License
