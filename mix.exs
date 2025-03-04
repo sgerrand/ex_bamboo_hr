@@ -2,6 +2,7 @@ defmodule BambooHR.MixProject do
   use Mix.Project
 
   @version "0.1.0"
+  @source_url "https://github.com/sgerrand/ex_bamboo_hr"
 
   def project do
     [
@@ -14,8 +15,8 @@ defmodule BambooHR.MixProject do
 
       # Hex
       description: "Elixir client for the Bamboo HR API",
-      homepage_url: "https://github.com/sgerrand/ex_bamboo_hr",
-      source_url: "https://github.com/sgerrand/ex_bamboo_hr",
+      homepage_url: @source_url,
+      source_url: @source_url,
       package: package(),
 
       # Docs
@@ -58,7 +59,7 @@ defmodule BambooHR.MixProject do
       maintainers: ["Sasha Gerrand"],
       licenses: ["MIT"],
       links: %{
-        "GitHub" => "https://github.com/sgerrand/ex_bamboo_hr",
+        "GitHub" => @source_url,
         "Changelog" => "https://hexdocs.pm/bamboo_hr/changelog.html",
         "Sponsor" => "https://github.com/sponsors/sgerrand"
       },
