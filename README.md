@@ -12,7 +12,7 @@ list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:bamboo_hr, "~> 0.1.0"}
+    {:bamboo_hr, "~> 0.2"}
   ]
 end
 ```
