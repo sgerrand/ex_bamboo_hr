@@ -8,6 +8,15 @@ on:
       - main
 
 jobs:
+  required:
+    name: Required
+    needs: [docs, test]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Status of workflow jobs
+        run: echo 'All jobs in this workflow have successfully run'
+
   docs:
     name: Documentation
     runs-on: ubuntu-latest
