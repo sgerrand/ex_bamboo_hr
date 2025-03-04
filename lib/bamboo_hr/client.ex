@@ -11,6 +11,7 @@ defmodule BambooHR.Client do
   ## Usage
 
       client = BambooHR.Client.new("your_company", "your_api_key")
+      {:ok, company_info} = BambooHR.Company.get_information(client)
   """
 
   @type config :: %{
@@ -32,7 +33,7 @@ defmodule BambooHR.Client do
 
   ## Examples
 
-      iex> config = BambooHR.Client.new("acme", "api_key_123")
+      iex> client = BambooHR.Client.new("acme", "api_key_123")
       %{
         company_domain: "acme",
         api_key: "api_key_123",
@@ -40,7 +41,7 @@ defmodule BambooHR.Client do
       }
 
       # With custom base URL
-      iex> config = BambooHR.Client.new("acme", "api_key_123", "https://custom-api.example.com")
+      iex> client = BambooHR.Client.new("acme", "api_key_123", "https://custom-api.example.com")
       %{
         company_domain: "acme",
         api_key: "api_key_123",
