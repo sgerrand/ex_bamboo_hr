@@ -54,7 +54,7 @@ jobs:
       run: mix deps.get
 
     - name: Add changelog entry
-      run: echo "${{ inputs.changes }}" > RELEASE.md
+      run: echo -e "${{ inputs.changes }}" > RELEASE.md
 
     - name: Bump version, generate changelog, push to git, publish on hex.pm
       run: mix expublish.${{ inputs.version }} --branch=main --disable-test
