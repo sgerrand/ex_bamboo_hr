@@ -4,7 +4,10 @@ defmodule BambooHR.EmployeeTest do
   setup do
     bypass = Bypass.open()
     base_url = "http://localhost:#{bypass.port}/api/gateway.php"
-    config = BambooHR.Client.new("test_company", "test_key", base_url)
+
+    config =
+      BambooHR.Client.new(company_domain: "test_company", api_key: "test_key", base_url: base_url)
+
     [bypass: bypass, config: config]
   end
 

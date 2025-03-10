@@ -10,7 +10,7 @@ defmodule BambooHR.TimeTracking do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `params` - Map containing query parameters (start, end dates, and optional employee IDs)
 
   ## Examples
@@ -32,7 +32,7 @@ defmodule BambooHR.TimeTracking do
         ]
       }}
   """
-  @spec get_timesheet_entries(Client.config(), map()) :: Client.response()
+  @spec get_timesheet_entries(Client.t(), map()) :: Client.response()
   def get_timesheet_entries(client, params) do
     Client.get("/time_tracking/timesheet_entries", client, params: params)
   end
@@ -42,7 +42,7 @@ defmodule BambooHR.TimeTracking do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `entries` - List of clock entry maps containing employee ID, date, start and end times
 
   ## Examples
@@ -58,7 +58,7 @@ defmodule BambooHR.TimeTracking do
       iex> BambooHR.TimeTracking.store_clock_entries(client, entries)
       {:ok, %{"message" => "Entries stored successfully"}}
   """
-  @spec store_clock_entries(Client.config(), list(map())) :: Client.response()
+  @spec store_clock_entries(Client.t(), list(map())) :: Client.response()
   def store_clock_entries(client, entries) do
     Client.post("/time_tracking/clock_entries/store", client, json: %{items: entries})
   end
@@ -68,7 +68,7 @@ defmodule BambooHR.TimeTracking do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `employee_id` - The ID of the employee to clock in
     * `clock_data` - Map containing clock-in details (date, start time, timezone, etc.)
 
@@ -82,7 +82,7 @@ defmodule BambooHR.TimeTracking do
       iex> BambooHR.TimeTracking.clock_in(client, 123, clock_data)
       {:ok, %{"message" => "Successfully clocked in"}}
   """
-  @spec clock_in(Client.config(), integer(), map()) :: Client.response()
+  @spec clock_in(Client.t(), integer(), map()) :: Client.response()
   def clock_in(client, employee_id, clock_data) when is_integer(employee_id) do
     Client.post("/time_tracking/employees/#{employee_id}/clock_in", client, json: clock_data)
   end
@@ -92,7 +92,7 @@ defmodule BambooHR.TimeTracking do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `employee_id` - The ID of the employee to clock out
     * `clock_data` - Map containing clock-out details (date, end time, timezone)
 
@@ -106,7 +106,7 @@ defmodule BambooHR.TimeTracking do
       iex> BambooHR.TimeTracking.clock_out(client, 123, clock_data)
       {:ok, %{"message" => "Successfully clocked out"}}
   """
-  @spec clock_out(Client.config(), integer(), map()) :: Client.response()
+  @spec clock_out(Client.t(), integer(), map()) :: Client.response()
   def clock_out(client, employee_id, clock_data) when is_integer(employee_id) do
     Client.post("/time_tracking/employees/#{employee_id}/clock_out", client, json: clock_data)
   end

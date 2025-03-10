@@ -10,7 +10,7 @@ defmodule BambooHR.Employee do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `employee_id` - The ID of the employee to retrieve
     * `fields` - List of field names to retrieve (e.g., ["firstName", "lastName", "jobTitle"])
 
@@ -23,7 +23,7 @@ defmodule BambooHR.Employee do
         "jobTitle" => "Software Engineer"
       }}
   """
-  @spec get(Client.config(), integer(), list(String.t())) :: Client.response()
+  @spec get(Client.t(), integer(), list(String.t())) :: Client.response()
   def get(client, employee_id, fields) when is_integer(employee_id) do
     Client.get("/employees/#{employee_id}", client, params: [fields: Enum.join(fields, ",")])
   end
@@ -33,7 +33,7 @@ defmodule BambooHR.Employee do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `employee_data` - Map containing the employee information (firstName and lastName are required)
 
   ## Examples
@@ -42,7 +42,7 @@ defmodule BambooHR.Employee do
       iex> BambooHR.Employee.add(client, employee_data)
       {:ok, %{"id" => 124}}
   """
-  @spec add(Client.config(), map()) :: Client.response()
+  @spec add(Client.t(), map()) :: Client.response()
   def add(client, employee_data) do
     Client.post("/employees", client, json: employee_data)
   end
@@ -52,7 +52,7 @@ defmodule BambooHR.Employee do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `employee_id` - The ID of the employee to update
     * `employee_data` - Map containing the updated employee information
 
@@ -62,7 +62,7 @@ defmodule BambooHR.Employee do
       iex> BambooHR.Employee.update(client, 124, update_data)
       {:ok, %{}}
   """
-  @spec update(Client.config(), integer(), map()) :: Client.response()
+  @spec update(Client.t(), integer(), map()) :: Client.response()
   def update(client, employee_id, employee_data) when is_integer(employee_id) do
     Client.post("/employees/#{employee_id}", client, json: employee_data)
   end
@@ -74,7 +74,7 @@ defmodule BambooHR.Employee do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
 
   ## Examples
 
@@ -90,7 +90,7 @@ defmodule BambooHR.Employee do
         ]
       }}
   """
-  @spec get_directory(Client.config()) :: Client.response()
+  @spec get_directory(Client.t()) :: Client.response()
   def get_directory(client) do
     Client.get("/employees/directory", client)
   end

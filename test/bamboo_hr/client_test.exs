@@ -4,13 +4,16 @@ defmodule BambooHR.ClientTest do
   setup do
     bypass = Bypass.open()
     base_url = "http://localhost:#{bypass.port}/api/gateway.php"
-    config = BambooHR.Client.new("test_company", "test_key", base_url)
+
+    config =
+      BambooHR.Client.new(company_domain: "test_company", api_key: "test_key", base_url: base_url)
+
     {:ok, bypass: bypass, config: config}
   end
 
   describe "new/3" do
     test "creates config with default base URL" do
-      config = BambooHR.Client.new("test_company", "test_key")
+      config = BambooHR.Client.new(company_domain: "test_company", api_key: "test_key")
       assert config.company_domain == "test_company"
       assert config.api_key == "test_key"
       assert config.base_url == "https://api.bamboohr.com/api/gateway.php"
@@ -18,7 +21,14 @@ defmodule BambooHR.ClientTest do
 
     test "creates config with custom base URL" do
       custom_url = "https://custom-bamboohr.example.com"
-      config = BambooHR.Client.new("test_company", "test_key", custom_url)
+
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          base_url: custom_url
+        )
+
       assert config.company_domain == "test_company"
       assert config.api_key == "test_key"
       assert config.base_url == custom_url

@@ -39,7 +39,18 @@ The library is organized into several modules, each representing different API r
 First, create a client configuration:
 
 ```elixir
-config = BambooHR.Client.new("your_company", "your_api_key")
+config = BambooHR.Client.new(company_domain: "your_company", api_key: "your_api_key")
+```
+
+You can also specify optional parameters:
+
+```elixir
+config = BambooHR.Client.new(
+  company_domain: "your_company",
+  api_key: "your_api_key",
+  base_url: "https://custom-api.example.com",
+  http_client: YourCustomHTTPClient
+)
 ```
 
 #### Company Information
