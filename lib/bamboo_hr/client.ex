@@ -10,7 +10,7 @@ defmodule BambooHR.Client do
 
   ## Usage
 
-      client = BambooHR.Client.new("your_company", "your_api_key")
+      client = BambooHR.Client.new(company_domain: "your_company", api_key: "your_api_key")
       {:ok, company_info} = BambooHR.Company.get_information(client)
   """
 

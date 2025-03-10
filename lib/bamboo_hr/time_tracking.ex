@@ -10,7 +10,7 @@ defmodule BambooHR.TimeTracking do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `params` - Map containing query parameters (start, end dates, and optional employee IDs)
 
   ## Examples
@@ -42,7 +42,7 @@ defmodule BambooHR.TimeTracking do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `entries` - List of clock entry maps containing employee ID, date, start and end times
 
   ## Examples
@@ -68,7 +68,7 @@ defmodule BambooHR.TimeTracking do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `employee_id` - The ID of the employee to clock in
     * `clock_data` - Map containing clock-in details (date, start time, timezone, etc.)
 
@@ -92,7 +92,7 @@ defmodule BambooHR.TimeTracking do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `employee_id` - The ID of the employee to clock out
     * `clock_data` - Map containing clock-out details (date, end time, timezone)
 

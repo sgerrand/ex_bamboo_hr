@@ -10,7 +10,7 @@ defmodule BambooHR.Employee do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `employee_id` - The ID of the employee to retrieve
     * `fields` - List of field names to retrieve (e.g., ["firstName", "lastName", "jobTitle"])
 
@@ -33,7 +33,7 @@ defmodule BambooHR.Employee do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `employee_data` - Map containing the employee information (firstName and lastName are required)
 
   ## Examples
@@ -52,7 +52,7 @@ defmodule BambooHR.Employee do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `employee_id` - The ID of the employee to update
     * `employee_data` - Map containing the updated employee information
 
@@ -74,7 +74,7 @@ defmodule BambooHR.Employee do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
 
   ## Examples
 

@@ -12,7 +12,7 @@ defmodule BambooHR.Company do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
 
   ## Examples
 
@@ -35,7 +35,7 @@ defmodule BambooHR.Company do
 
   ## Parameters
 
-    * `client` - Client configuration created with `BambooHR.Client.new/3`
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
 
   ## Examples
 
