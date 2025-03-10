@@ -23,7 +23,7 @@ defmodule BambooHR.Company do
         "city" => "San Francisco"
       }}
   """
-  @spec get_information(Client.config()) :: Client.response()
+  @spec get_information(client :: Client.t()) :: Client.response()
   def get_information(client) do
     Client.get("/company_information", client)
   end
@@ -47,7 +47,7 @@ defmodule BambooHR.Company do
         ]
       }}
   """
-  @spec get_eins(Client.config()) :: Client.response()
+  @spec get_eins(Client.t()) :: Client.response()
   def get_eins(client) do
     Client.get("/company_eins", client)
   end
