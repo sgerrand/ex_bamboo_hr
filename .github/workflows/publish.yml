@@ -14,12 +14,7 @@ on:
         required: true
 
 jobs:
-  ci:
-    uses: ./.github/workflows/ci.yml
-    secrets: inherit
-
   publish:
-    needs: [ci]
     name: Build and publish to hex.pm
     runs-on: ubuntu-22.04
     env:
@@ -38,6 +33,7 @@ jobs:
         git config --global user.name "github-actions[bot]"
 
     - name: Setup Elixir
+      id: setup-beam
       uses: erlef/setup-elixir@v1
       with:
         version-file: '.tool-versions'
@@ -47,8 +43,8 @@ jobs:
       uses: actions/cache@v4
       with:
         path: deps
-        key: ${{ runner.os }}-publish-mix-${{ hashFiles('**/mix.lock') }}
-        restore-keys: ${{ runner.os }}-publish-mix-
+        key: ${{ runner.os }}-publish-mix-${{ steps.setup-beam.outputs.elixir-version }}-${{ steps.setup-beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
+        restore-keys: ${{ runner.os }}-publish-mix-${{ steps.setup-beam.outputs.elixir-version }}-${{ steps.setup-beam.outputs.otp-version }}-
 
     - name: Install deps
       run: mix deps.get
@@ -57,4 +53,4 @@ jobs:
       run: echo -e "${{ inputs.changes }}" > RELEASE.md
 
     - name: Bump version, generate changelog, push to git, publish on hex.pm
-      run: mix expublish.${{ inputs.version }} --branch=main --disable-test
+      run: mix expublish.${{ inputs.version }} --branch=main
