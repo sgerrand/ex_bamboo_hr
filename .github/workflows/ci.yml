@@ -98,3 +98,8 @@ jobs:
       if: ${{ matrix.lint }}
     - name: Run tests
       run: mix test --warnings-as-errors
+    - name: Report code coverage to Coveralls
+      run: mix coveralls.github
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      if: ${{ matrix.lint }}
