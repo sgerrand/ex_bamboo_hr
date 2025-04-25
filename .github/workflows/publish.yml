@@ -14,12 +14,7 @@ on:
         required: true
 
 jobs:
-  ci:
-    uses: ./.github/workflows/ci.yml
-    secrets: inherit
-
   publish:
-    needs: [ci]
     name: Build and publish to hex.pm
     runs-on: ubuntu-22.04
     env:
@@ -57,4 +52,4 @@ jobs:
       run: echo -e "${{ inputs.changes }}" > RELEASE.md
 
     - name: Bump version, generate changelog, push to git, publish on hex.pm
-      run: mix expublish.${{ inputs.version }} --branch=main --disable-test
+      run: mix expublish.${{ inputs.version }} --branch=main
