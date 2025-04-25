@@ -12,6 +12,14 @@ defmodule BambooHR.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       elixirc_paths: elixirc_paths(Mix.env()),
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.html": :test
+      ],
+      test_coverage: [
+        ignore_modules: [BambooHR],
+        tool: ExCoveralls
+      ],
 
       # Hex
       description: "Elixir client for the Bamboo HR API",
