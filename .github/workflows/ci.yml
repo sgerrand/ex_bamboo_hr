@@ -86,7 +86,7 @@ jobs:
     - name: Check that mix.lock is up to date
       run: mix deps.get --check-locked
       if: ${{ matrix.lint }}
-    - name: Check code format
+    - name: Check that files are formatted
       run: mix format --check-formatted
       if: ${{ matrix.lint }}
     - name: Compile code
