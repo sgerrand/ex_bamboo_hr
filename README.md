@@ -1,6 +1,9 @@
 # BambooHR
 
-[![Hex Version](https://img.shields.io/hexpm/v/bamboo_hr.svg)](https://hex.pm/packages/bamboo_hr) [![Hex Docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/bamboo_hr/)
+[![Test Status](https://github.com/sgerrand/ex_bamboo_hr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sgerrand/ex_bamboo_hr/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/sgerrand/ex_bamboo_hr/badge.svg?branch=main)](https://coveralls.io/github/sgerrand/ex_bamboo_hr?branch=main)
+[![Hex Version](https://img.shields.io/hexpm/v/bamboo_hr.svg)](https://hex.pm/packages/bamboo_hr)
+[![Hex Docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/bamboo_hr/)
 
 An Elixir client for the [Bamboo HR API][bamboohr-api-docs].
 
