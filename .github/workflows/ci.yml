@@ -53,6 +53,10 @@ jobs:
   test:
     name: Tests (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
     runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      pull-requests: write
 
     strategy:
       fail-fast: false
