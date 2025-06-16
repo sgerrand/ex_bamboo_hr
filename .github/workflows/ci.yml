@@ -12,6 +12,8 @@ jobs:
     needs: [docs, test]
     runs-on: ubuntu-latest
 
+    permissions: {}
+
     steps:
       - name: Status of workflow jobs
         run: echo 'All jobs in this workflow have successfully run'
@@ -19,6 +21,8 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
+
+    permissions: {}
 
     env:
       MIX_ENV: dev
@@ -49,6 +53,10 @@ jobs:
   test:
     name: Tests (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
     runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      pull-requests: write
 
     strategy:
       fail-fast: false
