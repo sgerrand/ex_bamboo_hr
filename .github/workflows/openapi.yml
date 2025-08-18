@@ -16,7 +16,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup problem matchers
         uses: r7kamura/redocly-problem-matchers@v1
       - name: Lint OpenAPI schema
