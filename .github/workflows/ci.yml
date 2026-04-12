@@ -28,6 +28,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
     - name: Set up Elixir
       id: setup-beam
       uses: erlef/setup-beam@v1
@@ -72,6 +74,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
     - name: Set up Elixir
       uses: erlef/setup-beam@v1
       with:
