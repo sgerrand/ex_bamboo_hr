@@ -16,13 +16,13 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       - name: Setup problem matchers
-        uses: r7kamura/redocly-problem-matchers@v1
+        uses: r7kamura/redocly-problem-matchers@3b6f82af579316596ff52f605498423b2a69e483 # v1.2.0
       - name: Lint OpenAPI schema
-        uses: mhiew/redoc-lint-github-action@v4
+        uses: mhiew/redoc-lint-github-action@1b3526395495e5c1346ebb81a67813aee757e86b # v4
         with:
           args: docs/openapi.yaml --format stylish
         env:
