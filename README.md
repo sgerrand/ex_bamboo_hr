@@ -59,7 +59,7 @@ config = BambooHR.Client.new(
 ```
 
 | Option | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `:base_url` | BambooHR API URL | Override the API base URL |
 | `:http_client` | `BambooHR.HTTPClient.Req` | Custom HTTP client module |
 | `:timeout` | `15_000` | HTTP receive timeout in milliseconds |
