@@ -3,7 +3,6 @@
   "packages": {
     ".": {
       "release-type": "elixir",
-      "package-name": "bamboo_hr",
       "changelog-path": "CHANGELOG.md",
       "changelog-sections": [
         {"type": "feat", "section": "Added"},
