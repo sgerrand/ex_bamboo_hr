@@ -23,6 +23,7 @@ end
 ## Usage
 
 To use this client, you'll need information from BambooHR:
+
 - Your company's subdomain
 - An API key
 
@@ -145,7 +146,7 @@ mix deps.unlock --check-unused  # Check for unused dependencies
 Hooks run automatically on `git commit` (in parallel):
 
 | Hook | Files |
-|---|---|
+| --- | --- |
 | `mix format --check-formatted` | `*.ex`, `*.exs` |
 | `actionlint` | `.github/workflows/*.yml` |
 | `check-jsonschema` (workflow schema) | `.github/workflows/*.yml` |

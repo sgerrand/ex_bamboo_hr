@@ -3,6 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Build/Test/Lint Commands
+
 - Setup environment: `mix setup`
 - Run all tests: `mix test`
 - Run single test: `mix test path/to/test_file.exs:line_number`
@@ -20,7 +21,8 @@ This is an Elixir client library for the BambooHR API, published as `bamboo_hr` 
 ### Module Structure
 
 **Dependency flow:**
-```
+
+```text
 Company / Employee / TimeTracking  (resource modules)
          ↓
       BambooHR.Client              (HTTP routing + auth)
@@ -35,26 +37,31 @@ Company / Employee / TimeTracking  (resource modules)
 - `BambooHR.Company`, `BambooHR.Employee`, `BambooHR.TimeTracking` — Resource modules that delegate to `Client.get/3` or `Client.post/3`. All public functions return `{:ok, data} | {:error, reason}`.
 
 ### Testing Patterns
+
 - Bypass library mocks the HTTP layer at the TCP level (not Mox) for integration-style tests.
 - Each test module sets up a Bypass instance and builds a `Client.t()` pointing at the local Bypass port.
 - Tests run `async: true`.
 
 ## Code Style Guidelines
+
 - All public functions must have `@spec` type specs and `@doc` documentation.
 - Handle errors with pattern matching; never raise from public API functions.
 - No Ecto in this project — remove the `has_many`/`belongs_to` guideline if it appears elsewhere.
 
 ## CI
+
 - Test matrix: Elixir 1.17/1.18/1.19 × OTP 25/26/27/28, with unsupported combinations excluded (1.17+28, 1.18+28, 1.19+25). Linting and coverage run only on Elixir 1.19 + OTP 28.
 - Compilation, tests, and docs all use `--warnings-as-errors`.
 - `actionlint` runs shellcheck on `run:` blocks; use `# shellcheck disable=SC1010` for `mix do` steps (false positive — `do` is a Mix keyword, not a shell keyword).
 
 ## Development Setup
+
 - Install dev tooling and activate hooks: `./bin/setup && mix setup`
 - `./bin/setup` installs actionlint, check-jsonschema, and lefthook via Homebrew, then runs `lefthook install`
 - Pre-commit hooks run in parallel: `mix format --check-formatted`, `actionlint`, `check-jsonschema` (workflow schema + dependabot schema)
 
 ## Git Flow
+
 - Branch naming: `feature-description-ticket-id`
 - PRs should include tests and documentation updates
 
