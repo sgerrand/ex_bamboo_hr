@@ -12,12 +12,24 @@ permissions:
 jobs:
   required:
     name: Required
-    needs: [docs, test]
+    needs: [docs, lint-markdown, test]
     runs-on: ubuntu-latest
 
     steps:
       - name: Status of workflow jobs
         run: echo 'All jobs in this workflow have successfully run'
+
+  lint-markdown:
+    name: Markdown lint
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+    - uses: DavidAnson/markdownlint-cli2-action@ce4853d43830c74c1753b39f3cf40f71c2031eb9 # v23.0.0
+      with:
+        globs: "**/*.md"
 
   docs:
     name: Documentation

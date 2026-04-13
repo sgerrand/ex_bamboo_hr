@@ -13,3 +13,6 @@ pre-commit:
     check-dependabot:
       glob: ".github/dependabot.{yml,yaml}"
       run: check-jsonschema --builtin-schema vendor.dependabot {staged_files}
+    markdownlint:
+      glob: "*.md"
+      run: markdownlint-cli2 {staged_files}
