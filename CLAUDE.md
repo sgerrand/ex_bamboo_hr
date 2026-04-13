@@ -45,8 +45,9 @@ Company / Employee / TimeTracking  (resource modules)
 - No Ecto in this project — remove the `has_many`/`belongs_to` guideline if it appears elsewhere.
 
 ## CI
-- Test matrix: Elixir 1.17/1.18 × OTP 25/26/27. Linting and coverage run only on Elixir 1.18 + OTP 27.
+- Test matrix: Elixir 1.17/1.18/1.19 × OTP 25/26/27/28, with unsupported combinations excluded (1.17+28, 1.18+28, 1.19+25). Linting and coverage run only on Elixir 1.19 + OTP 28.
 - Compilation, tests, and docs all use `--warnings-as-errors`.
+- `actionlint` runs shellcheck on `run:` blocks; use `# shellcheck disable=SC1010` for `mix do` steps (false positive — `do` is a Mix keyword, not a shell keyword).
 
 ## Development Setup
 - Install dev tooling and activate hooks: `./bin/setup && mix setup`
