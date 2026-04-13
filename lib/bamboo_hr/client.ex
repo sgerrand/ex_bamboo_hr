@@ -18,12 +18,13 @@ defmodule BambooHR.Client do
           company_domain: String.t(),
           api_key: String.t(),
           base_url: String.t(),
-          http_client: module()
+          http_client: module(),
+          timeout: non_neg_integer()
         }
 
   @type response :: {:ok, map()} | {:error, any()}
 
-  defstruct [:company_domain, :api_key, :base_url, :http_client]
+  defstruct [:company_domain, :api_key, :base_url, :http_client, :timeout]
 
   @doc """
   Creates a new client configuration.
@@ -34,6 +35,7 @@ defmodule BambooHR.Client do
     * `:api_key` - Your API key
     * `:base_url` - Optional. Custom base URL for the API (defaults to BambooHR's standard API URL)
     * `:http_client` - Optional. Module that implements the `HTTPClient` behavior. Defaults to `BambooHR.HTTPClient.Req`.
+    * `:timeout` - Optional. HTTP receive timeout in milliseconds. Defaults to `15_000`.
 
   ## Examples
 
@@ -60,12 +62,14 @@ defmodule BambooHR.Client do
     api_key = Keyword.fetch!(opts, :api_key)
     base_url = Keyword.get(opts, :base_url, "https://api.bamboohr.com/api/gateway.php")
     http_client = Keyword.get(opts, :http_client, BambooHR.HTTPClient.Req)
+    timeout = Keyword.get(opts, :timeout, 15_000)
 
     %__MODULE__{
       company_domain: company_domain,
       api_key: api_key,
       base_url: base_url,
-      http_client: http_client
+      http_client: http_client,
+      timeout: timeout
     }
   end
 
@@ -93,7 +97,11 @@ defmodule BambooHR.Client do
     url = build_url(client, path)
     headers = build_headers(client.api_key)
 
-    req_opts = Keyword.merge([headers: headers, method: method, url: url], opts)
+    req_opts =
+      Keyword.merge(
+        [headers: headers, method: method, url: url, receive_timeout: client.timeout],
+        opts
+      )
 
     client.http_client.request(req_opts)
   end

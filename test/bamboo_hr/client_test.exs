@@ -33,6 +33,18 @@ defmodule BambooHR.ClientTest do
       assert config.api_key == "test_key"
       assert config.base_url == custom_url
     end
+
+    test "defaults timeout to 15_000" do
+      config = BambooHR.Client.new(company_domain: "test_company", api_key: "test_key")
+      assert config.timeout == 15_000
+    end
+
+    test "stores custom timeout value" do
+      config =
+        BambooHR.Client.new(company_domain: "test_company", api_key: "test_key", timeout: 30_000)
+
+      assert config.timeout == 30_000
+    end
   end
 
   describe "get/3" do
