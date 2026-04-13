@@ -1,0 +1,15 @@
+pre-commit:
+  parallel: true
+  commands:
+    mix-format:
+      glob: "*.{ex,exs}"
+      run: mix format --check-formatted
+    actionlint:
+      glob: ".github/workflows/*.yml"
+      run: actionlint {staged_files}
+    check-github-workflows:
+      glob: ".github/workflows/*.yml"
+      run: check-jsonschema --builtin-schema vendor.github-workflows {staged_files}
+    check-dependabot:
+      glob: ".github/dependabot.{yml,yaml}"
+      run: check-jsonschema --builtin-schema vendor.dependabot {staged_files}
