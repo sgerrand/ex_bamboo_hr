@@ -53,9 +53,16 @@ config = BambooHR.Client.new(
   company_domain: "your_company",
   api_key: "your_api_key",
   base_url: "https://custom-api.example.com",
-  http_client: YourCustomHTTPClient
+  http_client: YourCustomHTTPClient,
+  timeout: 30_000
 )
 ```
+
+| Option | Default | Description |
+|---|---|---|
+| `:base_url` | BambooHR API URL | Override the API base URL |
+| `:http_client` | `BambooHR.HTTPClient.Req` | Custom HTTP client module |
+| `:timeout` | `15_000` | HTTP receive timeout in milliseconds |
 
 #### Company Information
 

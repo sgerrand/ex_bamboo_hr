@@ -8,6 +8,11 @@ defmodule BambooHR.Client do
   - Your company's subdomain
   - An API key
 
+  Optional configuration:
+  - `:base_url` — override the default API base URL
+  - `:http_client` — swap in a custom HTTP client module
+  - `:timeout` — HTTP receive timeout in milliseconds (default: `15_000`)
+
   ## Usage
 
       client = BambooHR.Client.new(company_domain: "your_company", api_key: "your_api_key")
@@ -44,16 +49,18 @@ defmodule BambooHR.Client do
         company_domain: "acme",
         api_key: "api_key_123",
         base_url: "https://api.bamboohr.com/api/gateway.php",
-        http_client: BambooHR.HTTPClient.Req
+        http_client: BambooHR.HTTPClient.Req,
+        timeout: 15_000
       }
 
-      # With custom base URL
-      iex> client = BambooHR.Client.new(company_domain: "acme", api_key: "api_key_123", base_url: "https://custom-api.example.com")
+      # With custom base URL and timeout
+      iex> client = BambooHR.Client.new(company_domain: "acme", api_key: "api_key_123", base_url: "https://custom-api.example.com", timeout: 30_000)
       %{
         company_domain: "acme",
         api_key: "api_key_123",
         base_url: "https://custom-api.example.com",
-        http_client: BambooHR.HTTPClient.Req
+        http_client: BambooHR.HTTPClient.Req,
+        timeout: 30_000
       }
   """
   @spec new(Keyword.t()) :: t()
