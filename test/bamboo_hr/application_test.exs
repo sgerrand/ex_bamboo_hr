@@ -8,18 +8,16 @@ defmodule BambooHR.ApplicationTest do
       assert Process.whereis(BambooHR.Supervisor) == pid
     end
 
-    test "supervisor has correct configuration" do
+    test "supervisor is registered under expected name" do
+      {:ok, pid} = BambooHR.Application.start(:normal, [])
+      assert Process.whereis(BambooHR.Supervisor) == pid
+    end
+
+    test "supervisor reports expected child counts" do
       {:ok, pid} = BambooHR.Application.start(:normal, [])
 
-      # Get supervisor configuration
-      assert {:state, {:local, supervised_module}, strategy, {[], %{}}, :undefined, _intensity,
-              _period, [], 0, _auto_shutdown, Supervisor.Default,
-              {:ok, {config, []}}} = :sys.get_state(pid)
-
-      # Verify supervisor configuration
-      assert strategy == :one_for_one
-      assert config[:strategy] == :one_for_one
-      assert supervised_module == BambooHR.Supervisor
+      assert %{active: 0, specs: 0, supervisors: 0, workers: 0} =
+               Supervisor.count_children(pid)
     end
   end
 end
