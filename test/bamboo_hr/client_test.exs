@@ -53,6 +53,19 @@ defmodule BambooHR.ClientTest do
       assert {:ok, ^response_data} = BambooHR.Client.get("/test_path", config)
     end
 
+    test "handles 200 response with empty body", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn ->
+          Plug.Conn.resp(conn, 200, "")
+        end
+      )
+
+      assert {:ok, nil} = BambooHR.Client.get("/test_path", config)
+    end
+
     test "handles error response for GET", %{bypass: bypass, config: config} do
       error_response = %{"error" => "Not found"}
 
@@ -67,8 +80,10 @@ defmodule BambooHR.ClientTest do
         end
       )
 
-      assert {:error, %{status: 404, body: ^error_response}} =
+      assert {:error, %{status: 404, body: body}} =
                BambooHR.Client.get("/test_path", config)
+
+      assert Jason.decode!(body) == error_response
     end
 
     test "handles unexpected error for GET", %{bypass: bypass, config: config} do
@@ -126,8 +141,10 @@ defmodule BambooHR.ClientTest do
         end
       )
 
-      assert {:error, %{status: 400, body: ^error_response}} =
+      assert {:error, %{status: 400, body: body}} =
                BambooHR.Client.post("/test_path", config, json: request_data)
+
+      assert Jason.decode!(body) == error_response
     end
   end
 end

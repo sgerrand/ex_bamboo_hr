@@ -83,7 +83,7 @@ defmodule BambooHR.EmployeeTest do
         end
       )
 
-      assert {:ok, _} = BambooHR.Employee.update(config, employee_id, update_data)
+      assert {:ok, nil} = BambooHR.Employee.update(config, employee_id, update_data)
     end
 
     test "handles error when updating employee", %{bypass: bypass, config: config} do
@@ -107,8 +107,10 @@ defmodule BambooHR.EmployeeTest do
         end
       )
 
-      assert {:error, %{status: 404, body: ^error_response}} =
+      assert {:error, %{status: 404, body: body}} =
                BambooHR.Employee.update(config, employee_id, update_data)
+
+      assert Jason.decode!(body) == error_response
     end
   end
 
@@ -161,8 +163,10 @@ defmodule BambooHR.EmployeeTest do
         end
       )
 
-      assert {:error, %{status: 401, body: ^error_response}} =
+      assert {:error, %{status: 401, body: body}} =
                BambooHR.Employee.get_directory(config)
+
+      assert Jason.decode!(body) == error_response
     end
   end
 end

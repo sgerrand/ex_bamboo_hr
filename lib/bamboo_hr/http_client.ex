@@ -15,9 +15,11 @@ defmodule BambooHR.HTTPClient.Req do
 
   @impl true
   def request(opts) do
+    opts = Keyword.put(opts, :decode_body, false)
+
     case Req.request(opts) do
       {:ok, %{status: status, body: body}} when status in 200..299 ->
-        {:ok, body}
+        decode_body(body)
 
       {:ok, %{status: status, body: body}} ->
         {:error, %{status: status, body: body}}
@@ -26,4 +28,7 @@ defmodule BambooHR.HTTPClient.Req do
         {:error, error}
     end
   end
+
+  defp decode_body(""), do: {:ok, nil}
+  defp decode_body(body), do: Jason.decode(body)
 end
