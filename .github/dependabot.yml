@@ -13,6 +13,11 @@ updates:
       include: scope
     groups:
       actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      security:
+        applies-to: security-updates
         patterns:
           - "*"
   - package-ecosystem: mix
@@ -27,5 +32,10 @@ updates:
       include: scope
     groups:
       elixir:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      security:
+        applies-to: security-updates
         patterns:
           - "*"
