@@ -53,6 +53,19 @@ defmodule BambooHR.ClientTest do
       assert {:ok, ^response_data} = BambooHR.Client.get("/test_path", config)
     end
 
+    test "handles 200 response with empty body", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn ->
+          Plug.Conn.resp(conn, 200, "")
+        end
+      )
+
+      assert {:ok, nil} = BambooHR.Client.get("/test_path", config)
+    end
+
     test "handles error response for GET", %{bypass: bypass, config: config} do
       error_response = %{"error" => "Not found"}
 
@@ -67,8 +80,10 @@ defmodule BambooHR.ClientTest do
         end
       )
 
-      assert {:error, %{status: 404, body: ^error_response}} =
+      assert {:error, %{status: 404, body: body}} =
                BambooHR.Client.get("/test_path", config)
+
+      assert Jason.decode!(body) == error_response
     end
 
     test "handles unexpected error for GET", %{bypass: bypass, config: config} do
@@ -111,6 +126,57 @@ defmodule BambooHR.ClientTest do
                BambooHR.Client.post("/test_path", config, json: request_data)
     end
 
+    test "handles 200 response with empty body", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn ->
+          Plug.Conn.resp(conn, 200, "")
+        end
+      )
+
+      assert {:ok, nil} = BambooHR.Client.post("/test_path", config, json: %{})
+    end
+
+    test "handles 201 response with JSON body", %{bypass: bypass, config: config} do
+      response_data = %{"id" => 42}
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(201, Jason.encode!(response_data))
+        end
+      )
+
+      assert {:ok, ^response_data} =
+               BambooHR.Client.post("/test_path", config, json: %{})
+    end
+
+    test "handles 5xx server error", %{bypass: bypass, config: config} do
+      error_response = %{"error" => "Internal Server Error"}
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(500, Jason.encode!(error_response))
+        end
+      )
+
+      assert {:error, %{status: 500, body: body}} =
+               BambooHR.Client.post("/test_path", config, json: %{})
+
+      assert Jason.decode!(body) == error_response
+    end
+
     test "handles error response for POST", %{bypass: bypass, config: config} do
       request_data = %{"request" => "data"}
       error_response = %{"error" => "Bad request"}
@@ -126,8 +192,26 @@ defmodule BambooHR.ClientTest do
         end
       )
 
-      assert {:error, %{status: 400, body: ^error_response}} =
+      assert {:error, %{status: 400, body: body}} =
                BambooHR.Client.post("/test_path", config, json: request_data)
+
+      assert Jason.decode!(body) == error_response
+    end
+  end
+
+  describe "network errors" do
+    test "handles connection failure for GET", %{bypass: bypass, config: config} do
+      Bypass.down(bypass)
+
+      assert {:error, %Req.TransportError{}} =
+               BambooHR.Client.get("/test_path", config, retry: false)
+    end
+
+    test "handles connection failure for POST", %{bypass: bypass, config: config} do
+      Bypass.down(bypass)
+
+      assert {:error, %Req.TransportError{}} =
+               BambooHR.Client.post("/test_path", config, json: %{}, retry: false)
     end
   end
 end

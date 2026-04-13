@@ -73,8 +73,10 @@ defmodule BambooHR.TimeTrackingTest do
         end
       )
 
-      assert {:error, %{status: 400, body: ^error_response}} =
+      assert {:error, %{status: 400, body: body}} =
                BambooHR.TimeTracking.get_timesheet_entries(config, params)
+
+      assert Jason.decode!(body) == error_response
     end
   end
 
@@ -138,8 +140,10 @@ defmodule BambooHR.TimeTrackingTest do
         end
       )
 
-      assert {:error, %{status: 400, body: ^error_response}} =
+      assert {:error, %{status: 400, body: body}} =
                BambooHR.TimeTracking.store_clock_entries(config, entries)
+
+      assert Jason.decode!(body) == error_response
     end
   end
 
@@ -196,8 +200,10 @@ defmodule BambooHR.TimeTrackingTest do
         end
       )
 
-      assert {:error, %{status: 400, body: ^error_response}} =
+      assert {:error, %{status: 400, body: body}} =
                BambooHR.TimeTracking.clock_in(config, employee_id, clock_data)
+
+      assert Jason.decode!(body) == error_response
     end
   end
 
@@ -252,8 +258,10 @@ defmodule BambooHR.TimeTrackingTest do
         end
       )
 
-      assert {:error, %{status: 400, body: ^error_response}} =
+      assert {:error, %{status: 400, body: body}} =
                BambooHR.TimeTracking.clock_out(config, employee_id, clock_data)
+
+      assert Jason.decode!(body) == error_response
     end
   end
 end

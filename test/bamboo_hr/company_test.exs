@@ -46,8 +46,10 @@ defmodule BambooHR.CompanyTest do
         end
       )
 
-      assert {:error, %{status: 401, body: ^error_response}} =
+      assert {:error, %{status: 401, body: body}} =
                BambooHR.Company.get_information(config)
+
+      assert Jason.decode!(body) == error_response
     end
 
     test "handles unexpected error", %{bypass: bypass, config: config} do
@@ -110,8 +112,10 @@ defmodule BambooHR.CompanyTest do
         end
       )
 
-      assert {:error, %{status: 403, body: ^error_response}} =
+      assert {:error, %{status: 403, body: body}} =
                BambooHR.Company.get_eins(config)
+
+      assert Jason.decode!(body) == error_response
     end
   end
 end
