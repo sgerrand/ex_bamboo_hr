@@ -112,6 +112,45 @@ clock_out_data = %{
 {:ok, _} = BambooHR.TimeTracking.clock_out(config, 123, clock_out_data)
 ```
 
+## Development
+
+### Requirements
+
+- Elixir 1.17+, Erlang/OTP 25+ (see `.tool-versions` for exact versions)
+- [Homebrew](https://brew.sh) (macOS/Linux) for dev tooling
+
+### Setup
+
+Install dependencies and git hooks:
+
+```bash
+./bin/setup
+mix setup
+```
+
+`./bin/setup` installs [actionlint](https://github.com/rhysd/actionlint), [check-jsonschema](https://github.com/python-jsonschema/check-jsonschema), and [Lefthook](https://github.com/evilmartians/lefthook) via Homebrew, then activates the pre-commit hooks.
+
+### Common commands
+
+```bash
+mix test                        # Run tests
+mix format                      # Format code
+mix credo --strict              # Static analysis
+mix docs                        # Generate documentation
+mix deps.unlock --check-unused  # Check for unused dependencies
+```
+
+### Pre-commit hooks
+
+Hooks run automatically on `git commit` (in parallel):
+
+| Hook | Files |
+|---|---|
+| `mix format --check-formatted` | `*.ex`, `*.exs` |
+| `actionlint` | `.github/workflows/*.yml` |
+| `check-jsonschema` (workflow schema) | `.github/workflows/*.yml` |
+| `check-jsonschema` (dependabot schema) | `.github/dependabot.yml` |
+
 ## License
 
 BambooHR is [released under the MIT license](LICENSE).
