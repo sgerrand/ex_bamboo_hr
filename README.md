@@ -12,13 +12,15 @@ An Elixir client for the [Bamboo HR API][bamboohr-api-docs].
 The package can be installed by adding `bamboo_hr` to your
 list of dependencies in `mix.exs`:
 
+<!-- x-release-please-start-version -->
 ```elixir
 def deps do
   [
-    {:bamboo_hr, "~> 0.3"}
+    {:bamboo_hr, "~> 0.4.0"}
   ]
 end
 ```
+<!-- x-release-please-end -->
 
 ## Usage
 
