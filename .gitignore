@@ -24,3 +24,7 @@ bamboo_hr-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Ignore local configuration for coding agents.
+/.claude/
+/.codex/
