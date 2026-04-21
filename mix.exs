@@ -39,7 +39,8 @@ defmodule BambooHR.MixProject do
     [
       preferred_envs: [
         coveralls: :test,
-        "coveralls.html": :test
+        "coveralls.html": :test,
+        "coveralls.lcov": :test
       ]
     ]
   end
