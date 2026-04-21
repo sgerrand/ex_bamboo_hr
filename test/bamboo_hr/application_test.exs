@@ -1,5 +1,5 @@
 defmodule BambooHR.ApplicationTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   setup do
     {:ok, pid} = BambooHR.Application.start(:normal, [])
