@@ -32,9 +32,15 @@ Company / Employee / TimeTracking  (resource modules)
          Req                       (HTTP library)
 ```
 
-- `BambooHR.Client` — Core struct (`t()`) holding `company_domain`, `api_key`, `base_url`, `http_client`. All resource functions receive a `Client.t()` as first argument. Auth uses Basic auth with `api_key:x` encoding. URL scheme: `{base_url}/{company_domain}/v1{path}`.
-- `BambooHR.HTTPClient` — Behaviour with a single `request/1` callback. `BambooHR.HTTPClient.Req` is the default implementation; tests inject a mock via Mox.
-- `BambooHR.Company`, `BambooHR.Employee`, `BambooHR.TimeTracking` — Resource modules that delegate to `Client.get/3` or `Client.post/3`. All public functions return `{:ok, data} | {:error, reason}`.
+- `BambooHR.Client` — Core struct (`t()`) holding `company_domain`, `api_key`, `base_url`, `http_client`.
+  All resource functions receive a `Client.t()` as first argument.
+  Auth uses Basic auth with `api_key:x` encoding.
+  URL scheme: `{base_url}/{company_domain}/v1{path}`.
+- `BambooHR.HTTPClient` — Behaviour with a single `request/1` callback.
+  `BambooHR.HTTPClient.Req` is the default implementation; tests inject a mock via Mox.
+- `BambooHR.Company`, `BambooHR.Employee`, `BambooHR.TimeTracking` —
+  Resource modules that delegate to `Client.get/3` or `Client.post/3`.
+  All public functions return `{:ok, data} | {:error, reason}`.
 
 ### Testing Patterns
 
@@ -50,16 +56,24 @@ Company / Employee / TimeTracking  (resource modules)
 
 ## CI
 
-- Test matrix: Elixir 1.17/1.18/1.19 × OTP 25/26/27/28, with unsupported combinations excluded (1.17+28, 1.18+28, 1.19+25). Linting and coverage run only on Elixir 1.19 + OTP 28.
+- Test matrix: Elixir 1.17/1.18/1.19 × OTP 25/26/27/28.
+  Unsupported combinations excluded: 1.17+28, 1.18+28, 1.19+25.
+  Linting and coverage run only on Elixir 1.19 + OTP 28.
 - Compilation, tests, and docs all use `--warnings-as-errors`.
-- `actionlint` runs shellcheck on `run:` blocks; use `# shellcheck disable=SC1010` for `mix do` steps (false positive — `do` is a Mix keyword, not a shell keyword).
+- `actionlint` runs shellcheck on `run:` blocks.
+  Use `# shellcheck disable=SC1010` for `mix do` steps (false positive — `do` is a Mix keyword, not a shell keyword).
 
 ## Development Setup
 
 - Install dev tooling and activate hooks: `./bin/setup && mix setup`
-- `./bin/setup` installs actionlint, check-jsonschema, and lefthook via Homebrew, plus `mado` from the `akiomik/mado` tap, then runs `lefthook install`
-- Pre-commit hooks run in parallel: `mix format --check-formatted`, `actionlint`, `check-jsonschema` (workflow schema + dependabot schema), `mado check` (Markdown lint)
-- Markdown lint uses [`mado`](https://github.com/akiomik/mado) (Rust, CommonMark/GFM, mostly drop-in for `markdownlint` rules). CI uses `akiomik/mado@<sha> # v0.3.0` action; default invocation runs `mado check .` over the repo.
+- `./bin/setup` installs actionlint, check-jsonschema, and lefthook via Homebrew.
+  It also installs `mado` from the `akiomik/mado` tap, then runs `lefthook install`.
+- Pre-commit hooks run in parallel: `mix format --check-formatted`, `actionlint`,
+  `check-jsonschema` (workflow schema + dependabot schema), `mado check` (Markdown lint).
+- Markdown lint uses [`mado`](https://github.com/akiomik/mado) — Rust, CommonMark/GFM,
+  drop-in for most `markdownlint` rules.
+  CI uses the `akiomik/mado@<sha> # v0.3.0` action; default invocation is `mado check .`.
+  `mado.toml` at repo root excludes `CHANGELOG.md`.
 
 ## Git Flow
 

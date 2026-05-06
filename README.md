@@ -13,6 +13,7 @@ The package can be installed by adding `bamboo_hr` to your
 list of dependencies in `mix.exs`:
 
 <!-- x-release-please-start-version -->
+
 ```elixir
 def deps do
   [
@@ -20,6 +21,7 @@ def deps do
   ]
 end
 ```
+
 <!-- x-release-please-end -->
 
 ## Usage
@@ -138,7 +140,12 @@ Install dependencies and git hooks:
 mix setup
 ```
 
-`./bin/setup` installs [actionlint](https://github.com/rhysd/actionlint), [check-jsonschema](https://github.com/python-jsonschema/check-jsonschema), and [Lefthook](https://github.com/evilmartians/lefthook) via Homebrew, then activates the pre-commit hooks.
+`./bin/setup` installs
+[actionlint](https://github.com/rhysd/actionlint),
+[check-jsonschema](https://github.com/python-jsonschema/check-jsonschema),
+[Lefthook](https://github.com/evilmartians/lefthook),
+and [mado](https://github.com/akiomik/mado)
+via Homebrew, then activates the pre-commit hooks.
 
 ### Common commands
 
@@ -160,6 +167,7 @@ Hooks run automatically on `git commit` (in parallel):
 | `actionlint` | `.github/workflows/*.yml` |
 | `check-jsonschema` (workflow schema) | `.github/workflows/*.yml` |
 | `check-jsonschema` (dependabot schema) | `.github/dependabot.yml` |
+| `mado check` | `*.md` |
 
 ## License
 
