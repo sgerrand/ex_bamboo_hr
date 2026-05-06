@@ -1,2 +1,5 @@
 [lint]
 exclude = ["./CHANGELOG.md"]
+
+[lint.md013]
+line-length = 120
