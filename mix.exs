@@ -10,6 +10,7 @@ defmodule BambooHR.MixProject do
       version: @version,
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
+      aliases: aliases(),
       deps: deps(),
       elixirc_paths: elixirc_paths(Mix.env()),
       test_coverage: [
@@ -52,7 +53,14 @@ defmodule BambooHR.MixProject do
       {:bypass, "~> 2.1", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
+      {:git_hoox, "~> 0.2.0", only: [:dev], runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      setup: ["deps.get", "git_hoox.install"]
     ]
   end
 
