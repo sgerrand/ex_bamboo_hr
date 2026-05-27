@@ -66,10 +66,16 @@ Company / Employee / TimeTracking  (resource modules)
 ## Development Setup
 
 - Install dev tooling and activate hooks: `./bin/setup && mix setup`
-- `./bin/setup` installs actionlint, check-jsonschema, and lefthook via Homebrew.
-  It also installs `mado` from the `akiomik/mado` tap, then runs `lefthook install`.
-- Pre-commit hooks run in parallel: `mix format --check-formatted`, `actionlint`,
-  `check-jsonschema` (workflow schema + dependabot schema), `mado check` (Markdown lint).
+- `./bin/setup` installs actionlint and check-jsonschema via Homebrew, plus
+  `mado` from the `akiomik/mado` tap.
+- `mix setup` runs `deps.get` then `git_hoox.install` to activate the
+  pre-commit hooks managed by the [`git_hoox`](https://hex.pm/packages/git_hoox) Hex package.
+- Pre-commit hook config lives in `.git_hoox.exs` at the repo root. Hooks run
+  in parallel (`parallel: true`) and use `git_hoox`'s native `files:` glob plus
+  `{staged_files}` substitution — a near one-to-one port of the previous
+  Lefthook config.
+- Inspect resolved config with `mix git_hoox.list`; validate it with
+  `mix git_hoox.doctor`.
 - Markdown lint uses [`mado`](https://github.com/akiomik/mado) — Rust, CommonMark/GFM,
   drop-in for most `markdownlint` rules.
   CI uses the `akiomik/mado@<sha> # v0.3.0` action; default invocation is `mado check .`.

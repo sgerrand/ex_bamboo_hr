@@ -143,9 +143,10 @@ mix setup
 `./bin/setup` installs
 [actionlint](https://github.com/rhysd/actionlint),
 [check-jsonschema](https://github.com/python-jsonschema/check-jsonschema),
-[Lefthook](https://github.com/evilmartians/lefthook),
 and [mado](https://github.com/akiomik/mado)
-via Homebrew, then activates the pre-commit hooks.
+via Homebrew.
+`mix setup` then fetches Elixir dependencies and activates the pre-commit
+hooks via [`git_hoox`](https://hex.pm/packages/git_hoox).
 
 ### Common commands
 
@@ -159,7 +160,7 @@ mix deps.unlock --check-unused  # Check for unused dependencies
 
 ### Pre-commit hooks
 
-Hooks run automatically on `git commit` (in parallel):
+Hooks run automatically on `git commit` (configured in `.git_hoox.exs`):
 
 | Hook | Files |
 | --- | --- |
@@ -167,7 +168,12 @@ Hooks run automatically on `git commit` (in parallel):
 | `actionlint` | `.github/workflows/*.yml` |
 | `check-jsonschema` (workflow schema) | `.github/workflows/*.yml` |
 | `check-jsonschema` (dependabot schema) | `.github/dependabot.yml` |
+| `check-jsonschema` (release-please config) | `release-please-config.json` |
+| `check-jsonschema` (release-please manifest) | `.release-please-manifest.json` |
 | `mado check` | `*.md` |
+
+Inspect the resolved config with `mix git_hoox.list` or validate it with
+`mix git_hoox.doctor`.
 
 ## License
 
