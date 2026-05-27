@@ -22,7 +22,9 @@
        run:
          "check-jsonschema --schemafile https://raw.githubusercontent.com/googleapis/release-please/main/schemas/manifest.json {staged_files}",
        files: ~w(.release-please-manifest.json)},
-      {GitHoox.Hooks.Shell, run: "mado check {staged_files}", files: ~w(**/*.md)}
+      {GitHoox.Hooks.Shell, run: "mado check {staged_files}", files: ~w(**/*.md)},
+      {GitHoox.Hooks.Shell,
+       run: "mix deps.unlock --check-unused", files: ~w(mix.exs mix.lock)}
     ]
   ]
 }
