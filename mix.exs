@@ -12,6 +12,7 @@ defmodule BambooHR.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
+      dialyzer: dialyzer(),
       elixirc_paths: elixirc_paths(Mix.env()),
       test_coverage: [
         ignore_modules: [BambooHR],
@@ -53,6 +54,7 @@ defmodule BambooHR.MixProject do
       {:bypass, "~> 2.1", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:git_hoox, "~> 0.4.2", only: [:dev], runtime: false}
     ]
@@ -61,6 +63,15 @@ defmodule BambooHR.MixProject do
   defp aliases do
     [
       setup: ["deps.get", "git_hoox.install"]
+    ]
+  end
+
+  defp dialyzer do
+    [
+      plt_local_path: "priv/plts",
+      plt_core_path: "priv/plts",
+      plt_add_apps: [:ex_unit, :mix],
+      flags: [:error_handling, :unknown, :no_opaque]
     ]
   end
 

@@ -168,6 +168,7 @@ hooks via [`git_hoox`](https://hex.pm/packages/git_hoox).
 mix test                        # Run tests
 mix format                      # Format code
 mix credo --strict              # Static analysis
+mix dialyzer                    # Type analysis (PLT cached under priv/plts/)
 mix docs                        # Generate documentation
 mix deps.unlock --check-unused  # Check for unused dependencies
 ```

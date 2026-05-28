@@ -22,6 +22,10 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 bamboo_hr-*.tar
 
+# Dialyzer PLTs.
+/priv/plts/*.plt
+/priv/plts/*.plt.hash
+
 # Temporary files, for example, from tests.
 /tmp/
 

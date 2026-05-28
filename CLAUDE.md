@@ -11,6 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Format code: `mix format`
 - Check formatting (CI): `mix format --check-formatted`
 - Static analysis: `mix credo`
+- Type analysis: `mix dialyzer` (PLT stored under `priv/plts/`)
 - Generate docs: `mix docs`
 - Check unused deps: `mix deps.unlock --check-unused`
 
@@ -73,8 +74,14 @@ Company / Employee / Metadata / TimeTracking  (resource modules)
 
 - Test matrix: Elixir 1.17/1.18/1.19 × OTP 25/26/27/28.
   Unsupported combinations excluded: 1.17+28, 1.18+28, 1.19+25.
-  Linting and coverage run only on Elixir 1.19 + OTP 28.
+  Linting runs only on Elixir 1.19 + OTP 28.
+- `coverage`, `dialyzer`, and `docs` are separate jobs pinned to
+  `.tool-versions` (currently Elixir 1.19 / OTP 28). `dialyzer` is in the
+  `required` job's `needs:` list so a Dialyzer error fails the required
+  check.
 - Compilation, tests, and docs all use `--warnings-as-errors`.
+- Dialyzer PLTs are cached at `priv/plts/` and keyed by OS / OTP / Elixir /
+  `mix.lock` hash in CI.
 - `actionlint` runs shellcheck on `run:` blocks.
   Use `# shellcheck disable=SC1010` for `mix do` steps (false positive — `do` is a Mix keyword, not a shell keyword).
 
