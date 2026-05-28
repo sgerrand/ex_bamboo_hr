@@ -1,15 +1,5 @@
 defmodule BambooHR.ClientTest do
-  use ExUnit.Case, async: true
-
-  setup do
-    bypass = Bypass.open()
-    base_url = "http://localhost:#{bypass.port}/api/gateway.php"
-
-    config =
-      BambooHR.Client.new(company_domain: "test_company", api_key: "test_key", base_url: base_url)
-
-    {:ok, bypass: bypass, config: config}
-  end
+  use BambooHR.BypassCase, async: true
 
   describe "new/3" do
     test "creates config with default base URL" do

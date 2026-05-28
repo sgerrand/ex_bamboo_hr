@@ -1,15 +1,5 @@
 defmodule BambooHR.TimeTrackingTest do
-  use ExUnit.Case, async: true
-
-  setup do
-    bypass = Bypass.open()
-    base_url = "http://localhost:#{bypass.port}/api/gateway.php"
-
-    config =
-      BambooHR.Client.new(company_domain: "test_company", api_key: "test_key", base_url: base_url)
-
-    {:ok, bypass: bypass, config: config}
-  end
+  use BambooHR.BypassCase, async: true
 
   describe "get_timesheet_entries/2" do
     test "successfully retrieves timesheet entries", %{bypass: bypass, config: config} do

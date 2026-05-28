@@ -37,15 +37,18 @@ Company / Employee / TimeTracking  (resource modules)
   Auth uses Basic auth with `api_key:x` encoding.
   URL scheme: `{base_url}/{company_domain}/v1{path}`.
 - `BambooHR.HTTPClient` — Behaviour with a single `request/1` callback.
-  `BambooHR.HTTPClient.Req` is the default implementation; tests inject a mock via Mox.
+  `BambooHR.HTTPClient.Req` is the default implementation; tests use Bypass
+  (a real local HTTP server) rather than mocking the behaviour.
 - `BambooHR.Company`, `BambooHR.Employee`, `BambooHR.TimeTracking` —
   Resource modules that delegate to `Client.get/3` or `Client.post/3`.
   All public functions return `{:ok, data} | {:error, reason}`.
 
 ### Testing Patterns
 
-- Bypass library mocks the HTTP layer at the TCP level (not Mox) for integration-style tests.
-- Each test module sets up a Bypass instance and builds a `Client.t()` pointing at the local Bypass port.
+- Bypass library mocks the HTTP layer at the TCP level for integration-style tests.
+- Resource-module tests `use BambooHR.BypassCase` (in `test/support/bypass_case.ex`)
+  which provides `bypass` and `config` (a `Client.t()` pointing at the local
+  Bypass port) in the test context.
 - Tests run `async: true`.
 
 ## Code Style Guidelines
