@@ -12,6 +12,7 @@ defmodule BambooHR do
   - `BambooHR.Client` - Core client functionality and configuration
   - `BambooHR.Company` - Company information and EINs
   - `BambooHR.Employee` - Employee management
+  - `BambooHR.Metadata` - Field, tabular, and list field metadata
   - `BambooHR.TimeTracking` - Time entries and timesheets
 
   ## Getting Started

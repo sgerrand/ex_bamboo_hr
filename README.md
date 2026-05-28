@@ -38,6 +38,7 @@ The library is organized into several modules, each representing different API r
 - `BambooHR.Client` - Core client functionality and configuration
 - `BambooHR.Company` - Company information and EINs
 - `BambooHR.Employee` - Employee management
+- `BambooHR.Metadata` - Field, tabular, and list field metadata
 - `BambooHR.TimeTracking` - Time entries and timesheets
 
 ### Examples
@@ -94,6 +95,19 @@ employee_data = %{"firstName" => "Jane", "lastName" => "Smith"}
 # Update an employee
 update_data = %{"firstName" => "Jane", "lastName" => "Smith-Jones"}
 {:ok, _} = BambooHR.Employee.update(config, 124, update_data)
+```
+
+#### Field Metadata
+
+```elixir
+# List all employee fields (id, name, type)
+{:ok, %{"fields" => fields}} = BambooHR.Metadata.get_fields(config)
+
+# List tabular fields (employment history, compensation, etc.)
+{:ok, %{"tabularFields" => tabular}} = BambooHR.Metadata.get_tabular_fields(config)
+
+# List list fields and their option values (departments, divisions, etc.)
+{:ok, %{"items" => lists}} = BambooHR.Metadata.get_lists(config)
 ```
 
 #### Time Tracking

@@ -23,25 +23,34 @@ This is an Elixir client library for the BambooHR API, published as `bamboo_hr` 
 **Dependency flow:**
 
 ```text
-Company / Employee / TimeTracking  (resource modules)
+Company / Employee / Metadata / TimeTracking  (resource modules)
          ↓
-      BambooHR.Client              (HTTP routing + auth)
+      BambooHR.Client                          (HTTP routing + auth)
          ↓
-   BambooHR.HTTPClient             (behaviour + Req impl)
+   BambooHR.HTTPClient                         (behaviour + Req impl)
          ↓
-         Req                       (HTTP library)
+         Req                                   (HTTP library)
 ```
 
-- `BambooHR.Client` — Core struct (`t()`) holding `company_domain`, `api_key`, `base_url`, `http_client`.
+- `BambooHR.Client` — Core struct (`t()`) holding `company_domain`, `api_key`, `base_url`, `http_client`, `timeout`.
   All resource functions receive a `Client.t()` as first argument.
   Auth uses Basic auth with `api_key:x` encoding.
   URL scheme: `{base_url}/{company_domain}/v1{path}`.
+  `Client.get/3` and `Client.post/3` lock down `:method`, `:url`, `:headers`,
+  and `:receive_timeout` against caller-supplied opts so resource modules
+  can't accidentally drop auth headers.
 - `BambooHR.HTTPClient` — Behaviour with a single `request/1` callback.
-  `BambooHR.HTTPClient.Req` is the default implementation; tests use Bypass
-  (a real local HTTP server) rather than mocking the behaviour.
-- `BambooHR.Company`, `BambooHR.Employee`, `BambooHR.TimeTracking` —
-  Resource modules that delegate to `Client.get/3` or `Client.post/3`.
-  All public functions return `{:ok, data} | {:error, reason}`.
+  The opts keyword list passed to implementations is documented in the
+  behaviour's `@moduledoc`. `BambooHR.HTTPClient.Req` is the default
+  implementation; tests use Bypass (a real local HTTP server) rather than
+  mocking the behaviour.
+- `BambooHR.Company`, `BambooHR.Employee`, `BambooHR.Metadata`,
+  `BambooHR.TimeTracking` — Resource modules that delegate to `Client.get/3`
+  or `Client.post/3`. All public functions return
+  `{:ok, data} | {:error, reason}`. `data` is the decoded JSON body —
+  usually a map, occasionally `nil` (empty 2xx body) or a list/scalar.
+  `BambooHR.Metadata` covers the `/meta/fields`, `/meta/tables`, and
+  `/meta/lists` endpoints used for field discovery.
 
 ### Testing Patterns
 
@@ -54,6 +63,9 @@ Company / Employee / TimeTracking  (resource modules)
 ## Code Style Guidelines
 
 - All public functions must have `@spec` type specs and `@doc` documentation.
+- `BambooHR.Client` has `doctest BambooHR.Client` enabled in
+  `client_test.exs`; the doctests in `Client.new/1` are real and will run in
+  CI — keep struct field order in sync with `defstruct` or they'll fail.
 - Handle errors with pattern matching; never raise from public API functions.
 - No Ecto in this project — remove the `has_many`/`belongs_to` guideline if it appears elsewhere.
 
