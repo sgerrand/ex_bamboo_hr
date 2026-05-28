@@ -1,6 +1,8 @@
 defmodule BambooHR.ClientTest do
   use BambooHR.BypassCase, async: true
 
+  doctest BambooHR.Client
+
   describe "new/1" do
     test "creates config with default base URL" do
       config = BambooHR.Client.new(company_domain: "test_company", api_key: "test_key")
@@ -198,6 +200,75 @@ defmodule BambooHR.ClientTest do
                BambooHR.Client.post("/test_path", config, json: request_data)
 
       assert Jason.decode!(body) == error_response
+    end
+  end
+
+  describe "opts hardening" do
+    defmodule CaptureHTTPClient do
+      @behaviour BambooHR.HTTPClient
+
+      @impl true
+      def request(opts) do
+        send(self(), {:request_opts, opts})
+        {:ok, %{}}
+      end
+    end
+
+    test "caller-supplied :headers cannot override the auth header" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: CaptureHTTPClient
+        )
+
+      {:ok, %{}} =
+        BambooHR.Client.get("/anything", config, headers: [{"Authorization", "Bearer attacker"}])
+
+      assert_received {:request_opts, opts}
+
+      assert opts[:headers] == [
+               {"Authorization", "Basic " <> Base.encode64("test_key:x")},
+               {"Accept", "application/json"}
+             ]
+    end
+
+    test "caller-supplied :method, :url, :receive_timeout are ignored" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: CaptureHTTPClient,
+          timeout: 7_000
+        )
+
+      {:ok, %{}} =
+        BambooHR.Client.get("/anything", config,
+          method: :delete,
+          url: "https://evil.example.com",
+          receive_timeout: 1
+        )
+
+      assert_received {:request_opts, opts}
+      assert opts[:method] == :get
+      assert opts[:url] =~ "/test_company/v1/anything"
+      assert opts[:receive_timeout] == 7_000
+    end
+
+    test "unrelated caller opts (:retry, :params) are passed through" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: CaptureHTTPClient
+        )
+
+      {:ok, %{}} =
+        BambooHR.Client.get("/anything", config, retry: false, params: [foo: "bar"])
+
+      assert_received {:request_opts, opts}
+      assert opts[:retry] == false
+      assert opts[:params] == [foo: "bar"]
     end
   end
 

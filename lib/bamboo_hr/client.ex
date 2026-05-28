@@ -27,7 +27,20 @@ defmodule BambooHR.Client do
           timeout: non_neg_integer()
         }
 
-  @type response :: {:ok, map()} | {:error, any()}
+  @typedoc """
+  Result returned by client request functions.
+
+  The `:ok` payload is whatever `Jason.decode/1` produced from the response
+  body — typically a map, but it may also be a list, scalar, or `nil` when the
+  upstream returns an empty 2xx body.
+
+  The `:error` payload is one of:
+
+    * `%{status: integer(), body: binary()}` — non-2xx HTTP response
+    * `%Jason.DecodeError{}` — a 2xx response whose body was not valid JSON
+    * a transport exception (e.g. `%Req.TransportError{}`)
+  """
+  @type response :: {:ok, term()} | {:error, term()}
 
   defstruct [:company_domain, :api_key, :base_url, :http_client, :timeout]
 
@@ -44,8 +57,8 @@ defmodule BambooHR.Client do
 
   ## Examples
 
-      iex> client = BambooHR.Client.new(company_domain: "acme", api_key: "api_key_123")
-      %{
+      iex> BambooHR.Client.new(company_domain: "acme", api_key: "api_key_123")
+      %BambooHR.Client{
         company_domain: "acme",
         api_key: "api_key_123",
         base_url: "https://api.bamboohr.com/api/gateway.php",
@@ -53,9 +66,13 @@ defmodule BambooHR.Client do
         timeout: 15_000
       }
 
-      # With custom base URL and timeout
-      iex> client = BambooHR.Client.new(company_domain: "acme", api_key: "api_key_123", base_url: "https://custom-api.example.com", timeout: 30_000)
-      %{
+      iex> BambooHR.Client.new(
+      ...>   company_domain: "acme",
+      ...>   api_key: "api_key_123",
+      ...>   base_url: "https://custom-api.example.com",
+      ...>   timeout: 30_000
+      ...> )
+      %BambooHR.Client{
         company_domain: "acme",
         api_key: "api_key_123",
         base_url: "https://custom-api.example.com",
@@ -83,7 +100,10 @@ defmodule BambooHR.Client do
   @doc """
   Makes a GET request to the BambooHR API.
 
-  This function is meant to be used by resource modules.
+  This function is meant to be used by resource modules. `opts` are forwarded
+  to the underlying HTTP client; keys controlled by the client itself —
+  `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
+  through this argument.
   """
   @spec get(String.t(), t(), keyword()) :: response()
   def get(path, %__MODULE__{} = client, opts \\ []) do
@@ -93,7 +113,10 @@ defmodule BambooHR.Client do
   @doc """
   Makes a POST request to the BambooHR API.
 
-  This function is meant to be used by resource modules.
+  This function is meant to be used by resource modules. `opts` are forwarded
+  to the underlying HTTP client; keys controlled by the client itself —
+  `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
+  through this argument.
   """
   @spec post(String.t(), t(), keyword()) :: response()
   def post(path, %__MODULE__{} = client, opts) do
@@ -105,9 +128,11 @@ defmodule BambooHR.Client do
     headers = build_headers(client.api_key)
 
     req_opts =
-      Keyword.merge(
-        [headers: headers, method: method, url: url, receive_timeout: client.timeout],
-        opts
+      Keyword.merge(opts,
+        method: method,
+        url: url,
+        headers: headers,
+        receive_timeout: client.timeout
       )
 
     client.http_client.request(req_opts)
