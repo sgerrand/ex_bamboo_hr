@@ -1,7 +1,7 @@
 defmodule BambooHR.ClientTest do
   use BambooHR.BypassCase, async: true
 
-  describe "new/3" do
+  describe "new/1" do
     test "creates config with default base URL" do
       config = BambooHR.Client.new(company_domain: "test_company", api_key: "test_key")
       assert config.company_domain == "test_company"
