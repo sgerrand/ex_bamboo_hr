@@ -39,6 +39,17 @@ defmodule BambooHR.ClientTest do
     end
   end
 
+  describe "inspect/1" do
+    test "redacts api_key" do
+      config =
+        BambooHR.Client.new(company_domain: "test_company", api_key: "super_secret_key")
+
+      output = inspect(config)
+      refute output =~ "super_secret_key"
+      assert output =~ "test_company"
+    end
+  end
+
   describe "get/3" do
     test "successfully makes GET request", %{bypass: bypass, config: config} do
       response_data = %{"key" => "value"}

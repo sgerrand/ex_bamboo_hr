@@ -42,6 +42,7 @@ defmodule BambooHR.Client do
   """
   @type response :: {:ok, term()} | {:error, term()}
 
+  @derive {Inspect, except: [:api_key]}
   defstruct [:company_domain, :api_key, :base_url, :http_client, :timeout]
 
   @doc """
@@ -57,28 +58,19 @@ defmodule BambooHR.Client do
 
   ## Examples
 
-      iex> BambooHR.Client.new(company_domain: "acme", api_key: "api_key_123")
-      %BambooHR.Client{
-        company_domain: "acme",
-        api_key: "api_key_123",
-        base_url: "https://api.bamboohr.com/api/gateway.php",
-        http_client: BambooHR.HTTPClient.Req,
-        timeout: 15_000
-      }
+      iex> client = BambooHR.Client.new(company_domain: "acme", api_key: "api_key_123")
+      iex> {client.company_domain, client.base_url, client.timeout}
+      {"acme", "https://api.bamboohr.com/api/gateway.php", 15_000}
 
-      iex> BambooHR.Client.new(
-      ...>   company_domain: "acme",
-      ...>   api_key: "api_key_123",
-      ...>   base_url: "https://custom-api.example.com",
-      ...>   timeout: 30_000
-      ...> )
-      %BambooHR.Client{
-        company_domain: "acme",
-        api_key: "api_key_123",
-        base_url: "https://custom-api.example.com",
-        http_client: BambooHR.HTTPClient.Req,
-        timeout: 30_000
-      }
+      iex> client =
+      ...>   BambooHR.Client.new(
+      ...>     company_domain: "acme",
+      ...>     api_key: "api_key_123",
+      ...>     base_url: "https://custom-api.example.com",
+      ...>     timeout: 30_000
+      ...>   )
+      iex> {client.base_url, client.timeout}
+      {"https://custom-api.example.com", 30_000}
   """
   @spec new(Keyword.t()) :: t()
   def new(opts) do
