@@ -74,8 +74,8 @@ defmodule BambooHR.Client do
   """
   @spec new(Keyword.t()) :: t()
   def new(opts) do
-    company_domain = Keyword.fetch!(opts, :company_domain)
-    api_key = Keyword.fetch!(opts, :api_key)
+    company_domain = Keyword.fetch!(opts, :company_domain) |> validate_non_empty!(:company_domain)
+    api_key = Keyword.fetch!(opts, :api_key) |> validate_non_empty!(:api_key)
     base_url = Keyword.get(opts, :base_url, "https://api.bamboohr.com/api/gateway.php")
     http_client = Keyword.get(opts, :http_client, BambooHR.HTTPClient.Req)
     timeout = Keyword.get(opts, :timeout, 15_000)
@@ -87,6 +87,13 @@ defmodule BambooHR.Client do
       http_client: http_client,
       timeout: timeout
     }
+  end
+
+  defp validate_non_empty!(value, _key) when is_binary(value) and byte_size(value) > 0, do: value
+
+  defp validate_non_empty!(value, key) do
+    raise ArgumentError,
+          "expected #{inspect(key)} to be a non-empty string, got: #{inspect(value)}"
   end
 
   @doc """

@@ -37,6 +37,30 @@ defmodule BambooHR.ClientTest do
 
       assert config.timeout == 30_000
     end
+
+    test "raises when company_domain is an empty string" do
+      assert_raise ArgumentError, ~r/:company_domain/, fn ->
+        BambooHR.Client.new(company_domain: "", api_key: "test_key")
+      end
+    end
+
+    test "raises when api_key is an empty string" do
+      assert_raise ArgumentError, ~r/:api_key/, fn ->
+        BambooHR.Client.new(company_domain: "test_company", api_key: "")
+      end
+    end
+
+    test "raises when company_domain is not a binary" do
+      assert_raise ArgumentError, ~r/:company_domain/, fn ->
+        BambooHR.Client.new(company_domain: nil, api_key: "test_key")
+      end
+    end
+
+    test "raises when api_key is not a binary" do
+      assert_raise ArgumentError, ~r/:api_key/, fn ->
+        BambooHR.Client.new(company_domain: "test_company", api_key: 12_345)
+      end
+    end
   end
 
   describe "inspect/1" do
