@@ -61,6 +61,61 @@ defmodule BambooHR.ClientTest do
         BambooHR.Client.new(company_domain: "test_company", api_key: 12_345)
       end
     end
+
+    test "strips trailing slash from base_url" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          base_url: "https://api.example.com/"
+        )
+
+      assert config.base_url == "https://api.example.com"
+    end
+
+    test "strips multiple trailing slashes from base_url" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          base_url: "https://api.example.com///"
+        )
+
+      assert config.base_url == "https://api.example.com"
+    end
+  end
+
+  describe "URL normalization" do
+    test "tolerates base_url with trailing slash", %{bypass: bypass} do
+      base_url = "http://localhost:#{bypass.port}/api/gateway.php/"
+
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          base_url: base_url
+        )
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn -> Plug.Conn.resp(conn, 200, "") end
+      )
+
+      assert {:ok, nil} = BambooHR.Client.get("/test_path", config)
+    end
+
+    test "tolerates path missing leading slash", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn -> Plug.Conn.resp(conn, 200, "") end
+      )
+
+      assert {:ok, nil} = BambooHR.Client.get("test_path", config)
+    end
   end
 
   describe "inspect/1" do

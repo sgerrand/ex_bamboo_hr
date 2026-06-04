@@ -76,7 +76,12 @@ defmodule BambooHR.Client do
   def new(opts) do
     company_domain = Keyword.fetch!(opts, :company_domain) |> validate_non_empty!(:company_domain)
     api_key = Keyword.fetch!(opts, :api_key) |> validate_non_empty!(:api_key)
-    base_url = Keyword.get(opts, :base_url, "https://api.bamboohr.com/api/gateway.php")
+
+    base_url =
+      opts
+      |> Keyword.get(:base_url, "https://api.bamboohr.com/api/gateway.php")
+      |> String.trim_trailing("/")
+
     http_client = Keyword.get(opts, :http_client, BambooHR.HTTPClient.Req)
     timeout = Keyword.get(opts, :timeout, 15_000)
 
@@ -138,8 +143,11 @@ defmodule BambooHR.Client do
   end
 
   defp build_url(client, path) do
-    "#{client.base_url}/#{client.company_domain}/v1#{path}"
+    "#{client.base_url}/#{client.company_domain}/v1#{normalize_path(path)}"
   end
+
+  defp normalize_path("/" <> _ = path), do: path
+  defp normalize_path(path), do: "/" <> path
 
   defp build_headers(api_key) do
     [
