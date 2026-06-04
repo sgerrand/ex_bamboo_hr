@@ -23,8 +23,9 @@ defmodule BambooHR.Employee do
         "jobTitle" => "Software Engineer"
       }}
   """
-  @spec get(Client.t(), integer(), list(String.t())) :: Client.response()
-  def get(client, employee_id, fields) when is_integer(employee_id) do
+  @spec get(Client.t(), integer(), nonempty_list(String.t())) :: Client.response()
+  def get(client, employee_id, fields)
+      when is_integer(employee_id) and is_list(fields) and fields != [] do
     Client.get("/employees/#{employee_id}", client, params: [fields: Enum.join(fields, ",")])
   end
 

@@ -27,6 +27,12 @@ defmodule BambooHR.EmployeeTest do
 
       assert {:ok, ^employee_data} = BambooHR.Employee.get(config, employee_id, fields)
     end
+
+    test "rejects empty fields list", %{config: config} do
+      assert_raise FunctionClauseError, fn ->
+        BambooHR.Employee.get(config, 123, [])
+      end
+    end
   end
 
   describe "add/2" do
