@@ -17,6 +17,30 @@ defmodule BambooHR.Client do
 
       client = BambooHR.Client.new(company_domain: "your_company", api_key: "your_api_key")
       {:ok, company_info} = BambooHR.Company.get_information(client)
+
+  ## Telemetry
+
+  Every request emits a `:telemetry` span under the `[:bamboo_hr, :request]`
+  prefix, producing three events:
+
+    * `[:bamboo_hr, :request, :start]`
+    * `[:bamboo_hr, :request, :stop]`
+    * `[:bamboo_hr, :request, :exception]` (on raise)
+
+  Measurements follow `:telemetry.span/3` conventions (`:system_time`,
+  `:monotonic_time`, `:duration`).
+
+  Metadata always includes:
+
+    * `:method` — `:get` or `:post`
+    * `:path` — request path passed to the resource module
+    * `:url` — fully-qualified request URL (no credentials)
+
+  Stop metadata additionally includes:
+
+    * `:result` — `:ok` or `:error`
+    * `:status` — HTTP status integer when the upstream returned a non-2xx
+    * `:reason` — error term for transport / decoding failures
   """
 
   @type t :: %__MODULE__{
@@ -139,8 +163,17 @@ defmodule BambooHR.Client do
         receive_timeout: client.timeout
       )
 
-    client.http_client.request(req_opts)
+    start_metadata = %{method: method, path: path, url: url}
+
+    :telemetry.span([:bamboo_hr, :request], start_metadata, fn ->
+      result = client.http_client.request(req_opts)
+      {result, Map.merge(start_metadata, result_metadata(result))}
+    end)
   end
+
+  defp result_metadata({:ok, _}), do: %{result: :ok}
+  defp result_metadata({:error, %{status: status}}), do: %{result: :error, status: status}
+  defp result_metadata({:error, reason}), do: %{result: :error, reason: reason}
 
   defp build_url(client, path) do
     "#{client.base_url}/#{client.company_domain}/v1#{normalize_path(path)}"

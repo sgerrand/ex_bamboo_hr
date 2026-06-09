@@ -377,4 +377,88 @@ defmodule BambooHR.ClientTest do
                BambooHR.Client.post("/test_path", config, json: %{}, retry: false)
     end
   end
+
+  describe "telemetry" do
+    def forward_telemetry(event, measurements, metadata, {pid, ref}) do
+      send(pid, {ref, event, measurements, metadata})
+    end
+
+    setup %{test: test} do
+      ref = make_ref()
+      handler_id = "test-handler-#{inspect(test)}"
+
+      :telemetry.attach_many(
+        handler_id,
+        [
+          [:bamboo_hr, :request, :start],
+          [:bamboo_hr, :request, :stop],
+          [:bamboo_hr, :request, :exception]
+        ],
+        &__MODULE__.forward_telemetry/4,
+        {self(), ref}
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      {:ok, telemetry_ref: ref}
+    end
+
+    test "emits start and stop on success", %{
+      bypass: bypass,
+      config: config,
+      telemetry_ref: ref
+    } do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/ok", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{"ok" => true}))
+      end)
+
+      assert {:ok, %{"ok" => true}} = BambooHR.Client.get("/ok", config)
+
+      assert_receive {^ref, [:bamboo_hr, :request, :start], start_measurements, start_metadata}
+      assert is_integer(start_measurements.system_time)
+      assert start_metadata.method == :get
+      assert start_metadata.path == "/ok"
+      assert start_metadata.url =~ "/test_company/v1/ok"
+
+      assert_receive {^ref, [:bamboo_hr, :request, :stop], stop_measurements, stop_metadata}
+      assert is_integer(stop_measurements.duration)
+      assert stop_metadata.result == :ok
+      assert stop_metadata.method == :get
+    end
+
+    test "emits stop with status on HTTP error", %{
+      bypass: bypass,
+      config: config,
+      telemetry_ref: ref
+    } do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/missing", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(404, Jason.encode!(%{"error" => "not found"}))
+      end)
+
+      assert {:error, %{status: 404}} = BambooHR.Client.get("/missing", config)
+
+      assert_receive {^ref, [:bamboo_hr, :request, :stop], _measurements, stop_metadata}
+      assert stop_metadata.result == :error
+      assert stop_metadata.status == 404
+    end
+
+    test "emits stop with reason on transport error", %{
+      bypass: bypass,
+      config: config,
+      telemetry_ref: ref
+    } do
+      Bypass.down(bypass)
+
+      assert {:error, %Req.TransportError{}} =
+               BambooHR.Client.get("/down", config, retry: false)
+
+      assert_receive {^ref, [:bamboo_hr, :request, :stop], _measurements, stop_metadata}
+      assert stop_metadata.result == :error
+      assert %Req.TransportError{} = stop_metadata.reason
+    end
+  end
 end
