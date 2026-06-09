@@ -1,4 +1,4 @@
-name: Release Please
+name: Release
 
 on:
   push:
@@ -8,8 +8,8 @@ on:
 permissions: {}
 
 jobs:
-  release-please:
-    name: Release Please
+  release-mate:
+    name: Release Mate
 
     runs-on: ubuntu-latest
 
