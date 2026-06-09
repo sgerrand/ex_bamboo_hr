@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file. See [Keep a
 CHANGELOG](http://keepachangelog.com/) for how to update this file. This project
 adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.5.0](https://github.com/sgerrand/ex_bamboo_hr/compare/v0.4.0...v0.5.0) (2026-06-09)
+
+
+### Added
+
+* **client:** validate company_domain and api_key in new/1 ([bfb4938](https://github.com/sgerrand/ex_bamboo_hr/commit/bfb4938d23ed1ef21a50ab30f5567615c0dc4990))
+* **employee:** require non-empty fields list in get/3 ([fc201a4](https://github.com/sgerrand/ex_bamboo_hr/commit/fc201a4f35bdf45a46d660fee6a508fa221c17fb))
+* **metadata:** add /meta/* endpoints for field discovery ([807de09](https://github.com/sgerrand/ex_bamboo_hr/commit/807de09296dfb38c9e403c3dcbcd7ce3fb2bd777))
+
+
+### Fixed
+
+* **client:** correct doctest, widen response type, harden request opts ([9db49bc](https://github.com/sgerrand/ex_bamboo_hr/commit/9db49bc82e384761cff694518c429d5a71639e91))
+* **client:** normalize base_url and request path when building URLs ([489f604](https://github.com/sgerrand/ex_bamboo_hr/commit/489f604e022ad3a37fa3bc8e6f74d9dfa610b7f0))
+* **client:** redact api_key from Inspect output ([91867b3](https://github.com/sgerrand/ex_bamboo_hr/commit/91867b3fd2535ecd5312d5fd78cab02ee2f3f9f6))
+* **deps:** bump jason from 1.4.4 to 1.4.5 ([#77](https://github.com/sgerrand/ex_bamboo_hr/issues/77)) ([590e939](https://github.com/sgerrand/ex_bamboo_hr/commit/590e9395ca6bc31f273984f6f3daad4138d29d56))
+* **deps:** bump req from 0.5.17 to 0.5.18 ([#80](https://github.com/sgerrand/ex_bamboo_hr/issues/80)) ([9301ad8](https://github.com/sgerrand/ex_bamboo_hr/commit/9301ad8ae50d26ada44bff67c3ce34651080c8ac))
+
+
+### Changed
+
+* document git_hoox-based pre-commit setup ([58eb902](https://github.com/sgerrand/ex_bamboo_hr/commit/58eb9022d09d9b8365a79ad1a2152ca337fe465d))
+* remove unused BambooHR.Application supervisor ([b0351c0](https://github.com/sgerrand/ex_bamboo_hr/commit/b0351c04e797cb8b5b2df48e3d260b6981208fa0))
+
 ## [0.4.0](https://github.com/sgerrand/ex_bamboo_hr/compare/bamboo_hr-v0.3.1...bamboo_hr-v0.4.0) (2026-04-13)
 
 
