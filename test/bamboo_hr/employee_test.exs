@@ -30,7 +30,7 @@ defmodule BambooHR.EmployeeTest do
 
     test "rejects empty fields list", %{config: config} do
       assert_raise FunctionClauseError, fn ->
-        apply(BambooHR.Employee, :get, [config, 123, []])
+        BambooHR.Employee.get(config, 123, dynamic_empty_list())
       end
     end
   end
@@ -165,4 +165,6 @@ defmodule BambooHR.EmployeeTest do
       assert Jason.decode!(body) == error_response
     end
   end
+
+  defp dynamic_empty_list, do: Enum.to_list(1..0//1)
 end
