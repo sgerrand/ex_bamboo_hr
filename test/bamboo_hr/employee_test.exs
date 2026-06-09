@@ -30,7 +30,7 @@ defmodule BambooHR.EmployeeTest do
 
     test "rejects empty fields list", %{config: config} do
       assert_raise FunctionClauseError, fn ->
-        BambooHR.Employee.get(config, 123, [])
+        apply(BambooHR.Employee, :get, [config, 123, []])
       end
     end
   end
