@@ -50,7 +50,7 @@ defmodule BambooHR.MixProject do
   defp deps do
     [
       {:jason, "~> 1.4"},
-      {:req, "~> 0.5.0"},
+      {:req, "~> 0.6.2"},
       {:bypass, "~> 2.1", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
