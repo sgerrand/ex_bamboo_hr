@@ -293,6 +293,63 @@ defmodule BambooHR.ClientTest do
     end
   end
 
+  describe "put/3" do
+    test "successfully makes PUT request", %{bypass: bypass, config: config} do
+      request_data = %{"request" => "data"}
+      response_data = %{"key" => "value"}
+
+      Bypass.expect_once(
+        bypass,
+        "PUT",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == request_data
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(response_data))
+        end
+      )
+
+      assert {:ok, ^response_data} =
+               BambooHR.Client.put("/test_path", config, json: request_data)
+    end
+
+    test "handles 200 response with empty body", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PUT",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn ->
+          Plug.Conn.resp(conn, 200, "")
+        end
+      )
+
+      assert {:ok, nil} = BambooHR.Client.put("/test_path", config, json: %{})
+    end
+
+    test "handles error response for PUT", %{bypass: bypass, config: config} do
+      error_response = %{"error" => "Bad request"}
+
+      Bypass.expect_once(
+        bypass,
+        "PUT",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(400, Jason.encode!(error_response))
+        end
+      )
+
+      assert {:error, %{status: 400, body: body}} =
+               BambooHR.Client.put("/test_path", config, json: %{})
+
+      assert Jason.decode!(body) == error_response
+    end
+  end
+
   describe "opts hardening" do
     defmodule CaptureHTTPClient do
       @behaviour BambooHR.HTTPClient
