@@ -114,11 +114,14 @@ Company / Employee / Files / Hiring / Metadata / Reports / Tables / TimeOff / Ti
 
 - Test matrix: Elixir 1.17/1.18/1.19 × OTP 25/26/27/28.
   Unsupported combinations excluded: 1.17+28, 1.18+28, 1.19+25.
-  Linting runs only on Elixir 1.19 + OTP 28.
+  Linting runs on a separate `include:` entry pinned to the newest
+  default toolchain (currently Elixir 1.20 + OTP 29) rather than a member
+  of the matrix arrays above — bumping the default doesn't require
+  touching the compatibility matrix or its exclude list.
 - `coverage`, `dialyzer`, and `docs` are separate jobs pinned to
-  `.tool-versions` (currently Elixir 1.19 / OTP 28). `dialyzer` is in the
-  `required` job's `needs:` list so a Dialyzer error fails the required
-  check.
+  `.tool-versions` (currently Elixir 1.20.2-otp-29 / OTP 29.0.3).
+  `dialyzer` is in the `required` job's `needs:` list so a Dialyzer error
+  fails the required check.
 - Compilation, tests, and docs all use `--warnings-as-errors`.
 - Dialyzer PLTs are cached at `priv/plts/` and keyed by OS / OTP / Elixir /
   `mix.lock` hash in CI.
