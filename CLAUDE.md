@@ -24,7 +24,7 @@ This is an Elixir client library for the BambooHR API, published as `bamboo_hr` 
 **Dependency flow:**
 
 ```text
-Company / Employee / Metadata / Reports / TimeOff / TimeTracking  (resource modules)
+Company / Employee / Files / Metadata / Reports / TimeOff / TimeTracking  (resource modules)
          ↓
       BambooHR.Client                          (HTTP routing + auth)
          ↓
@@ -37,20 +37,25 @@ Company / Employee / Metadata / Reports / TimeOff / TimeTracking  (resource modu
   All resource functions receive a `Client.t()` as first argument.
   Auth uses Basic auth with `api_key:x` encoding.
   URL scheme: `{base_url}/{company_domain}/v1{path}`.
-  `Client.get/3`, `Client.post/3`, and `Client.put/3` lock down `:method`,
-  `:url`, `:headers`, and `:receive_timeout` against caller-supplied opts so
-  resource modules can't accidentally drop auth headers.
+  `Client.get/3`, `Client.post/3`, `Client.put/3`, and `Client.delete/3`
+  lock down `:method`, `:url`, `:headers`, and `:receive_timeout` against
+  caller-supplied opts so resource modules can't accidentally drop auth
+  headers.
 - `BambooHR.HTTPClient` — Behaviour with a single `request/1` callback.
   The opts keyword list passed to implementations is documented in the
-  behaviour's `@moduledoc`. `BambooHR.HTTPClient.Req` is the default
-  implementation; tests use Bypass (a real local HTTP server) rather than
-  mocking the behaviour.
-- `BambooHR.Company`, `BambooHR.Employee`, `BambooHR.Metadata`,
-  `BambooHR.Reports`, `BambooHR.TimeOff`, `BambooHR.TimeTracking` —
-  Resource modules that delegate to `Client.get/3`, `Client.post/3`, or
-  `Client.put/3`. All public functions return `{:ok, data} | {:error, reason}`.
-  `data` is the decoded JSON body — usually a map, occasionally
-  `nil` (empty 2xx body) or a list/scalar.
+  behaviour's `@moduledoc`, including `:expose_headers` (surface response
+  headers alongside the body — needed when a header, not the body, carries
+  the useful data, e.g. a `Location` header) and `:raw_response` (skip
+  JSON-decoding — needed for binary responses like file downloads).
+  `BambooHR.HTTPClient.Req` is the default implementation; tests use
+  Bypass (a real local HTTP server) rather than mocking the behaviour.
+- `BambooHR.Company`, `BambooHR.Employee`, `BambooHR.Files`,
+  `BambooHR.Metadata`, `BambooHR.Reports`, `BambooHR.TimeOff`,
+  `BambooHR.TimeTracking` — Resource modules that delegate to
+  `Client.get/3`, `Client.post/3`, `Client.put/3`, or `Client.delete/3`.
+  All public functions return `{:ok, data} | {:error, reason}`. `data` is
+  the decoded JSON body — usually a map, occasionally `nil` (empty 2xx
+  body) or a list/scalar.
   `BambooHR.Metadata` covers the `/meta/fields`, `/meta/tables`,
   `/meta/lists`, `/meta/time_off/types`, and `/meta/time_off/policies`
   endpoints used for field/type discovery.
@@ -65,6 +70,10 @@ Company / Employee / Metadata / Reports / TimeOff / TimeTracking  (resource modu
   `/v2` path prefixes that this client's `Client.build_url/2` doesn't
   support (it hardcodes `/v1`); adding Datasets support means extending
   `Client` with a version override first.
+  `BambooHR.Files` covers both company and employee files — categories,
+  upload (`:form_multipart`), metadata update, download (`:raw_response` +
+  `:expose_headers`), and delete. File upload responses carry the created
+  file's identity only in the `Location` header, same as `Employee.add/2`.
 
 ### Testing Patterns
 
