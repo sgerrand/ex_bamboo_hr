@@ -53,15 +53,9 @@ defmodule BambooHR.Employee do
   @spec add(Client.t(), map()) :: Client.response()
   def add(client, employee_data) do
     case Client.post("/employees", client, json: employee_data, expose_headers: true) do
-      {:ok, %{headers: headers}} -> {:ok, location_header(headers)}
+      {:ok, %{headers: headers}} -> {:ok, BambooHR.ResponseHeaders.location(headers)}
+      {:ok, _unexpected} -> {:ok, %{}}
       {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp location_header(headers) do
-    case Map.get(headers, "location") do
-      [location | _] -> %{"location" => location}
-      _ -> %{}
     end
   end
 

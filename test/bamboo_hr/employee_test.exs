@@ -85,6 +85,24 @@ defmodule BambooHR.EmployeeTest do
       assert {:error, %{status: 400, body: body}} = BambooHR.Employee.add(config, employee_data)
       assert Jason.decode!(body) == error_response
     end
+
+    defmodule IgnoresExposeHeaders do
+      @behaviour BambooHR.HTTPClient
+
+      @impl true
+      def request(_opts), do: {:ok, %{"id" => 1}}
+    end
+
+    test "does not raise when http_client ignores expose_headers" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: IgnoresExposeHeaders
+        )
+
+      assert {:ok, %{}} = BambooHR.Employee.add(config, %{"firstName" => "Jane"})
+    end
   end
 
   describe "update/3" do
