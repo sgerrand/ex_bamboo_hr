@@ -159,15 +159,9 @@ defmodule BambooHR.Files do
     ]
 
     case Client.post(path, client, form_multipart: form, expose_headers: true) do
-      {:ok, %{headers: headers}} -> {:ok, location_header(headers)}
+      {:ok, %{headers: headers}} -> {:ok, BambooHR.ResponseHeaders.location(headers)}
+      {:ok, _unexpected} -> {:ok, %{}}
       {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp location_header(headers) do
-    case Map.get(headers, "location") do
-      [location | _] -> %{"location" => location}
-      _ -> %{}
     end
   end
 

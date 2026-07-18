@@ -182,7 +182,7 @@ defmodule BambooHR.Client do
 
   defp request(method, path, client, opts) do
     url = build_url(client, path)
-    headers = build_headers(client.api_key)
+    headers = build_headers(client.api_key, Keyword.get(opts, :raw_response, false))
 
     req_opts =
       Keyword.merge(opts,
@@ -211,10 +211,12 @@ defmodule BambooHR.Client do
   defp normalize_path("/" <> _ = path), do: path
   defp normalize_path(path), do: "/" <> path
 
-  defp build_headers(api_key) do
+  defp build_headers(api_key, raw_response) do
+    accept = if raw_response, do: "*/*", else: "application/json"
+
     [
       {"Authorization", "Basic " <> Base.encode64("#{api_key}:x")},
-      {"Accept", "application/json"}
+      {"Accept", accept}
     ]
   end
 end
