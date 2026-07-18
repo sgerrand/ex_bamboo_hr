@@ -470,7 +470,14 @@ defmodule BambooHR.ClientTest do
 
   describe "telemetry" do
     def forward_telemetry(event, measurements, metadata, {pid, ref}) do
-      send(pid, {ref, event, measurements, metadata})
+      # :telemetry dispatches every attached handler to every matching event,
+      # even ones fired by other concurrently-running async tests. Handlers
+      # run synchronously in the calling process though, so self() identifies
+      # which test's request actually triggered this — filter on it to avoid
+      # forwarding (and asserting on) another test's telemetry data.
+      if self() == pid do
+        send(pid, {ref, event, measurements, metadata})
+      end
     end
 
     setup %{test: test} do
