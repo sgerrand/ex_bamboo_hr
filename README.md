@@ -192,6 +192,6 @@ Inspect the resolved config with `mix git_hoox.list` or validate it with
 
 ## License
 
-BambooHR is [released under the MIT license](LICENSE).
+BambooHR is [released under the BSD 2-Clause license](LICENSE).
 
 [bamboohr-api-docs]: https://documentation.bamboohr.com/reference/

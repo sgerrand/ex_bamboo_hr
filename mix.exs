@@ -91,7 +91,7 @@ defmodule BambooHR.MixProject do
   defp package do
     [
       maintainers: ["Sasha Gerrand"],
-      licenses: ["MIT"],
+      licenses: ["BSD-2-Clause"],
       links: %{
         "GitHub" => @source_url,
         "Changelog" => "https://hexdocs.pm/bamboo_hr/changelog.html",
