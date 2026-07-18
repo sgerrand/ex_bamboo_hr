@@ -162,5 +162,32 @@ defmodule BambooHR.HTTPClient.ReqTest do
 
       assert headers["content-disposition"] == [~s(attachment; filename="a.jpg")]
     end
+
+    test "raw_response: true sends Accept: */* instead of application/json", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/file", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "accept") == ["*/*"]
+        Plug.Conn.resp(conn, 200, <<1, 2, 3>>)
+      end)
+
+      assert {:ok, _} = BambooHR.Client.get("/file", config, raw_response: true)
+    end
+
+    test "without raw_response, Accept stays application/json", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/file", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "accept") == ["application/json"]
+
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(200, "{}")
+      end)
+
+      assert {:ok, %{}} = BambooHR.Client.get("/file", config)
+    end
   end
 end

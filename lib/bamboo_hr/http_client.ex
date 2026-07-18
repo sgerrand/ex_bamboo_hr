@@ -12,7 +12,10 @@ defmodule BambooHR.HTTPClient do
 
     * `:method` — `:get`, `:post`, `:put`, or `:delete`
     * `:url` — fully-qualified URL
-    * `:headers` — list of `{name, value}` tuples (includes `Authorization`)
+    * `:headers` — list of `{name, value}` tuples (includes `Authorization`
+      and `Accept`; `BambooHR.Client` sets `Accept: application/json`
+      normally, or `Accept: */*` when `:raw_response` is `true`, so binary
+      downloads aren't forced into requesting a JSON representation)
     * `:receive_timeout` — milliseconds
     * `:params` — query string parameters (optional)
     * `:json` — request body to JSON-encode (optional)
