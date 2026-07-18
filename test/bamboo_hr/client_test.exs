@@ -118,6 +118,66 @@ defmodule BambooHR.ClientTest do
     end
   end
 
+  describe "api_version opt" do
+    test "defaults to v1 when omitted", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn -> Plug.Conn.resp(conn, 200, "") end
+      )
+
+      assert {:ok, nil} = BambooHR.Client.get("/test_path", config)
+    end
+
+    test "targets a different version segment when given", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1_2/datasets",
+        fn conn -> Plug.Conn.resp(conn, 200, "") end
+      )
+
+      assert {:ok, nil} = BambooHR.Client.get("/datasets", config, api_version: "v1_2")
+    end
+
+    test "works for POST too", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v2/datasets/employee/data",
+        fn conn -> Plug.Conn.resp(conn, 200, "") end
+      )
+
+      assert {:ok, nil} =
+               BambooHR.Client.post("/datasets/employee/data", config,
+                 json: %{},
+                 api_version: "v2"
+               )
+    end
+
+    test "is not forwarded to the http_client as a Req option" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: BambooHR.ClientTest.CaptureHTTPClient
+        )
+
+      {:ok, %{}} = BambooHR.Client.get("/datasets", config, api_version: "v1_2")
+
+      assert_received {:request_opts, opts}
+      refute Keyword.has_key?(opts, :api_version)
+      assert opts[:url] =~ "/test_company/v1_2/datasets"
+    end
+
+    test "raises on an unrecognized version", %{config: config} do
+      assert_raise ArgumentError, ~r/:api_version/, fn ->
+        BambooHR.Client.get("/datasets", config, api_version: "v3")
+      end
+    end
+  end
+
   describe "inspect/1" do
     test "redacts api_key" do
       config =

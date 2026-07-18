@@ -13,6 +13,14 @@ defmodule BambooHR.Client do
   - `:http_client` — swap in a custom HTTP client module
   - `:timeout` — HTTP receive timeout in milliseconds (default: `15_000`)
 
+  ## API versions
+
+  Every request targets BambooHR's `v1` API by default. Some endpoints (for
+  example the Datasets API used by `BambooHR.Datasets`) live under a
+  different version segment. Pass `api_version:` in the `opts` of
+  `get/3`, `post/3`, `put/3`, or `delete/3` to target one of those instead —
+  one of `"v1"` (default), `"v1_1"`, `"v1_2"`, or `"v2"`.
+
   ## Usage
 
       client = BambooHR.Client.new(company_domain: "your_company", api_key: "your_api_key")
@@ -134,7 +142,8 @@ defmodule BambooHR.Client do
   This function is meant to be used by resource modules. `opts` are forwarded
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
-  through this argument.
+  through this argument. `opts` may also include `api_version:` — see
+  "API versions" above.
   """
   @spec get(String.t(), t(), keyword()) :: response()
   def get(path, %__MODULE__{} = client, opts \\ []) do
@@ -147,7 +156,8 @@ defmodule BambooHR.Client do
   This function is meant to be used by resource modules. `opts` are forwarded
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
-  through this argument.
+  through this argument. `opts` may also include `api_version:` — see
+  "API versions" above.
   """
   @spec post(String.t(), t(), keyword()) :: response()
   def post(path, %__MODULE__{} = client, opts) do
@@ -160,7 +170,8 @@ defmodule BambooHR.Client do
   This function is meant to be used by resource modules. `opts` are forwarded
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
-  through this argument.
+  through this argument. `opts` may also include `api_version:` — see
+  "API versions" above.
   """
   @spec put(String.t(), t(), keyword()) :: response()
   def put(path, %__MODULE__{} = client, opts) do
@@ -173,15 +184,19 @@ defmodule BambooHR.Client do
   This function is meant to be used by resource modules. `opts` are forwarded
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
-  through this argument.
+  through this argument. `opts` may also include `api_version:` — see
+  "API versions" above.
   """
   @spec delete(String.t(), t(), keyword()) :: response()
   def delete(path, %__MODULE__{} = client, opts \\ []) do
     request(:delete, path, client, opts)
   end
 
+  @known_api_versions ~w(v1 v1_1 v1_2 v2)
+
   defp request(method, path, client, opts) do
-    url = build_url(client, path)
+    {version, opts} = Keyword.pop(opts, :api_version, "v1")
+    url = build_url(client, path, version)
     headers = build_headers(client.api_key, Keyword.get(opts, :raw_response, false))
 
     req_opts =
@@ -204,8 +219,16 @@ defmodule BambooHR.Client do
   defp result_metadata({:error, %{status: status}}), do: %{result: :error, status: status}
   defp result_metadata({:error, reason}), do: %{result: :error, reason: reason}
 
-  defp build_url(client, path) do
-    "#{client.base_url}/#{client.company_domain}/v1#{normalize_path(path)}"
+  defp build_url(client, path, version) do
+    validate_api_version!(version)
+    "#{client.base_url}/#{client.company_domain}/#{version}#{normalize_path(path)}"
+  end
+
+  defp validate_api_version!(version) when version in @known_api_versions, do: :ok
+
+  defp validate_api_version!(version) do
+    raise ArgumentError,
+          "expected :api_version to be one of #{inspect(@known_api_versions)}, got: #{inspect(version)}"
   end
 
   defp normalize_path("/" <> _ = path), do: path
