@@ -24,7 +24,7 @@ This is an Elixir client library for the BambooHR API, published as `bamboo_hr` 
 **Dependency flow:**
 
 ```text
-Company / Employee / Files / Metadata / Reports / Tables / TimeOff / TimeTracking  (resource modules)
+Company / Employee / Files / Hiring / Metadata / Reports / Tables / TimeOff / TimeTracking  (resource modules)
          ↓
       BambooHR.Client                          (HTTP routing + auth)
          ↓
@@ -50,8 +50,9 @@ Company / Employee / Files / Metadata / Reports / Tables / TimeOff / TimeTrackin
   `BambooHR.HTTPClient.Req` is the default implementation; tests use
   Bypass (a real local HTTP server) rather than mocking the behaviour.
 - `BambooHR.Company`, `BambooHR.Employee`, `BambooHR.Files`,
-  `BambooHR.Metadata`, `BambooHR.Reports`, `BambooHR.Tables`,
-  `BambooHR.TimeOff`, `BambooHR.TimeTracking` — Resource modules that delegate to
+  `BambooHR.Hiring`, `BambooHR.Metadata`, `BambooHR.Reports`,
+  `BambooHR.Tables`, `BambooHR.TimeOff`, `BambooHR.TimeTracking` — Resource
+  modules that delegate to
   `Client.get/3`, `Client.post/3`, `Client.put/3`, or `Client.delete/3`.
   All public functions return `{:ok, data} | {:error, reason}`. `data` is
   the decoded JSON body — usually a map, occasionally `nil` (empty 2xx
@@ -80,6 +81,11 @@ Company / Employee / Files / Metadata / Reports / Tables / TimeOff / TimeTrackin
   `Metadata.get_tabular_fields/1`. Skips the `/v1_1` update/create row
   variants, same reasoning as the `/v1_1` policies endpoint skipped in
   `TimeOff`.
+  `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
+  applications, statuses, locations, hiring leads, job openings, and
+  candidates. `create_candidate/5` and `create_job_opening/7` use
+  `:form_multipart` like `Files` uploads, but return a JSON body directly
+  (`candidateId`/`jobOpeningId`) rather than a `Location` header.
 
 ### Testing Patterns
 
