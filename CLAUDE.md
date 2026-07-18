@@ -24,7 +24,7 @@ This is an Elixir client library for the BambooHR API, published as `bamboo_hr` 
 **Dependency flow:**
 
 ```text
-Company / Employee / Files / Metadata / Reports / TimeOff / TimeTracking  (resource modules)
+Company / Employee / Files / Metadata / Reports / Tables / TimeOff / TimeTracking  (resource modules)
          ↓
       BambooHR.Client                          (HTTP routing + auth)
          ↓
@@ -50,8 +50,8 @@ Company / Employee / Files / Metadata / Reports / TimeOff / TimeTracking  (resou
   `BambooHR.HTTPClient.Req` is the default implementation; tests use
   Bypass (a real local HTTP server) rather than mocking the behaviour.
 - `BambooHR.Company`, `BambooHR.Employee`, `BambooHR.Files`,
-  `BambooHR.Metadata`, `BambooHR.Reports`, `BambooHR.TimeOff`,
-  `BambooHR.TimeTracking` — Resource modules that delegate to
+  `BambooHR.Metadata`, `BambooHR.Reports`, `BambooHR.Tables`,
+  `BambooHR.TimeOff`, `BambooHR.TimeTracking` — Resource modules that delegate to
   `Client.get/3`, `Client.post/3`, `Client.put/3`, or `Client.delete/3`.
   All public functions return `{:ok, data} | {:error, reason}`. `data` is
   the decoded JSON body — usually a map, occasionally `nil` (empty 2xx
@@ -74,6 +74,12 @@ Company / Employee / Files / Metadata / Reports / TimeOff / TimeTracking  (resou
   upload (`:form_multipart`), metadata update, download (`:raw_response` +
   `:expose_headers`), and delete. File upload responses carry the created
   file's identity only in the `Location` header, same as `Employee.add/2`.
+  `BambooHR.Tables` covers row-level CRUD on employee tabular fields (job
+  info, compensation, custom tabular fields, etc.) — `table` is the raw
+  table name string (e.g. `"jobInfo"`), discoverable via
+  `Metadata.get_tabular_fields/1`. Skips the `/v1_1` update/create row
+  variants, same reasoning as the `/v1_1` policies endpoint skipped in
+  `TimeOff`.
 
 ### Testing Patterns
 
