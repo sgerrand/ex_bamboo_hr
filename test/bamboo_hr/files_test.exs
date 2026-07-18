@@ -154,6 +154,21 @@ defmodule BambooHR.FilesTest do
                BambooHR.Files.upload_company_file(config, "handbook.pdf", 3, "%PDF-1.4 binary")
     end
 
+    test "handles error response", %{bypass: bypass, config: config} do
+      error_response = %{"error" => "Unsupported file extension"}
+
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/files", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(400, Jason.encode!(error_response))
+      end)
+
+      assert {:error, %{status: 400, body: body}} =
+               BambooHR.Files.upload_company_file(config, "handbook.pdf", 3, "%PDF-1.4 binary")
+
+      assert Jason.decode!(body) == error_response
+    end
+
     defmodule IgnoresExposeHeaders do
       @behaviour BambooHR.HTTPClient
 
