@@ -56,7 +56,9 @@ defmodule BambooHR.Client do
 
   The `:ok` payload is whatever `Jason.decode/1` produced from the response
   body — typically a map, but it may also be a list, scalar, or `nil` when the
-  upstream returns an empty 2xx body.
+  upstream returns an empty 2xx body. If the caller passed `expose_headers:
+  true`, the `:ok` payload is instead `%{body: decoded_body, headers:
+  headers}` — see `BambooHR.HTTPClient`.
 
   The `:error` payload is one of:
 

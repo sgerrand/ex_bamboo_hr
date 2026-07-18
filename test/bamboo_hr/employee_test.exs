@@ -36,22 +36,54 @@ defmodule BambooHR.EmployeeTest do
   end
 
   describe "add/2" do
-    test "successfully adds a new employee", %{bypass: bypass, config: config} do
+    test "returns the Location header pointing to the new employee", %{
+      bypass: bypass,
+      config: config
+    } do
       employee_data = %{
         "firstName" => "Jane",
         "lastName" => "Smith"
       }
+
+      location = "https://test_company.bamboohr.com/employees/employee.php?id=124"
 
       Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/employees", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         assert Jason.decode!(body) == employee_data
 
         conn
-        |> Plug.Conn.put_resp_header("content-type", "application/json")
-        |> Plug.Conn.resp(201, Jason.encode!(%{id: 1}))
+        |> Plug.Conn.put_resp_header("location", location)
+        |> Plug.Conn.resp(201, "")
       end)
 
-      assert {:ok, %{"id" => 1}} = BambooHR.Employee.add(config, employee_data)
+      assert {:ok, %{"location" => ^location}} = BambooHR.Employee.add(config, employee_data)
+    end
+
+    test "returns an empty map when no Location header is present", %{
+      bypass: bypass,
+      config: config
+    } do
+      employee_data = %{"firstName" => "Jane", "lastName" => "Smith"}
+
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/employees", fn conn ->
+        Plug.Conn.resp(conn, 201, "")
+      end)
+
+      assert {:ok, %{}} = BambooHR.Employee.add(config, employee_data)
+    end
+
+    test "handles error response", %{bypass: bypass, config: config} do
+      employee_data = %{"firstName" => "Jane", "lastName" => "Smith"}
+      error_response = %{"error" => "Invalid request"}
+
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/employees", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(400, Jason.encode!(error_response))
+      end)
+
+      assert {:error, %{status: 400, body: body}} = BambooHR.Employee.add(config, employee_data)
+      assert Jason.decode!(body) == error_response
     end
   end
 

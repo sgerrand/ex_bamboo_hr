@@ -16,6 +16,14 @@ defmodule BambooHR.HTTPClient do
     * `:receive_timeout` — milliseconds
     * `:params` — query string parameters (optional)
     * `:json` — request body to JSON-encode (optional)
+    * `:expose_headers` — when `true`, the `:ok` payload for a 2xx response
+      becomes `%{body: decoded_body, headers: headers}` instead of the bare
+      decoded body. `headers` is a map of downcased header name to a list of
+      values (`Req`'s convention — a header may repeat). Defaults to
+      `false`. Useful for endpoints that return no body and communicate
+      their result through a header instead — e.g. `POST /employees`,
+      whose `Location` header is the only way to identify the created
+      employee.
   """
 
   @callback request(keyword()) :: {:ok, term()} | {:error, term()}

@@ -32,6 +32,13 @@ defmodule BambooHR.Employee do
   @doc """
   Adds a new employee.
 
+  BambooHR returns no response body for this endpoint — the created
+  employee is identified only by the `Location` header, which points to
+  the employee's page in the BambooHR web app (and includes the new
+  employee's ID). This function surfaces that header as `"location"`; if
+  the upstream response has no `Location` header, the result is `{:ok,
+  %{}}`.
+
   ## Parameters
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
@@ -41,11 +48,21 @@ defmodule BambooHR.Employee do
 
       iex> employee_data = %{"firstName" => "Jane", "lastName" => "Smith"}
       iex> BambooHR.Employee.add(client, employee_data)
-      {:ok, %{"id" => 124}}
+      {:ok, %{"location" => "https://acme.bamboohr.com/employees/employee.php?id=124"}}
   """
   @spec add(Client.t(), map()) :: Client.response()
   def add(client, employee_data) do
-    Client.post("/employees", client, json: employee_data)
+    case Client.post("/employees", client, json: employee_data, expose_headers: true) do
+      {:ok, %{headers: headers}} -> {:ok, location_header(headers)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp location_header(headers) do
+    case Map.get(headers, "location") do
+      [location | _] -> %{"location" => location}
+      _ -> %{}
+    end
   end
 
   @doc """

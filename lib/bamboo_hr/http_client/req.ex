@@ -27,20 +27,32 @@ defmodule BambooHR.HTTPClient.Req do
 
   @impl true
   def request(opts) do
+    {expose_headers, opts} = Keyword.pop(opts, :expose_headers, false)
+
     opts =
       opts
       |> Keyword.put(:decode_body, false)
       |> Keyword.put_new(:retry, &__MODULE__.retry?/2)
 
     case Req.request(opts) do
-      {:ok, %{status: status, body: body}} when status in 200..299 ->
-        decode_body(body)
+      {:ok, %{status: status, body: body, headers: headers}} when status in 200..299 ->
+        decode_success(body, headers, expose_headers)
 
       {:ok, %{status: status, body: body}} ->
         {:error, %{status: status, body: body}}
 
       {:error, error} ->
         {:error, error}
+    end
+  end
+
+  defp decode_success(body, headers, expose_headers) do
+    with {:ok, decoded} <- decode_body(body) do
+      if expose_headers do
+        {:ok, %{body: decoded, headers: headers}}
+      else
+        {:ok, decoded}
+      end
     end
   end
 
