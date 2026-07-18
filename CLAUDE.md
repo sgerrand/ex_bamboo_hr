@@ -24,7 +24,7 @@ This is an Elixir client library for the BambooHR API, published as `bamboo_hr` 
 **Dependency flow:**
 
 ```text
-Company / Employee / Metadata / TimeTracking  (resource modules)
+Company / Employee / Metadata / TimeOff / TimeTracking  (resource modules)
          ↓
       BambooHR.Client                          (HTTP routing + auth)
          ↓
@@ -37,21 +37,27 @@ Company / Employee / Metadata / TimeTracking  (resource modules)
   All resource functions receive a `Client.t()` as first argument.
   Auth uses Basic auth with `api_key:x` encoding.
   URL scheme: `{base_url}/{company_domain}/v1{path}`.
-  `Client.get/3` and `Client.post/3` lock down `:method`, `:url`, `:headers`,
-  and `:receive_timeout` against caller-supplied opts so resource modules
-  can't accidentally drop auth headers.
+  `Client.get/3`, `Client.post/3`, and `Client.put/3` lock down `:method`,
+  `:url`, `:headers`, and `:receive_timeout` against caller-supplied opts so
+  resource modules can't accidentally drop auth headers.
 - `BambooHR.HTTPClient` — Behaviour with a single `request/1` callback.
   The opts keyword list passed to implementations is documented in the
   behaviour's `@moduledoc`. `BambooHR.HTTPClient.Req` is the default
   implementation; tests use Bypass (a real local HTTP server) rather than
   mocking the behaviour.
 - `BambooHR.Company`, `BambooHR.Employee`, `BambooHR.Metadata`,
-  `BambooHR.TimeTracking` — Resource modules that delegate to `Client.get/3`
-  or `Client.post/3`. All public functions return
-  `{:ok, data} | {:error, reason}`. `data` is the decoded JSON body —
-  usually a map, occasionally `nil` (empty 2xx body) or a list/scalar.
-  `BambooHR.Metadata` covers the `/meta/fields`, `/meta/tables`, and
-  `/meta/lists` endpoints used for field discovery.
+  `BambooHR.TimeOff`, `BambooHR.TimeTracking` — Resource modules that
+  delegate to `Client.get/3`, `Client.post/3`, or `Client.put/3`. All public
+  functions return `{:ok, data} | {:error, reason}`. `data` is the decoded
+  JSON body — usually a map, occasionally `nil` (empty 2xx body) or a
+  list/scalar.
+  `BambooHR.Metadata` covers the `/meta/fields`, `/meta/tables`,
+  `/meta/lists`, `/meta/time_off/types`, and `/meta/time_off/policies`
+  endpoints used for field/type discovery.
+  `BambooHR.TimeOff` covers employee-scoped time off endpoints (policies,
+  balances, requests, history) — company-wide time off metadata (types,
+  policy list) lives in `Metadata` instead, to keep the `/meta/` prefix
+  grouped in one module.
 
 ### Testing Patterns
 
@@ -69,6 +75,12 @@ Company / Employee / Metadata / TimeTracking  (resource modules)
   CI — keep struct field order in sync with `defstruct` or they'll fail.
 - Handle errors with pattern matching; never raise from public API functions.
 - No Ecto in this project — remove the `has_many`/`belongs_to` guideline if it appears elsewhere.
+- BambooHR's public docs (`documentation.bamboohr.com`) are JS-rendered and
+  mostly 404 or return empty content through WebFetch/WebSearch. To verify
+  exact endpoint paths, methods, and request/response shapes, fetch
+  `specs/public.yaml` (an OpenAPI spec) from the
+  `BambooHR/bhr-api-python` GitHub repo instead — it's the authoritative,
+  machine-readable source and is kept current with the real API.
 
 ## CI
 
