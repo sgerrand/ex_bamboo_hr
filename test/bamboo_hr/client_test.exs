@@ -350,6 +350,39 @@ defmodule BambooHR.ClientTest do
     end
   end
 
+  describe "delete/3" do
+    test "successfully makes DELETE request", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "DELETE",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn ->
+          Plug.Conn.resp(conn, 200, "")
+        end
+      )
+
+      assert {:ok, nil} = BambooHR.Client.delete("/test_path", config)
+    end
+
+    test "handles error response for DELETE", %{bypass: bypass, config: config} do
+      error_response = %{"error" => "Not found"}
+
+      Bypass.expect_once(
+        bypass,
+        "DELETE",
+        "/api/gateway.php/test_company/v1/test_path",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(404, Jason.encode!(error_response))
+        end
+      )
+
+      assert {:error, %{status: 404, body: body}} = BambooHR.Client.delete("/test_path", config)
+      assert Jason.decode!(body) == error_response
+    end
+  end
+
   describe "opts hardening" do
     defmodule CaptureHTTPClient do
       @behaviour BambooHR.HTTPClient
