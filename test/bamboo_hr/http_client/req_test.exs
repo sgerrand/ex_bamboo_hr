@@ -133,4 +133,34 @@ defmodule BambooHR.HTTPClient.ReqTest do
       assert :counters.get(counter, 1) == 1
     end
   end
+
+  describe "request/1 raw_response and expose_headers" do
+    test "raw_response: true skips JSON decoding", %{bypass: bypass, config: config} do
+      binary_content = <<0xFF, 0xD8, 0xFF, 0xE0>>
+
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/file", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/octet-stream")
+        |> Plug.Conn.resp(200, binary_content)
+      end)
+
+      assert {:ok, ^binary_content} =
+               BambooHR.Client.get("/file", config, raw_response: true)
+    end
+
+    test "raw_response and expose_headers compose", %{bypass: bypass, config: config} do
+      binary_content = <<0xFF, 0xD8, 0xFF, 0xE0>>
+
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/file", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-disposition", ~s(attachment; filename="a.jpg"))
+        |> Plug.Conn.resp(200, binary_content)
+      end)
+
+      assert {:ok, %{body: ^binary_content, headers: headers}} =
+               BambooHR.Client.get("/file", config, raw_response: true, expose_headers: true)
+
+      assert headers["content-disposition"] == [~s(attachment; filename="a.jpg")]
+    end
+  end
 end
