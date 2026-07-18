@@ -100,4 +100,43 @@ defmodule BambooHR.Metadata do
   def get_lists(client) do
     Client.get("/meta/lists", client)
   end
+
+  @doc """
+  Retrieves active time off types for the company.
+
+  Includes the company's default hours-per-day schedule.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `params` - Optional query params: `"mode"` — set to `"request"` to
+      limit results to time off types the authenticated employee can request
+
+  ## Examples
+
+      iex> BambooHR.Metadata.get_time_off_types(client)
+      {:ok, [%{"id" => 1, "name" => "Vacation", "icon" => "calendar"}]}
+  """
+  @spec get_time_off_types(Client.t(), map()) :: Client.response()
+  def get_time_off_types(client, params \\ %{}) do
+    Client.get("/meta/time_off/types", client, params: params)
+  end
+
+  @doc """
+  Retrieves all non-deleted time off policies for the company, sorted
+  alphabetically by name.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+
+  ## Examples
+
+      iex> BambooHR.Metadata.get_time_off_policies(client)
+      {:ok, [%{"id" => 4, "timeOffTypeId" => 1, "name" => "Standard Vacation", "type" => "accruing"}]}
+  """
+  @spec get_time_off_policies(Client.t()) :: Client.response()
+  def get_time_off_policies(client) do
+    Client.get("/meta/time_off/policies", client)
+  end
 end

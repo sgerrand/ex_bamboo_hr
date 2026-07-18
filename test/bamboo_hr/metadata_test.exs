@@ -158,4 +158,63 @@ defmodule BambooHR.MetadataTest do
       assert Jason.decode!(body) == error_response
     end
   end
+
+  describe "get_time_off_types/2" do
+    test "successfully retrieves time off types", %{bypass: bypass, config: config} do
+      types_data = [%{"id" => 1, "name" => "Vacation", "icon" => "calendar"}]
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/meta/time_off/types",
+        fn conn ->
+          assert conn.query_string == ""
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(types_data))
+        end
+      )
+
+      assert {:ok, ^types_data} = BambooHR.Metadata.get_time_off_types(config)
+    end
+
+    test "forwards optional mode param", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/meta/time_off/types",
+        fn conn ->
+          assert conn.query_string == "mode=request"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!([]))
+        end
+      )
+
+      assert {:ok, []} = BambooHR.Metadata.get_time_off_types(config, %{"mode" => "request"})
+    end
+  end
+
+  describe "get_time_off_policies/1" do
+    test "successfully retrieves company time off policies", %{bypass: bypass, config: config} do
+      policies_data = [
+        %{"id" => 4, "timeOffTypeId" => 1, "name" => "Standard Vacation", "type" => "accruing"}
+      ]
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/meta/time_off/policies",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(policies_data))
+        end
+      )
+
+      assert {:ok, ^policies_data} = BambooHR.Metadata.get_time_off_policies(config)
+    end
+  end
 end
