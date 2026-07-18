@@ -4,10 +4,8 @@ defmodule BambooHR.Reports do
 
   Covers the current, non-deprecated "Custom Reports" endpoints only. The
   older `/reports/custom` and `/reports/{id}` endpoints are deprecated in
-  favour of these, and the newer Datasets API (which replaces ad-hoc
-  reporting entirely) lives under `/v1_2` and `/v2` — a different API
-  version prefix than the rest of this client supports — so it's out of
-  scope here.
+  favour of these. The newer Datasets API, which replaces ad-hoc reporting
+  entirely, lives in `BambooHR.Datasets` instead.
   """
 
   alias BambooHR.Client

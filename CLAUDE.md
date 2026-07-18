@@ -24,7 +24,7 @@ This is an Elixir client library for the BambooHR API, published as `bamboo_hr` 
 **Dependency flow:**
 
 ```text
-Company / Employee / Files / Hiring / Metadata / Reports / Tables / TimeOff / TimeTracking  (resource modules)
+Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / TimeOff / TimeTracking  (resource modules)
          ↓
       BambooHR.Client                          (HTTP routing + auth)
          ↓
@@ -36,11 +36,13 @@ Company / Employee / Files / Hiring / Metadata / Reports / Tables / TimeOff / Ti
 - `BambooHR.Client` — Core struct (`t()`) holding `company_domain`, `api_key`, `base_url`, `http_client`, `timeout`.
   All resource functions receive a `Client.t()` as first argument.
   Auth uses Basic auth with `api_key:x` encoding.
-  URL scheme: `{base_url}/{company_domain}/v1{path}`.
-  `Client.get/3`, `Client.post/3`, `Client.put/3`, and `Client.delete/3`
-  lock down `:method`, `:url`, `:headers`, and `:receive_timeout` against
-  caller-supplied opts so resource modules can't accidentally drop auth
-  headers.
+  URL scheme: `{base_url}/{company_domain}/v1{path}`, or a different version
+  segment if the caller passes `api_version:` in opts (one of `"v1"`
+  (default), `"v1_1"`, `"v1_2"`, `"v2"` — validated, raises `ArgumentError`
+  on anything else). `Client.get/3`, `Client.post/3`, `Client.put/3`, and
+  `Client.delete/3` lock down `:method`, `:url`, `:headers`, and
+  `:receive_timeout` against caller-supplied opts so resource modules can't
+  accidentally drop auth headers.
 - `BambooHR.HTTPClient` — Behaviour with a single `request/1` callback.
   The opts keyword list passed to implementations is documented in the
   behaviour's `@moduledoc`, including `:expose_headers` (surface response
@@ -49,10 +51,10 @@ Company / Employee / Files / Hiring / Metadata / Reports / Tables / TimeOff / Ti
   JSON-decoding — needed for binary responses like file downloads).
   `BambooHR.HTTPClient.Req` is the default implementation; tests use
   Bypass (a real local HTTP server) rather than mocking the behaviour.
-- `BambooHR.Company`, `BambooHR.Employee`, `BambooHR.Files`,
-  `BambooHR.Hiring`, `BambooHR.Metadata`, `BambooHR.Reports`,
-  `BambooHR.Tables`, `BambooHR.TimeOff`, `BambooHR.TimeTracking` — Resource
-  modules that delegate to
+- `BambooHR.Company`, `BambooHR.Datasets`, `BambooHR.Employee`,
+  `BambooHR.Files`, `BambooHR.Hiring`, `BambooHR.Metadata`,
+  `BambooHR.Reports`, `BambooHR.Tables`, `BambooHR.TimeOff`,
+  `BambooHR.TimeTracking` — Resource modules that delegate to
   `Client.get/3`, `Client.post/3`, `Client.put/3`, or `Client.delete/3`.
   All public functions return `{:ok, data} | {:error, reason}`. `data` is
   the decoded JSON body — usually a map, occasionally `nil` (empty 2xx
@@ -67,10 +69,11 @@ Company / Employee / Files / Hiring / Metadata / Reports / Tables / TimeOff / Ti
   `BambooHR.Reports` covers only the current, non-deprecated Custom
   Reports endpoints (`/custom-reports`, `/custom-reports/{id}`). The
   older `/reports/custom` and `/reports/{id}` endpoints are deprecated,
-  and their true replacement — the Datasets API — lives under `/v1_2` and
-  `/v2` path prefixes that this client's `Client.build_url/2` doesn't
-  support (it hardcodes `/v1`); adding Datasets support means extending
-  `Client` with a version override first.
+  and their true replacement is the Datasets API, in `BambooHR.Datasets`.
+  `BambooHR.Datasets` covers the current, non-deprecated Datasets
+  endpoints only (`v1.2` catalog/field discovery, `v2` data querying) —
+  the deprecated `v1`/`v1.1` Datasets variants are skipped, same reasoning
+  as elsewhere in this client.
   `BambooHR.Files` covers both company and employee files — categories,
   upload (`:form_multipart`), metadata update, download (`:raw_response` +
   `:expose_headers`), and delete. File upload responses carry the created
