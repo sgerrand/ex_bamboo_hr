@@ -52,6 +52,60 @@ defmodule BambooHR.TimeOff do
   end
 
   @doc """
+  Retrieves the time off policies currently assigned to an employee,
+  including manual and unlimited policy types.
+
+  Same endpoint as `get_employee_policies/2`, but the `v1.1` version — `v1`
+  silently excludes manual and unlimited (non-accruing) policy types from
+  the response; this includes them.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `employee_id` - The ID of the employee
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.get_employee_policies_v1_1(client, 123)
+      {:ok, [%{"timeOffPolicyId" => 4, "timeOffTypeId" => 1, "accrualStartDate" => nil}]}
+  """
+  @spec get_employee_policies_v1_1(Client.t(), integer()) :: Client.response()
+  def get_employee_policies_v1_1(client, employee_id) when is_integer(employee_id) do
+    Client.get("/employees/#{employee_id}/time_off/policies", client, api_version: "v1_1")
+  end
+
+  @doc """
+  Assigns time off policies to an employee, including manual and unlimited
+  policy types.
+
+  Same endpoint as `assign_employee_policies/3`, but the `v1.1` version —
+  `v1` silently excludes manual and unlimited (non-accruing) policy types
+  from the response; this includes them. A `nil` `accrualStartDate` removes
+  an existing assignment. On success, returns the current list of assigned
+  policies.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `employee_id` - The ID of the employee to assign policies to
+    * `policies` - List of maps with `"timeOffPolicyId"` and `"accrualStartDate"`
+
+  ## Examples
+
+      iex> policies = [%{"timeOffPolicyId" => 4, "accrualStartDate" => "2024-02-01"}]
+      iex> BambooHR.TimeOff.assign_employee_policies_v1_1(client, 123, policies)
+      {:ok, [%{"timeOffPolicyId" => 4, "timeOffTypeId" => 1, "accrualStartDate" => "2024-02-01"}]}
+  """
+  @spec assign_employee_policies_v1_1(Client.t(), integer(), list(map())) :: Client.response()
+  def assign_employee_policies_v1_1(client, employee_id, policies)
+      when is_integer(employee_id) and is_list(policies) do
+    Client.put("/employees/#{employee_id}/time_off/policies", client,
+      json: policies,
+      api_version: "v1_1"
+    )
+  end
+
+  @doc """
   Calculates an employee's time off balances across all assigned categories.
 
   ## Parameters

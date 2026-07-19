@@ -46,6 +46,57 @@ defmodule BambooHR.TimeOffTest do
     end
   end
 
+  describe "get_employee_policies_v1_1/2" do
+    test "successfully retrieves assigned policies including manual/unlimited types", %{
+      bypass: bypass,
+      config: config
+    } do
+      policies_data = [
+        %{"timeOffPolicyId" => 4, "timeOffTypeId" => 1, "accrualStartDate" => nil}
+      ]
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1_1/employees/123/time_off/policies",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(policies_data))
+        end
+      )
+
+      assert {:ok, ^policies_data} = BambooHR.TimeOff.get_employee_policies_v1_1(config, 123)
+    end
+  end
+
+  describe "assign_employee_policies_v1_1/3" do
+    test "successfully assigns policies including manual/unlimited types", %{
+      bypass: bypass,
+      config: config
+    } do
+      policies = [%{"timeOffPolicyId" => 4, "accrualStartDate" => "2024-02-01"}]
+      response_data = [%{"timeOffPolicyId" => 4, "timeOffTypeId" => 1}]
+
+      Bypass.expect_once(
+        bypass,
+        "PUT",
+        "/api/gateway.php/test_company/v1_1/employees/123/time_off/policies",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == policies
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(response_data))
+        end
+      )
+
+      assert {:ok, ^response_data} =
+               BambooHR.TimeOff.assign_employee_policies_v1_1(config, 123, policies)
+    end
+  end
+
   describe "calculate_balances/3" do
     test "successfully retrieves balances", %{bypass: bypass, config: config} do
       balance_data = [
