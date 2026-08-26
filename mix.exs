@@ -57,7 +57,7 @@ defmodule BambooHR.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
-      {:git_hoox, "~> 0.4.2", only: [:dev], runtime: false}
+      {:git_hoox, "~> 0.5.0", only: [:dev], runtime: false}
     ]
   end
 
