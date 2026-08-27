@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file. See [Keep a
 CHANGELOG](http://keepachangelog.com/) for how to update this file. This project
 adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.6.0](https://github.com/sgerrand/ex_bamboo_hr/compare/v0.5.0...v0.6.0) (2026-08-27)
+
+
+### Added
+
+* **client:** add api_version opt to target non-v1 API segments ([0c12b90](https://github.com/sgerrand/ex_bamboo_hr/commit/0c12b90f8da5cbdb0d769edcca1792c9999b3a27))
+* **datasets:** add BambooHR.Datasets resource module ([a2df850](https://github.com/sgerrand/ex_bamboo_hr/commit/a2df8500180ad8758d47629f439d5b5ab698aea7))
+* **time_off:** add v1.1 policy endpoints (include manual/unlimited types) ([f4e79f6](https://github.com/sgerrand/ex_bamboo_hr/commit/f4e79f64bdfbaccc69ab4940a9be63961f894c74))
+
+
+### Fixed
+
+* **deps:** bump req from 0.6.2 to 0.7.1 ([#94](https://github.com/sgerrand/ex_bamboo_hr/issues/94)) ([7198421](https://github.com/sgerrand/ex_bamboo_hr/commit/7198421d85b13329a5657f6c69351d921edf0081))
+* **deps:** bump req from 0.7.1 to 0.7.2 ([#96](https://github.com/sgerrand/ex_bamboo_hr/issues/96)) ([dbd2cbd](https://github.com/sgerrand/ex_bamboo_hr/commit/dbd2cbde914521b318d99463591c81d1f1ad604d))
+
 ## [0.5.0](https://github.com/sgerrand/ex_bamboo_hr/compare/v0.4.0...v0.5.0) (2026-07-18)
 
 
