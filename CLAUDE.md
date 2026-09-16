@@ -128,8 +128,15 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   touching the compatibility matrix or its exclude list.
 - `coverage`, `dialyzer`, and `docs` are separate jobs pinned to
   `.tool-versions` (currently Elixir 1.20.2-otp-29 / OTP 29.0.3).
-  `dialyzer` is in the `required` job's `needs:` list so a Dialyzer error
-  fails the required check.
+  `dialyzer` and `docs` are in the `required` job's `needs:` list;
+  `coverage` is not.
+- `required` is the one job branch protection checks. It needs `test`,
+  `docs`, `dialyzer`, and `lint-markdown`. It runs with `if: always()` and
+  exits 1 if any of those failed, was cancelled, or was skipped. Both
+  parts matter: without `if: always()` a failed dependency would leave
+  `required` skipped, and branch protection treats a skipped check as not
+  failed. The job reads `needs.*.result` and nothing else, so it runs with
+  `permissions: {}`.
 - Compilation, tests, and docs all use `--warnings-as-errors`.
 - Dialyzer PLTs are cached at `priv/plts/` and keyed by OS / OTP / Elixir /
   `mix.lock` hash in CI.
