@@ -27,28 +27,4 @@ defmodule BambooHR.Company do
   def get_information(client) do
     Client.get("/company_information", client)
   end
-
-  @doc """
-  Retrieves company EINs (Employer Identification Numbers).
-
-  Returns a list of EINs associated with the company.
-
-  ## Parameters
-
-    * `client` - Client configuration created with `BambooHR.Client.new/1`
-
-  ## Examples
-
-      iex> BambooHR.Company.get_eins(client)
-      {:ok, %{
-        "eins" => [
-          %{"ein" => "12-3456789", "name" => "Acme Corp"},
-          %{"ein" => "98-7654321", "name" => "Acme Subsidiary"}
-        ]
-      }}
-  """
-  @spec get_eins(Client.t()) :: Client.response()
-  def get_eins(client) do
-    Client.get("/company_eins", client)
-  end
 end

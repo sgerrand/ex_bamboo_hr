@@ -1,6 +1,11 @@
 defmodule BambooHR.TimeOffTest do
   use BambooHR.BypassCase, async: true
 
+  # Deprecated functions are called through apply/3 so their deprecation
+  # warnings do not fail the --warnings-as-errors build.
+  # credo:disable-for-next-line Credo.Check.Refactor.Apply
+  defp deprecated(fun, args), do: apply(BambooHR.TimeOff, fun, args)
+
   describe "get_employee_policies/2" do
     test "successfully retrieves assigned policies", %{bypass: bypass, config: config} do
       policies_data = [
@@ -10,7 +15,7 @@ defmodule BambooHR.TimeOffTest do
       Bypass.expect_once(
         bypass,
         "GET",
-        "/api/gateway.php/test_company/v1/employees/123/time_off/policies",
+        "/api/gateway.php/test_company/v1_1/employees/123/time_off/policies",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_header("content-type", "application/json")
@@ -30,7 +35,7 @@ defmodule BambooHR.TimeOffTest do
       Bypass.expect_once(
         bypass,
         "PUT",
-        "/api/gateway.php/test_company/v1/employees/123/time_off/policies",
+        "/api/gateway.php/test_company/v1_1/employees/123/time_off/policies",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           assert Jason.decode!(body) == policies
@@ -46,8 +51,8 @@ defmodule BambooHR.TimeOffTest do
     end
   end
 
-  describe "get_employee_policies_v1_1/2" do
-    test "successfully retrieves assigned policies including manual/unlimited types", %{
+  describe "get_employee_policies_v1_1/2 (deprecated)" do
+    test "delegates to get_employee_policies/2", %{
       bypass: bypass,
       config: config
     } do
@@ -66,12 +71,13 @@ defmodule BambooHR.TimeOffTest do
         end
       )
 
-      assert {:ok, ^policies_data} = BambooHR.TimeOff.get_employee_policies_v1_1(config, 123)
+      assert {:ok, ^policies_data} =
+               deprecated(:get_employee_policies_v1_1, [config, 123])
     end
   end
 
-  describe "assign_employee_policies_v1_1/3" do
-    test "successfully assigns policies including manual/unlimited types", %{
+  describe "assign_employee_policies_v1_1/3 (deprecated)" do
+    test "delegates to assign_employee_policies/3", %{
       bypass: bypass,
       config: config
     } do
@@ -93,7 +99,7 @@ defmodule BambooHR.TimeOffTest do
       )
 
       assert {:ok, ^response_data} =
-               BambooHR.TimeOff.assign_employee_policies_v1_1(config, 123, policies)
+               deprecated(:assign_employee_policies_v1_1, [config, 123, policies])
     end
   end
 
@@ -208,25 +214,162 @@ defmodule BambooHR.TimeOffTest do
     end
   end
 
-  describe "change_request_status/3" do
-    test "successfully updates request status", %{bypass: bypass, config: config} do
-      status_data = %{"status" => "approved"}
+  describe "approve_request/3" do
+    test "successfully approves a request", %{bypass: bypass, config: config} do
+      response_data = %{"id" => 1348, "status" => "APPROVED"}
 
       Bypass.expect_once(
         bypass,
-        "PUT",
-        "/api/gateway.php/test_company/v1/time_off/requests/1348/status",
+        "POST",
+        "/api/gateway.php/test_company/v1/time-off/requests/1348/approvals",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
-          assert Jason.decode!(body) == status_data
+          assert Jason.decode!(body) == %{"managerNote" => "Enjoy!"}
 
           conn
           |> Plug.Conn.put_resp_header("content-type", "application/json")
-          |> Plug.Conn.resp(200, "")
+          |> Plug.Conn.resp(200, Jason.encode!(response_data))
         end
       )
 
-      assert {:ok, nil} = BambooHR.TimeOff.change_request_status(config, 1348, status_data)
+      assert {:ok, ^response_data} =
+               BambooHR.TimeOff.approve_request(config, 1348, %{"managerNote" => "Enjoy!"})
+    end
+
+    test "sends an empty body when no approval data is given", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-off/requests/1348/approvals",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 1348}))
+        end
+      )
+
+      assert {:ok, %{"id" => 1348}} = BambooHR.TimeOff.approve_request(config, 1348)
+    end
+
+    test "handles conflict error", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-off/requests/1348/approvals",
+        fn conn -> Plug.Conn.resp(conn, 409, "") end
+      )
+
+      assert {:error, %{status: 409}} = BambooHR.TimeOff.approve_request(config, 1348)
+    end
+  end
+
+  describe "deny_request/3" do
+    test "successfully denies a request", %{bypass: bypass, config: config} do
+      response_data = %{"id" => 1348, "status" => "DENIED"}
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-off/requests/1348/denials",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"bypass" => true}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(response_data))
+        end
+      )
+
+      assert {:ok, ^response_data} =
+               BambooHR.TimeOff.deny_request(config, 1348, %{"bypass" => true})
+    end
+  end
+
+  describe "cancel_request/2" do
+    test "successfully cancels a request", %{bypass: bypass, config: config} do
+      response_data = %{"id" => 1348, "status" => "CANCELED"}
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-off/requests/1348/cancellations",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(response_data))
+        end
+      )
+
+      assert {:ok, ^response_data} = BambooHR.TimeOff.cancel_request(config, 1348)
+    end
+  end
+
+  describe "change_request_status/3 (deprecated)" do
+    test "routes an approval to the approvals endpoint", %{bypass: bypass, config: config} do
+      response_data = %{"id" => 1348, "status" => "APPROVED"}
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-off/requests/1348/approvals",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"managerNote" => "Looks good"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(response_data))
+        end
+      )
+
+      status_data = %{"status" => "approved", "note" => "Looks good"}
+
+      assert {:ok, ^response_data} =
+               deprecated(:change_request_status, [config, 1348, status_data])
+    end
+
+    test "routes a denial to the denials endpoint", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-off/requests/1348/denials",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"status" => "DENIED"}))
+        end
+      )
+
+      assert {:ok, %{"status" => "DENIED"}} =
+               deprecated(:change_request_status, [config, 1348, %{"status" => "declined"}])
+    end
+
+    test "routes a cancellation to the cancellations endpoint", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-off/requests/1348/cancellations",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"status" => "CANCELED"}))
+        end
+      )
+
+      assert {:ok, %{"status" => "CANCELED"}} =
+               deprecated(:change_request_status, [config, 1348, %{"status" => "cancelled"}])
+    end
+
+    test "returns an error for an unrecognised status", %{config: config} do
+      assert {:error, {:invalid_status, "pending"}} =
+               deprecated(:change_request_status, [config, 1348, %{"status" => "pending"}])
     end
   end
 

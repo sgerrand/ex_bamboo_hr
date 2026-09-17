@@ -74,9 +74,6 @@ config = BambooHR.Client.new(
 ```elixir
 # Get basic company information
 {:ok, company_info} = BambooHR.Company.get_information(config)
-
-# Get company EINs
-{:ok, eins_data} = BambooHR.Company.get_eins(config)
 ```
 
 #### Employee Management
