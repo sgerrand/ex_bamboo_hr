@@ -1,0 +1,31 @@
+name: Spec drift
+
+on:
+  pull_request:
+    paths:
+      - 'lib/**'
+      - 'scripts/spec_drift.exs'
+      - '.github/workflows/spec-drift.yml'
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check against BambooHR OpenAPI spec
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - name: Set up Elixir
+      uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+      with:
+        version-file: '.tool-versions'
+        version-type: 'strict'
+    - name: Compare client endpoints with spec
+      run: elixir scripts/spec_drift.exs

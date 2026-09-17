@@ -14,6 +14,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Type analysis: `mix dialyzer` (PLT stored under `priv/plts/`)
 - Generate docs: `mix docs`
 - Check unused deps: `mix deps.unlock --check-unused`
+- Check endpoints against BambooHR's OpenAPI spec: `elixir scripts/spec_drift.exs [SPEC_URL_OR_PATH]`
+
+## Spec drift check
+
+- `scripts/spec_drift.exs` is a standalone script (it uses `Mix.install` for
+  `req` and `yaml_elixir`), so it lives outside `lib/` and is not shipped to
+  Hex. Don't run it with `mix run`.
+- It reads `lib/**/*.ex`, finds every `Client.get/post/put/delete` call, and
+  builds `{METHOD, "/<api_version>/path"}` keys. Interpolations and spec
+  `{param}` names both become `{}`. If a call passes the path as a function
+  parameter (like `Files.upload/6`), the script reads the literal from the
+  callers in the same file. If it can't work out a path, it exits 2.
+- It exits 1 when the client calls an endpoint that is missing from the spec
+  or deprecated in it. Uncovered spec endpoints are listed for information
+  only. To keep calling an endpoint the spec doesn't list, add it with a
+  reason to `@allowed_unlisted`.
+- Default spec source is the CloudFront URL that BambooHR's own SDKs record
+  in `specs/spec-source.json`. It is newer than the `specs/public.yaml` copies
+  in those SDK repos.
+- `docs/openapi.yaml` is a separate, hand-written partial spec. The drift
+  check does not use it.
+- CI: `.github/workflows/spec-drift.yml` runs weekly, on manual dispatch, and
+  on PRs that touch `lib/` or the script. It is not part of `required`, so
+  upstream spec changes can't block merges. The report also goes to the job
+  summary.
 
 ## Architecture
 
