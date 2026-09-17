@@ -99,8 +99,12 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   They return the updated request. `change_request_status/3` is a
   `@deprecated` wrapper that routes on `"status"` and maps `"note"` to
   `"managerNote"`.
-  `BambooHR.Employee` covers single-employee reads and writes plus the
-  directory and the cursor-paginated `GET /employees` list. `list/2`
+  `BambooHR.Employee` covers single-employee reads and writes, the
+  directory, the cursor-paginated `GET /employees` list, and
+  `get_changed/3` (`GET /employees/changed`) for sync jobs — feed its
+  `"latest"` back as the next `since`. Row-level change tracking for
+  tabular fields lives in `Tables.get_changed_table_data/3` instead,
+  keeping each module to its own resource. `list/2`
   returns one page; `stream/2` follows `meta.page.nextCursor` and emits
   `{:ok, employee}` per record, or a single `{:error, reason}` before
   halting, since public functions must not raise. BambooHR takes filters

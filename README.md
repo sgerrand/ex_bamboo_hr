@@ -85,6 +85,10 @@ config = BambooHR.Client.new(
 # List employees, one page at a time
 {:ok, page} = BambooHR.Employee.list(config, filter: %{"city" => "Austin"}, limit: 50)
 
+# List employee IDs changed since a timestamp, for syncing
+{:ok, %{"latest" => latest, "employees" => changed}} =
+  BambooHR.Employee.get_changed(config, "2024-01-01T00:00:00Z")
+
 # Stream every employee, following the cursor from page to page
 config
 |> BambooHR.Employee.stream(fields: ["workEmail"])

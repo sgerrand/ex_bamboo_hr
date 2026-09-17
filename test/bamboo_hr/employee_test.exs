@@ -216,6 +216,72 @@ defmodule BambooHR.EmployeeTest do
     end
   end
 
+  describe "get_changed/3" do
+    test "retrieves changed employee IDs", %{bypass: bypass, config: config} do
+      changed_data = %{
+        "latest" => "2024-01-15T09:30:00+00:00",
+        "employees" => %{
+          "123" => %{
+            "id" => "123",
+            "action" => "Updated",
+            "lastChanged" => "2024-01-15T09:30:00+00:00"
+          }
+        }
+      }
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/employees/changed",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params == %{"since" => "2024-01-01T00:00:00Z"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(changed_data))
+        end
+      )
+
+      assert {:ok, ^changed_data} =
+               BambooHR.Employee.get_changed(config, "2024-01-01T00:00:00Z")
+    end
+
+    test "filters by change type", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/employees/changed",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+
+          assert conn.query_params == %{
+                   "since" => "2024-01-01T00:00:00Z",
+                   "type" => "deleted"
+                 }
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"latest" => nil, "employees" => %{}}))
+        end
+      )
+
+      assert {:ok, %{"employees" => %{}}} =
+               BambooHR.Employee.get_changed(config, "2024-01-01T00:00:00Z", type: "deleted")
+    end
+
+    test "handles an invalid timestamp", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/employees/changed",
+        fn conn -> Plug.Conn.resp(conn, 400, "") end
+      )
+
+      assert {:error, %{status: 400}} = BambooHR.Employee.get_changed(config, "yesterday")
+    end
+  end
+
   describe "list/2" do
     test "retrieves a page of employees", %{bypass: bypass, config: config} do
       page = %{
