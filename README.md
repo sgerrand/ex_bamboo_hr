@@ -149,6 +149,25 @@ BambooHR.Webhooks.verify_signature(
 )
 ```
 
+#### Errors
+
+Every function returns `{:ok, result}` or `{:error, %BambooHR.Error{}}`.
+Match on the error's `:reason` rather than on a status code:
+
+```elixir
+case BambooHR.Employee.get(config, 123, ["firstName"]) do
+  {:ok, employee} -> employee
+  {:error, %BambooHR.Error{reason: :not_found}} -> nil
+  {:error, %BambooHR.Error{reason: :rate_limited}} -> retry_later()
+  {:error, error} -> Logger.error(Exception.message(error))
+end
+```
+
+The same struct covers requests that never reached BambooHR
+(`:transport_error`) and replies that were not valid JSON
+(`:decode_error`). It also carries BambooHR's own `:message` and the
+`:request_id` when the response includes them.
+
 #### Time Tracking
 
 ```elixir

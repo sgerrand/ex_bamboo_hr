@@ -165,6 +165,16 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `client_test.exs`; the doctests in `Client.new/1` are real and will run in
   CI — keep struct field order in sync with `defstruct` or they'll fail.
 - Handle errors with pattern matching; never raise from public API functions.
+- Every failure is `{:error, %BambooHR.Error{}}` — see `lib/bamboo_hr/error.ex`.
+  `BambooHR.HTTPClient.Req` builds it with `from_response/3` (non-2xx),
+  `from_exception/1` (transport), or `from_decode_error/3` (bad JSON in a
+  2xx). Callers match on `:reason`, not the status code. The struct is a
+  `defexception`, so `Exception.message/1` works and callers may raise it,
+  but the client never does. It also picks up BambooHR's diagnostic
+  headers: `x-bamboohr-error-message` / `X-BambooHR-Message` into
+  `:message`, and `X-Request-ID` into `:request_id`. Telemetry stop
+  metadata carries `:status` (nil for transport failures) and the reason
+  atom.
 - No Ecto in this project — remove the `has_many`/`belongs_to` guideline if it appears elsewhere.
 - BambooHR's public docs (`documentation.bamboohr.com`) are JS-rendered and
   mostly 404 or return empty content through WebFetch/WebSearch. To verify

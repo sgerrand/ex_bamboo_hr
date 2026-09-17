@@ -252,7 +252,7 @@ defmodule BambooHR.ClientTest do
         end
       )
 
-      assert {:error, %Jason.DecodeError{}} =
+      assert {:error, %BambooHR.Error{reason: :decode_error, exception: %Jason.DecodeError{}}} =
                BambooHR.Client.get("/test_path", config)
     end
   end
@@ -512,18 +512,56 @@ defmodule BambooHR.ClientTest do
     end
   end
 
+  describe "telemetry for a non-conforming HTTP client" do
+    defmodule BadErrorHTTPClient do
+      @behaviour BambooHR.HTTPClient
+
+      @impl true
+      def request(_opts), do: {:error, :boom}
+    end
+
+    test "passes an error term through instead of assuming an Error struct" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: BadErrorHTTPClient
+        )
+
+      ref = make_ref()
+      test_pid = self()
+
+      :telemetry.attach(
+        "bad-error-client-#{inspect(ref)}",
+        [:bamboo_hr, :request, :stop],
+        fn event, measurements, metadata, _config ->
+          send(test_pid, {ref, event, measurements, metadata})
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach("bad-error-client-#{inspect(ref)}") end)
+
+      assert {:error, :boom} = BambooHR.Client.get("/anything", config)
+
+      assert_receive {^ref, [:bamboo_hr, :request, :stop], _measurements, metadata}
+      assert metadata.result == :error
+      assert metadata.reason == :boom
+    end
+  end
+
   describe "network errors" do
     test "handles connection failure for GET", %{bypass: bypass, config: config} do
       Bypass.down(bypass)
 
-      assert {:error, %Req.TransportError{}} =
+      assert {:error, %BambooHR.Error{reason: :transport_error, exception: %Req.TransportError{}}} =
                BambooHR.Client.get("/test_path", config, retry: false)
     end
 
     test "handles connection failure for POST", %{bypass: bypass, config: config} do
       Bypass.down(bypass)
 
-      assert {:error, %Req.TransportError{}} =
+      assert {:error, %BambooHR.Error{reason: :transport_error, exception: %Req.TransportError{}}} =
                BambooHR.Client.post("/test_path", config, json: %{}, retry: false)
     end
   end
@@ -610,12 +648,13 @@ defmodule BambooHR.ClientTest do
     } do
       Bypass.down(bypass)
 
-      assert {:error, %Req.TransportError{}} =
+      assert {:error, %BambooHR.Error{reason: :transport_error}} =
                BambooHR.Client.get("/down", config, retry: false)
 
       assert_receive {^ref, [:bamboo_hr, :request, :stop], _measurements, stop_metadata}
       assert stop_metadata.result == :error
-      assert %Req.TransportError{} = stop_metadata.reason
+      assert stop_metadata.status == nil
+      assert stop_metadata.reason == :transport_error
     end
   end
 end

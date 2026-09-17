@@ -47,8 +47,10 @@ defmodule BambooHR.Client do
   Stop metadata additionally includes:
 
     * `:result` — `:ok` or `:error`
-    * `:status` — HTTP status integer when the upstream returned a non-2xx
-    * `:reason` — error term for transport / decoding failures
+    * `:status` — HTTP status integer, or `nil` when the request never got
+      a response
+    * `:reason` — the `BambooHR.Error` reason atom, e.g. `:not_found` or
+      `:transport_error`
   """
 
   @type t :: %__MODULE__{
@@ -69,13 +71,11 @@ defmodule BambooHR.Client do
   `expose_headers: true` wraps the payload as `%{body: body, headers:
   headers}` — see `BambooHR.HTTPClient`.
 
-  The `:error` payload is one of:
-
-    * `%{status: integer(), body: binary()}` — non-2xx HTTP response
-    * `%Jason.DecodeError{}` — a 2xx response whose body was not valid JSON
-    * a transport exception (e.g. `%Req.TransportError{}`)
+  The `:error` payload is always a `BambooHR.Error` struct, whether the
+  request came back non-2xx, never reached BambooHR, or returned a body
+  that was not valid JSON. Match on its `:reason` — see `BambooHR.Error`.
   """
-  @type response :: {:ok, term()} | {:error, term()}
+  @type response :: {:ok, term()} | {:error, BambooHR.Error.t()}
 
   @derive {Inspect, except: [:api_key]}
   defstruct [:company_domain, :api_key, :base_url, :http_client, :timeout]
@@ -216,7 +216,10 @@ defmodule BambooHR.Client do
   end
 
   defp result_metadata({:ok, _}), do: %{result: :ok}
-  defp result_metadata({:error, %{status: status}}), do: %{result: :error, status: status}
+
+  defp result_metadata({:error, %BambooHR.Error{} = error}),
+    do: %{result: :error, status: error.status, reason: error.reason}
+
   defp result_metadata({:error, reason}), do: %{result: :error, reason: reason}
 
   defp build_url(client, path, version) do

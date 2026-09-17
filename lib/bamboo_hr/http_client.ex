@@ -5,8 +5,10 @@ defmodule BambooHR.HTTPClient do
   Implementations receive a keyword list of `Req`-style options assembled by
   `BambooHR.Client` and must return `{:ok, decoded_body}` for 2xx responses
   (where `decoded_body` is the JSON-decoded payload, or `nil` for an empty
-  body) or `{:error, reason}` otherwise. See `t:BambooHR.Client.response/0`
-  for the full shape.
+  body) or `{:error, %BambooHR.Error{}}` otherwise. `BambooHR.Error` has
+  constructors for each failure kind — `from_response/3`,
+  `from_exception/1`, and `from_decode_error/3`. See
+  `t:BambooHR.Client.response/0` for the full shape.
 
   ## Options passed to `request/1`
 
@@ -35,5 +37,5 @@ defmodule BambooHR.HTTPClient do
       read `Content-Type` / `Content-Disposition` for a downloaded file).
   """
 
-  @callback request(keyword()) :: {:ok, term()} | {:error, term()}
+  @callback request(keyword()) :: {:ok, term()} | {:error, BambooHR.Error.t()}
 end

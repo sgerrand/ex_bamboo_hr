@@ -54,7 +54,7 @@ defmodule BambooHR.CompanyTest do
         end
       )
 
-      assert {:error, %Jason.DecodeError{}} =
+      assert {:error, %BambooHR.Error{reason: :decode_error}} =
                BambooHR.Company.get_information(config)
     end
   end

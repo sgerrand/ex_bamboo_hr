@@ -39,11 +39,11 @@ defmodule BambooHR.HTTPClient.Req do
       {:ok, %{status: status, body: body, headers: headers}} when status in 200..299 ->
         decode_success(body, headers, expose_headers, raw_response)
 
-      {:ok, %{status: status, body: body}} ->
-        {:error, %{status: status, body: body}}
+      {:ok, %{status: status, body: body, headers: headers}} ->
+        {:error, BambooHR.Error.from_response(status, body, headers)}
 
-      {:error, error} ->
-        {:error, error}
+      {:error, exception} ->
+        {:error, BambooHR.Error.from_exception(exception)}
     end
   end
 
@@ -52,8 +52,9 @@ defmodule BambooHR.HTTPClient.Req do
   end
 
   defp decode_success(body, headers, expose_headers, false) do
-    with {:ok, decoded} <- decode_body(body) do
-      wrap_success(decoded, headers, expose_headers)
+    case decode_body(body) do
+      {:ok, decoded} -> wrap_success(decoded, headers, expose_headers)
+      {:error, exception} -> {:error, BambooHR.Error.from_decode_error(exception, body, headers)}
     end
   end
 
