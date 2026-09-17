@@ -135,6 +135,15 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `update/3` is a full replacement, so omitted fields revert to defaults.
   `create/2` is the only response carrying `privateKey` (used to verify
   deliveries); it cannot be fetched again.
+  `verify_signature/4` checks an incoming delivery: HMAC-SHA256 of the raw
+  body concatenated with the timestamp (body first, no separator),
+  lowercase hex, compared with `:crypto.hash_equals/2`. Headers are
+  `X-BambooHR-Signature` and `X-BambooHR-Timestamp`. That scheme is not in
+  the OpenAPI spec — it comes from the PHP sample at
+  <https://documentation.bamboohr.com/docs/webhooks>, and the test fixture
+  is generated with Python's `hmac` so it does not just mirror our own
+  implementation. Some third-party guides describe a Stripe-style
+  `timestamp.body` string; that does not match BambooHR.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
   candidates. `create_candidate/5` and `create_job_opening/7` use

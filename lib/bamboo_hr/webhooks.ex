@@ -233,4 +233,71 @@ defmodule BambooHR.Webhooks do
   def get_post_fields(client) do
     Client.get("/webhooks/post-fields", client)
   end
+
+  @doc """
+  Checks that a webhook delivery really came from BambooHR.
+
+  BambooHR signs each delivery with the webhook's private key and sends
+  two headers:
+
+    * `X-BambooHR-Signature` — HMAC-SHA256 of the request body followed by
+      the timestamp, as lowercase hex
+    * `X-BambooHR-Timestamp` — when the request was sent
+
+  This function recomputes that HMAC and compares it with the signature in
+  constant time, returning `true` only on a match. Anything that is not a
+  binary — a missing header read as `nil`, say — returns `false` rather
+  than raising.
+
+  Pass `payload` exactly as received. Decoding the body and re-encoding it
+  changes the bytes and the signature will not match, so read the raw body
+  before any JSON parsing. In Plug, that means a custom body reader that
+  stashes the raw body; `Plug.Parsers` discards it by default.
+
+  `private_key` comes from the `"privateKey"` in `create/2`'s response,
+  which is the only time BambooHR returns it.
+
+  A valid signature says the body is authentic, not that it is recent.
+  Check `X-BambooHR-Timestamp` yourself and reject old deliveries — five
+  minutes is a common cutoff — so a captured request cannot be replayed.
+
+  ## Parameters
+
+    * `payload` - Raw request body, exactly as received
+    * `signature` - Value of the `X-BambooHR-Signature` header
+    * `timestamp` - Value of the `X-BambooHR-Timestamp` header
+    * `private_key` - The webhook's private key
+
+  ## Examples
+
+      iex> BambooHR.Webhooks.verify_signature(
+      ...>   ~s({"employees":[{"id":"123"}]}),
+      ...>   "2e5fcc0ed9bfc4b23327543cafb3f59a552b8f8039e0ad24f6b86498f3557801",
+      ...>   "2024-02-01T11:05:12Z",
+      ...>   "private-key-123"
+      ...> )
+      true
+
+      iex> BambooHR.Webhooks.verify_signature("{}", "not-the-signature", "t", "key")
+      false
+  """
+  @spec verify_signature(binary(), binary(), binary(), binary()) :: boolean()
+  def verify_signature(payload, signature, timestamp, private_key)
+      when is_binary(payload) and is_binary(signature) and is_binary(timestamp) and
+             is_binary(private_key) do
+    expected =
+      :hmac
+      |> :crypto.mac(:sha256, private_key, payload <> timestamp)
+      |> Base.encode16(case: :lower)
+
+    secure_equal?(expected, String.downcase(signature))
+  end
+
+  def verify_signature(_payload, _signature, _timestamp, _private_key), do: false
+
+  defp secure_equal?(expected, given) when byte_size(expected) == byte_size(given) do
+    :crypto.hash_equals(expected, given)
+  end
+
+  defp secure_equal?(_expected, _given), do: false
 end
