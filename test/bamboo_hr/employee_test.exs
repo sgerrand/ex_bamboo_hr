@@ -344,6 +344,16 @@ defmodule BambooHR.EmployeeTest do
                config |> BambooHR.Employee.stream() |> Enum.to_list()
     end
 
+    test "stops when a page has no data key", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/employees", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{"meta" => %{"total" => 0}}))
+      end)
+
+      assert [] = config |> BambooHR.Employee.stream() |> Enum.to_list()
+    end
+
     test "ignores cursor options", %{bypass: bypass, config: config} do
       Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/employees", fn conn ->
         conn = Plug.Conn.fetch_query_params(conn)
