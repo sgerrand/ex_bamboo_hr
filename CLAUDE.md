@@ -30,9 +30,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   or deprecated in it. Uncovered spec endpoints are listed for information
   only. To keep calling an endpoint the spec doesn't list, add it with a
   reason to `@allowed_unlisted`.
-- Default spec source is the CloudFront URL that BambooHR's own SDKs record
-  in `specs/spec-source.json`. It is newer than the `specs/public.yaml` copies
-  in those SDK repos.
+- Default spec source is `openapi.bamboohr.io`, which serves the same file
+  that BambooHR's own SDKs record in `specs/spec-source.json`. It is newer
+  than the `specs/public.yaml` copies in those SDK repos.
 - `docs/openapi.yaml` is a separate, hand-written partial spec. The drift
   check does not use it.
 - CI: `.github/workflows/spec-drift.yml` runs weekly, on manual dispatch, and

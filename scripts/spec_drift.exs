@@ -16,7 +16,7 @@ Mix.install([
 ])
 
 defmodule SpecDrift do
-  @default_spec_url "https://d40bgjb2zs35x.cloudfront.net/main/latest/docs/openapi/public-openapi.yaml"
+  @default_spec_url "https://openapi.bamboohr.io/main/latest/docs/openapi/public-openapi.yaml"
   @methods ~w(get post put patch delete)
   @client_aliases [[:Client], [:BambooHR, :Client]]
 
