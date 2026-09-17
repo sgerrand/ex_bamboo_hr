@@ -216,5 +216,160 @@ defmodule BambooHR.EmployeeTest do
     end
   end
 
+  describe "list/2" do
+    test "retrieves a page of employees", %{bypass: bypass, config: config} do
+      page = %{
+        "data" => [%{"employeeId" => "123", "firstName" => "John"}],
+        "meta" => %{"total" => 1, "page" => %{"limit" => 250, "nextCursor" => nil}},
+        "_links" => %{"self" => %{"href" => "https://api.bamboohr.com/employees"}}
+      }
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/employees",
+        fn conn ->
+          assert conn.query_string == ""
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(page))
+        end
+      )
+
+      assert {:ok, ^page} = BambooHR.Employee.list(config)
+    end
+
+    test "sends filters, sort, fields, and pagination as query params", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/employees",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+
+          assert conn.query_params == %{
+                   "filter" => %{"city" => "Austin", "ids" => "123,124"},
+                   "page" => %{"limit" => "2", "after" => "cursor-1"},
+                   "sort" => "lastName,-firstName",
+                   "fields" => "workEmail,mobilePhone"
+                 }
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} =
+               BambooHR.Employee.list(config,
+                 filter: %{"city" => "Austin", "ids" => ["123", "124"]},
+                 sort: ["lastName", "-firstName"],
+                 fields: ["workEmail", "mobilePhone"],
+                 limit: 2,
+                 after: "cursor-1"
+               )
+    end
+
+    test "handles error response", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/employees",
+        fn conn -> Plug.Conn.resp(conn, 422, "") end
+      )
+
+      assert {:error, %{status: 422}} =
+               BambooHR.Employee.list(config, filter: %{"ssn" => "123"})
+    end
+  end
+
+  describe "stream/2" do
+    test "follows the cursor across pages", %{bypass: bypass, config: config} do
+      Bypass.expect(bypass, "GET", "/api/gateway.php/test_company/v1/employees", fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+
+        body =
+          case conn.query_params["page"] do
+            nil ->
+              %{
+                "data" => [%{"employeeId" => "1"}, %{"employeeId" => "2"}],
+                "meta" => %{"total" => 3, "page" => %{"nextCursor" => "cursor-2"}}
+              }
+
+            %{"after" => "cursor-2"} ->
+              %{
+                "data" => [%{"employeeId" => "3"}],
+                "meta" => %{"total" => 3, "page" => %{"nextCursor" => nil}}
+              }
+          end
+
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(body))
+      end)
+
+      assert [
+               {:ok, %{"employeeId" => "1"}},
+               {:ok, %{"employeeId" => "2"}},
+               {:ok, %{"employeeId" => "3"}}
+             ] = config |> BambooHR.Employee.stream() |> Enum.to_list()
+    end
+
+    test "requests pages lazily", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/employees", fn conn ->
+        body = %{
+          "data" => [%{"employeeId" => "1"}, %{"employeeId" => "2"}],
+          "meta" => %{"page" => %{"nextCursor" => "cursor-2"}}
+        }
+
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(body))
+      end)
+
+      assert [{:ok, %{"employeeId" => "1"}}] =
+               config |> BambooHR.Employee.stream() |> Enum.take(1)
+    end
+
+    test "emits the error and stops when a page fails", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/employees", fn conn ->
+        Plug.Conn.resp(conn, 401, "")
+      end)
+
+      assert [{:error, %{status: 401}}] =
+               config |> BambooHR.Employee.stream() |> Enum.to_list()
+    end
+
+    test "stops when a page has no data key", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/employees", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{"meta" => %{"total" => 0}}))
+      end)
+
+      assert [] = config |> BambooHR.Employee.stream() |> Enum.to_list()
+    end
+
+    test "ignores cursor options", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/employees", fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+        assert conn.query_params == %{"fields" => "workEmail"}
+
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [], "meta" => %{}}))
+      end)
+
+      assert [] =
+               config
+               |> BambooHR.Employee.stream(fields: ["workEmail"], after: "x", before: "y")
+               |> Enum.to_list()
+    end
+  end
+
   defp dynamic_empty_list, do: Enum.to_list(1..0//1)
 end

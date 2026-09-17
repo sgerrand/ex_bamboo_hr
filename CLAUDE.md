@@ -99,6 +99,14 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   They return the updated request. `change_request_status/3` is a
   `@deprecated` wrapper that routes on `"status"` and maps `"note"` to
   `"managerNote"`.
+  `BambooHR.Employee` covers single-employee reads and writes plus the
+  directory and the cursor-paginated `GET /employees` list. `list/2`
+  returns one page; `stream/2` follows `meta.page.nextCursor` and emits
+  `{:ok, employee}` per record, or a single `{:error, reason}` before
+  halting, since public functions must not raise. BambooHR takes filters
+  and pagination as bracketed query params (`filter[city]`, `page[limit]`),
+  which Req does not build from nested maps, so `Employee` flattens them
+  itself; list values are joined with commas.
   `BambooHR.Reports` covers only the current, non-deprecated Custom
   Reports endpoints (`/custom-reports`, `/custom-reports/{id}`). The
   older `/reports/custom` and `/reports/{id}` endpoints are deprecated,
