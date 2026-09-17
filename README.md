@@ -82,6 +82,17 @@ config = BambooHR.Client.new(
 # Get employee directory
 {:ok, directory} = BambooHR.Employee.get_directory(config)
 
+# List employees, one page at a time
+{:ok, page} = BambooHR.Employee.list(config, filter: %{"city" => "Austin"}, limit: 50)
+
+# Stream every employee, following the cursor from page to page
+config
+|> BambooHR.Employee.stream(fields: ["workEmail"])
+|> Enum.each(fn
+  {:ok, employee} -> IO.inspect(employee)
+  {:error, reason} -> IO.inspect(reason)
+end)
+
 # Get specific employee details
 {:ok, employee} = BambooHR.Employee.get(config, 123, ["firstName", "lastName", "jobTitle"])
 

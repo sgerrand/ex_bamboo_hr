@@ -106,4 +106,131 @@ defmodule BambooHR.Employee do
   def get_directory(client) do
     Client.get("/employees/directory", client)
   end
+
+  @doc """
+  Lists employees, one page at a time.
+
+  Returns `%{"data" => [...], "meta" => %{"total" => n, "page" => %{...}},
+  "_links" => %{...}}`. `meta.total` counts every employee matching the
+  filter, not just this page. `meta.page.nextCursor` is the cursor for the
+  next page, or `nil` on the last one — pass it back as `:after`. Use
+  `stream/2` to walk every page.
+
+  Values the caller has no permission to read come back as `nil`, with
+  their names listed in the record's `_restrictedFields`. An employee the
+  caller cannot read at all still appears, so neither an empty result nor
+  an all-`nil` record means the employee does not exist. Filtering or
+  sorting on a field the caller cannot read drops those employees from the
+  results entirely.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `opts` - Optional keyword list:
+      * `:filter` - Map of field name to value, combined with AND. A list
+        value matches any of its entries, which is how `"ids"` is passed.
+        Filtering on an unsupported field returns a `422` error.
+      * `:sort` - Field name, or list of them. Prefix with `-` for
+        descending order. Sortable: `"employeeId"`, `"firstName"`,
+        `"lastName"`, `"preferredName"`, `"jobTitleName"`, `"status"`.
+      * `:fields` - List of extra field names to include beyond the
+        default set. Unknown names are ignored by BambooHR.
+      * `:limit` - Page size, 1 to 2500 (BambooHR defaults to 250)
+      * `:after` - Cursor for the next page, from `meta.page.nextCursor`
+      * `:before` - Cursor for the previous page, from `meta.page.prevCursor`
+
+  ## Examples
+
+      iex> BambooHR.Employee.list(client, filter: %{"city" => "Austin"}, limit: 2)
+      {:ok, %{
+        "data" => [%{"employeeId" => "123", "firstName" => "John"}],
+        "meta" => %{"total" => 1, "page" => %{"nextCursor" => nil}},
+        "_links" => %{"self" => %{"href" => "..."}}
+      }}
+  """
+  @spec list(Client.t(), keyword()) :: Client.response()
+  def list(client, opts \\ []) do
+    Client.get("/employees", client, params: build_list_params(opts))
+  end
+
+  @doc """
+  Streams every employee, following the cursor from page to page.
+
+  Each element is `{:ok, employee}`. If a request fails, the stream emits a
+  single `{:error, reason}` and stops, so a caller that ignores errors sees
+  a short list rather than an exception.
+
+  Requests are made as the stream is consumed. `:after` and `:before` are
+  ignored — the stream starts at the first page and pages forward.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `opts` - Same as `list/2`, except `:after` and `:before`
+
+  ## Examples
+
+      iex> client |> BambooHR.Employee.stream(fields: ["workEmail"]) |> Enum.take(1)
+      [{:ok, %{"employeeId" => "123", "workEmail" => "john@example.com"}}]
+  """
+  @spec stream(Client.t(), keyword()) :: Enumerable.t()
+  def stream(client, opts \\ []) do
+    opts = Keyword.drop(opts, [:after, :before])
+
+    Stream.resource(
+      fn -> :first_page end,
+      fn
+        :halt -> {:halt, :halt}
+        cursor -> next_page(client, opts, cursor)
+      end,
+      fn _state -> :ok end
+    )
+  end
+
+  defp next_page(client, opts, cursor) do
+    opts = if cursor == :first_page, do: opts, else: Keyword.put(opts, :after, cursor)
+
+    case list(client, opts) do
+      {:ok, %{"data" => data} = page} ->
+        {Enum.map(data, &{:ok, &1}), next_cursor(page)}
+
+      {:ok, _unexpected} ->
+        {:halt, :halt}
+
+      {:error, reason} ->
+        {[{:error, reason}], :halt}
+    end
+  end
+
+  defp next_cursor(page) do
+    case get_in(page, ["meta", "page", "nextCursor"]) do
+      cursor when is_binary(cursor) and cursor != "" -> cursor
+      _ -> :halt
+    end
+  end
+
+  # BambooHR takes filters and pagination as bracketed query parameters —
+  # filter[city]=Austin, page[limit]=250 — which Req does not build from
+  # nested maps, so they are flattened here.
+  defp build_list_params(opts) do
+    filters =
+      opts
+      |> Keyword.get(:filter, %{})
+      |> Enum.map(fn {field, value} -> {"filter[#{field}]", join(value)} end)
+
+    page =
+      for key <- [:limit, :after, :before], value = opts[key] do
+        {"page[#{key}]", value}
+      end
+
+    optional =
+      for key <- [:sort, :fields], value = opts[key] do
+        {to_string(key), join(value)}
+      end
+
+    filters ++ page ++ optional
+  end
+
+  defp join(value) when is_list(value), do: Enum.join(value, ",")
+  defp join(value), do: value
 end
