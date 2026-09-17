@@ -108,6 +108,48 @@ defmodule BambooHR.Employee do
   end
 
   @doc """
+  Lists the IDs of employees that changed since a timestamp.
+
+  Meant for syncing: instead of fetching every employee, fetch the ones
+  that changed. A change to any field on the employee record counts, as
+  does a change to their employment status, job info, or compensation
+  tables.
+
+  Returns `%{"latest" => timestamp, "employees" => %{id => change}}`,
+  where each change carries `"id"`, `"action"` (`"Inserted"`, `"Updated"`,
+  or `"Deleted"`), and `"lastChanged"`. Feed `"latest"` back as `since` on
+  the next sync.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `since` - ISO 8601 timestamp; only later changes are returned
+    * `opts` - Optional keyword list:
+      * `:type` - Limit to one change type: `"inserted"`, `"updated"`,
+        `"deleted"`, or `"all"`. Defaults to every type.
+
+  ## Examples
+
+      iex> BambooHR.Employee.get_changed(client, "2024-01-01T00:00:00Z")
+      {:ok, %{
+        "latest" => "2024-01-15T09:30:00+00:00",
+        "employees" => %{
+          "123" => %{
+            "id" => "123",
+            "action" => "Updated",
+            "lastChanged" => "2024-01-15T09:30:00+00:00"
+          }
+        }
+      }}
+  """
+  @spec get_changed(Client.t(), String.t(), keyword()) :: Client.response()
+  def get_changed(client, since, opts \\ []) when is_binary(since) do
+    params = [since: since] ++ for {:type, type} <- opts, do: {:type, type}
+
+    Client.get("/employees/changed", client, params: params)
+  end
+
+  @doc """
   Lists employees, one page at a time.
 
   Returns `%{"data" => [...], "meta" => %{"total" => n, "page" => %{...}},
