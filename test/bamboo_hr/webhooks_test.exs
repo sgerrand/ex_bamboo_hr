@@ -187,6 +187,70 @@ defmodule BambooHR.WebhooksTest do
     end
   end
 
+  describe "verify_signature/4" do
+    # Fixture generated independently of the implementation:
+    #   python3 -c "import hmac,hashlib; print(hmac.new(b'private-key-123',
+    #     b'{\"employees\":[{\"id\":\"123\"}]}' + b'2024-02-01T11:05:12Z',
+    #     hashlib.sha256).hexdigest())"
+    @payload ~s({"employees":[{"id":"123"}]})
+    @timestamp "2024-02-01T11:05:12Z"
+    @private_key "private-key-123"
+    @signature "2e5fcc0ed9bfc4b23327543cafb3f59a552b8f8039e0ad24f6b86498f3557801"
+
+    test "accepts a signature from BambooHR" do
+      assert BambooHR.Webhooks.verify_signature(
+               @payload,
+               @signature,
+               @timestamp,
+               @private_key
+             )
+    end
+
+    test "accepts an uppercase hex signature" do
+      assert BambooHR.Webhooks.verify_signature(
+               @payload,
+               String.upcase(@signature),
+               @timestamp,
+               @private_key
+             )
+    end
+
+    test "rejects a signature made with a different key" do
+      wrong = "03a85ecc4d852d241ff09566d0b3ef53e091c6b131d819248b85d0fa69ade0f9"
+
+      refute BambooHR.Webhooks.verify_signature(@payload, wrong, @timestamp, @private_key)
+    end
+
+    test "rejects a tampered payload" do
+      refute BambooHR.Webhooks.verify_signature(
+               ~s({"employees":[{"id":"456"}]}),
+               @signature,
+               @timestamp,
+               @private_key
+             )
+    end
+
+    test "rejects a replayed signature under a different timestamp" do
+      refute BambooHR.Webhooks.verify_signature(
+               @payload,
+               @signature,
+               "2024-02-01T11:05:13Z",
+               @private_key
+             )
+    end
+
+    test "rejects a signature of the wrong length without raising" do
+      refute BambooHR.Webhooks.verify_signature(@payload, "abc123", @timestamp, @private_key)
+    end
+
+    test "rejects missing headers without raising" do
+      refute BambooHR.Webhooks.verify_signature(@payload, nil, @timestamp, @private_key)
+      refute BambooHR.Webhooks.verify_signature(@payload, @signature, nil, @private_key)
+      refute BambooHR.Webhooks.verify_signature(nil, @signature, @timestamp, @private_key)
+      refute BambooHR.Webhooks.verify_signature(@payload, @signature, @timestamp, nil)
+    end
+  end
+
   describe "get_post_fields/1" do
     test "successfully retrieves post fields", %{bypass: bypass, config: config} do
       fields_data = %{"fields" => [%{"id" => "firstName", "name" => "First Name"}]}

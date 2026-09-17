@@ -139,6 +139,14 @@ webhook_data = %{
 
 # Check recent delivery attempts
 {:ok, logs} = BambooHR.Webhooks.list_logs(config, String.to_integer(id))
+
+# Verify an incoming delivery. Pass the raw body, before any JSON parsing.
+BambooHR.Webhooks.verify_signature(
+  raw_body,
+  signature_header,
+  timestamp_header,
+  key
+)
 ```
 
 #### Time Tracking
