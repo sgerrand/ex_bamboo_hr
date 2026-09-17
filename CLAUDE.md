@@ -125,6 +125,12 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `Metadata.get_tabular_fields/1`. `create_table_row/4` and
   `update_table_row/5` call the `v1.1` endpoints; the spec marks the `v1`
   forms deprecated and describes `v1.1` as compatible with them.
+  `BambooHR.Webhooks` covers webhook CRUD plus delivery logs and the
+  `monitor_fields` / `post-fields` discovery endpoints. Webhooks belong to
+  the credentials that created them — another user's webhook returns 403.
+  `update/3` is a full replacement, so omitted fields revert to defaults.
+  `create/2` is the only response carrying `privateKey` (used to verify
+  deliveries); it cannot be fetched again.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
   candidates. `create_candidate/5` and `create_job_opening/7` use
