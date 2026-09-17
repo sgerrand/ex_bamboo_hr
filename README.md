@@ -65,9 +65,39 @@ config = BambooHR.Client.new(
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `:base_url` | BambooHR API URL | Override the API base URL |
+| `:auth` | from `:api_key` | `{:api_key, key}` or `{:bearer, token}` |
+| `:base_url` | depends on `:auth` | Override the API base URL |
 | `:http_client` | `BambooHR.HTTPClient.Req` | Custom HTTP client module |
 | `:timeout` | `15_000` | HTTP receive timeout in milliseconds |
+
+#### OAuth
+
+Pass an OAuth 2.0 access token instead of an API key:
+
+```elixir
+config = BambooHR.Client.new(company_domain: "your_company", auth: {:bearer, access_token})
+```
+
+The two methods use different hosts, which the client picks for you:
+
+| Auth | URL |
+| --- | --- |
+| `{:api_key, key}` | `https://api.bamboohr.com/api/gateway.php/{company}/v1/...` |
+| `{:bearer, token}` | `https://{company}.bamboohr.com/api/v1/...` |
+
+Access tokens expire. `BambooHR.OAuth.refresh_token/1` exchanges a refresh
+token for a new pair; storing them and deciding when to refresh is up to
+you:
+
+```elixir
+{:ok, %{"access_token" => access_token} = tokens} =
+  BambooHR.OAuth.refresh_token(
+    company_domain: "your_company",
+    client_id: client_id,
+    client_secret: client_secret,
+    refresh_token: refresh_token
+  )
+```
 
 #### Company Information
 

@@ -3,11 +3,90 @@ defmodule BambooHR.ClientTest do
 
   doctest BambooHR.Client
 
+  describe "bearer auth" do
+    test "creates config with the company subdomain as its base URL" do
+      config = BambooHR.Client.new(company_domain: "acme", auth: {:bearer, "token_123"})
+
+      assert config.auth == {:bearer, "token_123"}
+      assert config.base_url == "https://acme.bamboohr.com/api"
+    end
+
+    test "leaves the company domain out of the request path", %{bypass: bypass} do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          auth: {:bearer, "token_123"},
+          base_url: bypass_url(bypass, "/api")
+        )
+
+      Bypass.expect_once(bypass, "GET", "/api/v1/employees/directory", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer token_123"]
+
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{"employees" => []}))
+      end)
+
+      assert {:ok, %{"employees" => []}} = BambooHR.Employee.get_directory(config)
+    end
+
+    test "targets other API versions on the same host", %{bypass: bypass} do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          auth: {:bearer, "token_123"},
+          base_url: bypass_url(bypass, "/api")
+        )
+
+      Bypass.expect_once(bypass, "GET", "/api/v1_2/datasets", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{"datasets" => []}))
+      end)
+
+      assert {:ok, %{"datasets" => []}} = BambooHR.Datasets.list_datasets(config)
+    end
+
+    test "keeps the token out of inspect output" do
+      config = BambooHR.Client.new(company_domain: "acme", auth: {:bearer, "token_123"})
+
+      refute inspect(config) =~ "token_123"
+    end
+
+    test "rejects an empty token" do
+      assert_raise ArgumentError, ~r/:bearer/, fn ->
+        BambooHR.Client.new(company_domain: "acme", auth: {:bearer, ""})
+      end
+    end
+
+    test "rejects giving both :auth and :api_key" do
+      assert_raise ArgumentError, "expected either :auth or :api_key, got both", fn ->
+        BambooHR.Client.new(
+          company_domain: "acme",
+          api_key: "key",
+          auth: {:bearer, "token_123"}
+        )
+      end
+    end
+
+    test "rejects an unrecognised auth method" do
+      assert_raise ArgumentError, ~r/expected :auth to be/, fn ->
+        BambooHR.Client.new(company_domain: "acme", auth: {:session, "cookie"})
+      end
+    end
+
+    test "rejects a client with no credentials at all" do
+      assert_raise ArgumentError, "expected :auth or :api_key to be given", fn ->
+        BambooHR.Client.new(company_domain: "acme")
+      end
+    end
+  end
+
   describe "new/1" do
     test "creates config with default base URL" do
       config = BambooHR.Client.new(company_domain: "test_company", api_key: "test_key")
       assert config.company_domain == "test_company"
-      assert config.api_key == "test_key"
+      assert config.auth == {:api_key, "test_key"}
       assert config.base_url == "https://api.bamboohr.com/api/gateway.php"
     end
 
@@ -22,7 +101,7 @@ defmodule BambooHR.ClientTest do
         )
 
       assert config.company_domain == "test_company"
-      assert config.api_key == "test_key"
+      assert config.auth == {:api_key, "test_key"}
       assert config.base_url == custom_url
     end
 

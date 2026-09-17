@@ -58,9 +58,21 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
          Req                                   (HTTP library)
 ```
 
-- `BambooHR.Client` — Core struct (`t()`) holding `company_domain`, `api_key`, `base_url`, `http_client`, `timeout`.
+- `BambooHR.Client` — Core struct (`t()`) holding `company_domain`, `auth`, `base_url`, `http_client`, `timeout`.
   All resource functions receive a `Client.t()` as first argument.
-  Auth uses Basic auth with `api_key:x` encoding.
+  `auth` is `{:api_key, key}` (Basic auth, `key:x` encoded) or
+  `{:bearer, token}` (OAuth 2.0). `api_key:` in `new/1` is shorthand for
+  the former; giving both `:auth` and `:api_key` raises.
+  The two auth methods use different hosts and URL shapes, so a
+  `base_url` written for one will not work for the other: API keys go to
+  `{gateway}/{company_domain}/{version}{path}`, bearer tokens to
+  `https://{company_domain}.bamboohr.com/api/{version}{path}` — the only
+  server in BambooHR's spec, and what its own SDKs use. Whether bearer
+  tokens also work on the gateway host is unverified, hence keeping the
+  hosts split rather than moving everything to the subdomain.
+  `BambooHR.OAuth.refresh_token/1` is a stateless refresh helper
+  (`POST {subdomain}/token.php?request=token`); token storage and refresh
+  scheduling stay with the caller.
   URL scheme: `{base_url}/{company_domain}/v1{path}`, or a different version
   segment if the caller passes `api_version:` in opts (one of `"v1"`
   (default), `"v1_1"`, `"v1_2"`, `"v2"` — validated, raises `ArgumentError`
