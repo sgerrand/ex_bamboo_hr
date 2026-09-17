@@ -118,6 +118,25 @@ update_data = %{"firstName" => "Jane", "lastName" => "Smith-Jones"}
 {:ok, %{"items" => lists}} = BambooHR.Metadata.get_lists(config)
 ```
 
+#### Webhooks
+
+```elixir
+# List the fields a webhook can monitor
+{:ok, %{"fields" => fields}} = BambooHR.Webhooks.list_monitor_fields(config)
+
+# Create a webhook. The private key is returned only here — store it.
+webhook_data = %{
+  "name" => "Payroll sync",
+  "url" => "https://example.com/hooks/bamboo",
+  "format" => "json",
+  "monitorFields" => ["firstName", "lastName"]
+}
+{:ok, %{"id" => id, "privateKey" => key}} = BambooHR.Webhooks.create(config, webhook_data)
+
+# Check recent delivery attempts
+{:ok, logs} = BambooHR.Webhooks.list_logs(config, String.to_integer(id))
+```
+
 #### Time Tracking
 
 ```elixir
