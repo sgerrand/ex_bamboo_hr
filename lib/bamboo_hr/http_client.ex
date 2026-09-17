@@ -12,7 +12,7 @@ defmodule BambooHR.HTTPClient do
 
   ## Options passed to `request/1`
 
-    * `:method` — `:get`, `:post`, `:put`, or `:delete`
+    * `:method` — `:get`, `:post`, `:patch`, `:put`, or `:delete`
     * `:url` — fully-qualified URL
     * `:headers` — list of `{name, value}` tuples (includes `Authorization`
       and `Accept`; `BambooHR.Client` sets `Accept: application/json`

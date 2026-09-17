@@ -64,8 +64,8 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   URL scheme: `{base_url}/{company_domain}/v1{path}`, or a different version
   segment if the caller passes `api_version:` in opts (one of `"v1"`
   (default), `"v1_1"`, `"v1_2"`, `"v2"` — validated, raises `ArgumentError`
-  on anything else). `Client.get/3`, `Client.post/3`, `Client.put/3`, and
-  `Client.delete/3` lock down `:method`, `:url`, `:headers`, and
+  on anything else). `Client.get/3`, `Client.post/3`, `Client.patch/3`,
+  `Client.put/3`, and `Client.delete/3` lock down `:method`, `:url`, `:headers`, and
   `:receive_timeout` against caller-supplied opts so resource modules can't
   accidentally drop auth headers.
 - `BambooHR.HTTPClient` — Behaviour with a single `request/1` callback.
@@ -80,7 +80,8 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `BambooHR.Files`, `BambooHR.Hiring`, `BambooHR.Metadata`,
   `BambooHR.Reports`, `BambooHR.Tables`, `BambooHR.TimeOff`,
   `BambooHR.TimeTracking` — Resource modules that delegate to
-  `Client.get/3`, `Client.post/3`, `Client.put/3`, or `Client.delete/3`.
+  `Client.get/3`, `Client.post/3`, `Client.patch/3`, `Client.put/3`, or
+  `Client.delete/3`.
   All public functions return `{:ok, data} | {:error, reason}`. `data` is
   the decoded JSON body — usually a map, occasionally `nil` (empty 2xx
   body) or a list/scalar.
@@ -144,6 +145,20 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   is generated with Python's `hmac` so it does not just mirror our own
   implementation. Some third-party guides describe a Stripe-style
   `timestamp.body` string; that does not match BambooHR.
+  `BambooHR.TimeTracking` covers two current families. The older
+  `/time_tracking/*` endpoints are bulk and employee-scoped
+  (`get_timesheet_entries/2`, `store_clock_entries/2`, `clock_in/3`,
+  `clock_out/3`); the newer `/time-tracking/*` ones (hyphen) are REST
+  per-record, with page-based paging and OData `filter`/`sort` strings
+  passed straight through. Neither is deprecated and both address the
+  same records, so an entry created via one is visible via the other.
+  `create_clock_in/2` and `create_clock_out/2` are named apart from the
+  older `clock_in/3` and `clock_out/3` on purpose — same idea, different
+  request shape. `approve_timesheet/3` takes the timesheet's
+  `lastChangedAt` for optimistic concurrency; a stale value returns 409.
+  Remaining uncovered time tracking areas: projects/tasks,
+  configurations, employees, imports, kiosks, time clocks, shift
+  differentials, breaks, and scheduling.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
   candidates. `create_candidate/5` and `create_job_opening/7` use

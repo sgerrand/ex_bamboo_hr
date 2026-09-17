@@ -132,7 +132,7 @@ defmodule SpecDrift do
 
         {{:., _, [{:__aliases__, _, alias}, method]}, meta, [path | rest]} = node,
         {enclosing, calls}
-        when alias in @client_aliases and method in [:get, :post, :put, :delete] ->
+        when alias in @client_aliases and method in [:get, :post, :patch, :put, :delete] ->
           opts = Enum.at(rest, 1, [])
           call = {method |> to_string() |> String.upcase(), path, opts, meta[:line], enclosing}
           {node, {enclosing, [call | calls]}}

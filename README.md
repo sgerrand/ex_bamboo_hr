@@ -187,6 +187,20 @@ clock_data = %{
 }
 {:ok, _} = BambooHR.TimeTracking.clock_in(config, 123, clock_data)
 
+# List clock entries with OData-style filtering and paging
+{:ok, page} =
+  BambooHR.TimeTracking.list_clock_entries(config,
+    filter: "employeeId eq 123",
+    sort: "start desc",
+    page_size: 50
+  )
+
+# Correct a single entry
+{:ok, entry} = BambooHR.TimeTracking.update_clock_entry(config, 1, %{"note" => "Corrected"})
+
+# Approve a timesheet, guarding against a concurrent change
+{:ok, timesheet} = BambooHR.TimeTracking.approve_timesheet(config, 9, last_changed_at)
+
 # Clock out an employee
 clock_out_data = %{
   "date" => "2024-01-15",
