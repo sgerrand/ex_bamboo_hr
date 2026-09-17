@@ -55,11 +55,19 @@ defmodule BambooHR.Client do
 
   @type t :: %__MODULE__{
           company_domain: String.t(),
-          api_key: String.t(),
+          auth: auth(),
           base_url: String.t(),
           http_client: module(),
           timeout: non_neg_integer()
         }
+
+  @typedoc """
+  How requests are authenticated.
+
+  `{:api_key, key}` sends HTTP Basic auth, as `key:x`. `{:bearer, token}`
+  sends an OAuth 2.0 access token as a bearer token.
+  """
+  @type auth :: {:api_key, String.t()} | {:bearer, String.t()}
 
   @typedoc """
   Result returned by client request functions.
@@ -77,8 +85,8 @@ defmodule BambooHR.Client do
   """
   @type response :: {:ok, term()} | {:error, BambooHR.Error.t()}
 
-  @derive {Inspect, except: [:api_key]}
-  defstruct [:company_domain, :api_key, :base_url, :http_client, :timeout]
+  @derive {Inspect, except: [:auth]}
+  defstruct [:company_domain, :auth, :base_url, :http_client, :timeout]
 
   @doc """
   Creates a new client configuration.
@@ -86,16 +94,40 @@ defmodule BambooHR.Client do
   ## Options
 
     * `:company_domain` - Your company's subdomain
-    * `:api_key` - Your API key
-    * `:base_url` - Optional. Custom base URL for the API (defaults to BambooHR's standard API URL)
+    * `:api_key` - Your API key. Shorthand for `auth: {:api_key, key}`.
+    * `:auth` - Optional. `{:api_key, key}` or `{:bearer, token}`, where
+      the token is an OAuth 2.0 access token. Give either this or
+      `:api_key`, not both.
+    * `:base_url` - Optional. Custom base URL. The default depends on the
+      auth method — see "Base URLs" below.
     * `:http_client` - Optional. Module that implements the `HTTPClient` behavior. Defaults to `BambooHR.HTTPClient.Req`.
     * `:timeout` - Optional. HTTP receive timeout in milliseconds. Defaults to `15_000`.
+
+  ## Base URLs
+
+  The two auth methods use different hosts and URL shapes, so a
+  `:base_url` written for one will not work for the other.
+
+  With an API key, requests go to the gateway host and the company
+  domain is part of the path:
+
+      https://api.bamboohr.com/api/gateway.php/{company_domain}/v1/employees
+
+  With a bearer token, requests go to the company's own subdomain, which
+  is the only server listed in BambooHR's OpenAPI spec and what
+  BambooHR's own SDKs use:
+
+      https://{company_domain}.bamboohr.com/api/v1/employees
 
   ## Examples
 
       iex> client = BambooHR.Client.new(company_domain: "acme", api_key: "api_key_123")
       iex> {client.company_domain, client.base_url, client.timeout}
       {"acme", "https://api.bamboohr.com/api/gateway.php", 15_000}
+
+      iex> client = BambooHR.Client.new(company_domain: "acme", auth: {:bearer, "token_123"})
+      iex> {client.auth, client.base_url}
+      {{:bearer, "token_123"}, "https://acme.bamboohr.com/api"}
 
       iex> client =
       ...>   BambooHR.Client.new(
@@ -110,11 +142,11 @@ defmodule BambooHR.Client do
   @spec new(Keyword.t()) :: t()
   def new(opts) do
     company_domain = Keyword.fetch!(opts, :company_domain) |> validate_non_empty!(:company_domain)
-    api_key = Keyword.fetch!(opts, :api_key) |> validate_non_empty!(:api_key)
+    auth = build_auth(opts)
 
     base_url =
       opts
-      |> Keyword.get(:base_url, "https://api.bamboohr.com/api/gateway.php")
+      |> Keyword.get(:base_url, default_base_url(auth, company_domain))
       |> String.trim_trailing("/")
 
     http_client = Keyword.get(opts, :http_client, BambooHR.HTTPClient.Req)
@@ -122,12 +154,38 @@ defmodule BambooHR.Client do
 
     %__MODULE__{
       company_domain: company_domain,
-      api_key: api_key,
+      auth: auth,
       base_url: base_url,
       http_client: http_client,
       timeout: timeout
     }
   end
+
+  defp build_auth(opts) do
+    case {Keyword.fetch(opts, :auth), Keyword.fetch(opts, :api_key)} do
+      {{:ok, _auth}, {:ok, _api_key}} ->
+        raise ArgumentError, "expected either :auth or :api_key, got both"
+
+      {{:ok, {kind, credential}}, :error} when kind in [:api_key, :bearer] ->
+        {kind, validate_non_empty!(credential, kind)}
+
+      {{:ok, auth}, :error} ->
+        raise ArgumentError,
+              "expected :auth to be {:api_key, key} or {:bearer, token}, got: #{inspect(auth)}"
+
+      {:error, {:ok, api_key}} ->
+        {:api_key, validate_non_empty!(api_key, :api_key)}
+
+      {:error, :error} ->
+        raise ArgumentError, "expected :auth or :api_key to be given"
+    end
+  end
+
+  defp default_base_url({:bearer, _token}, company_domain),
+    do: "https://#{company_domain}.bamboohr.com/api"
+
+  defp default_base_url({:api_key, _key}, _company_domain),
+    do: "https://api.bamboohr.com/api/gateway.php"
 
   defp validate_non_empty!(value, _key) when is_binary(value) and byte_size(value) > 0, do: value
 
@@ -197,7 +255,7 @@ defmodule BambooHR.Client do
   defp request(method, path, client, opts) do
     {version, opts} = Keyword.pop(opts, :api_version, "v1")
     url = build_url(client, path, version)
-    headers = build_headers(client.api_key, Keyword.get(opts, :raw_response, false))
+    headers = build_headers(client.auth, Keyword.get(opts, :raw_response, false))
 
     req_opts =
       Keyword.merge(opts,
@@ -222,9 +280,16 @@ defmodule BambooHR.Client do
 
   defp result_metadata({:error, reason}), do: %{result: :error, reason: reason}
 
-  defp build_url(client, path, version) do
+  # An API key request carries the company domain in its path; a bearer
+  # request is already on the company's own subdomain, so it does not.
+  defp build_url(%{auth: {:api_key, _key}} = client, path, version) do
     validate_api_version!(version)
     "#{client.base_url}/#{client.company_domain}/#{version}#{normalize_path(path)}"
+  end
+
+  defp build_url(%{auth: {:bearer, _token}} = client, path, version) do
+    validate_api_version!(version)
+    "#{client.base_url}/#{version}#{normalize_path(path)}"
   end
 
   defp validate_api_version!(version) when version in @known_api_versions, do: :ok
@@ -237,12 +302,15 @@ defmodule BambooHR.Client do
   defp normalize_path("/" <> _ = path), do: path
   defp normalize_path(path), do: "/" <> path
 
-  defp build_headers(api_key, raw_response) do
+  defp build_headers(auth, raw_response) do
     accept = if raw_response, do: "*/*", else: "application/json"
 
     [
-      {"Authorization", "Basic " <> Base.encode64("#{api_key}:x")},
+      {"Authorization", authorization(auth)},
       {"Accept", accept}
     ]
   end
+
+  defp authorization({:api_key, api_key}), do: "Basic " <> Base.encode64("#{api_key}:x")
+  defp authorization({:bearer, token}), do: "Bearer " <> token
 end
