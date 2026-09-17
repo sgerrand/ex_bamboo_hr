@@ -57,7 +57,7 @@ defmodule BambooHR.TablesTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/gateway.php/test_company/v1/employees/123/tables/compensation",
+        "/api/gateway.php/test_company/v1_1/employees/123/tables/compensation",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           assert Jason.decode!(body) == row_data
@@ -72,7 +72,7 @@ defmodule BambooHR.TablesTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/gateway.php/test_company/v1/employees/123/tables/compensation",
+        "/api/gateway.php/test_company/v1_1/employees/123/tables/compensation",
         fn conn -> Plug.Conn.resp(conn, 412, "") end
       )
 
@@ -88,7 +88,7 @@ defmodule BambooHR.TablesTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/gateway.php/test_company/v1/employees/123/tables/compensation/1",
+        "/api/gateway.php/test_company/v1_1/employees/123/tables/compensation/1",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           assert Jason.decode!(body) == row_data

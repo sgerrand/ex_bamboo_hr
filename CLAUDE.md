@@ -65,11 +65,15 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `BambooHR.TimeOff` covers employee-scoped time off endpoints (policies,
   balances, requests, history) — company-wide time off metadata (types,
   policy list) lives in `Metadata` instead, to keep the `/meta/` prefix
-  grouped in one module. Policy assignment has both a `v1` and a `v1.1`
-  variant (`get_employee_policies`/`assign_employee_policies` vs.
-  `..._v1_1`) — `v1` silently excludes manual and unlimited (non-accruing)
-  policy types from its response, `v1.1` includes them; same URL, same
-  request/response field names otherwise.
+  grouped in one module. `get_employee_policies/2` and
+  `assign_employee_policies/3` call the `v1.1` endpoints, which include
+  manual and unlimited (non-accruing) policy types. The `..._v1_1` names
+  are `@deprecated` delegates kept for callers of older versions.
+  Time off request decisions use the `/time-off/requests/{id}` process
+  endpoints — `approve_request/3`, `deny_request/3`, `cancel_request/2`.
+  They return the updated request. `change_request_status/3` is a
+  `@deprecated` wrapper that routes on `"status"` and maps `"note"` to
+  `"managerNote"`.
   `BambooHR.Reports` covers only the current, non-deprecated Custom
   Reports endpoints (`/custom-reports`, `/custom-reports/{id}`). The
   older `/reports/custom` and `/reports/{id}` endpoints are deprecated,
@@ -85,10 +89,9 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `BambooHR.Tables` covers row-level CRUD on employee tabular fields (job
   info, compensation, custom tabular fields, etc.) — `table` is the raw
   table name string (e.g. `"jobInfo"`), discoverable via
-  `Metadata.get_tabular_fields/1`. Skips the `/v1_1` update/create row
-  variants — no known behavioral difference from `v1` has been found for
-  those (unlike `TimeOff`'s `v1.1` policies endpoints, which do differ
-  and are implemented).
+  `Metadata.get_tabular_fields/1`. `create_table_row/4` and
+  `update_table_row/5` call the `v1.1` endpoints; the spec marks the `v1`
+  forms deprecated and describes `v1.1` as compatible with them.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
   candidates. `create_candidate/5` and `create_job_opening/7` use

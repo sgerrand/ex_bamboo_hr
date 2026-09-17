@@ -37,6 +37,8 @@ defmodule BambooHR.Tables do
   @doc """
   Adds a new row to the specified employee table.
 
+  Uses the `v1.1` endpoint.
+
   On success, returns `nil` (no response body).
 
   ## Parameters
@@ -56,11 +58,16 @@ defmodule BambooHR.Tables do
   @spec create_table_row(Client.t(), integer(), String.t(), map()) :: Client.response()
   def create_table_row(client, employee_id, table, row_data)
       when is_integer(employee_id) and is_binary(table) do
-    Client.post("/employees/#{employee_id}/tables/#{table}", client, json: row_data)
+    Client.post("/employees/#{employee_id}/tables/#{table}", client,
+      json: row_data,
+      api_version: "v1_1"
+    )
   end
 
   @doc """
   Updates an existing row in the specified employee table.
+
+  Uses the `v1.1` endpoint.
 
   Only the fields included in `row_data` are changed. On success, returns
   `nil` (no response body).
@@ -82,7 +89,10 @@ defmodule BambooHR.Tables do
           Client.response()
   def update_table_row(client, employee_id, table, row_id, row_data)
       when is_integer(employee_id) and is_binary(table) and is_binary(row_id) do
-    Client.post("/employees/#{employee_id}/tables/#{table}/#{row_id}", client, json: row_data)
+    Client.post("/employees/#{employee_id}/tables/#{table}/#{row_id}", client,
+      json: row_data,
+      api_version: "v1_1"
+    )
   end
 
   @doc """

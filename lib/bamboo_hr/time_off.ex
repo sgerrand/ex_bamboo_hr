@@ -12,6 +12,9 @@ defmodule BambooHR.TimeOff do
   @doc """
   Retrieves the time off policies currently assigned to an employee.
 
+  Uses the `v1.1` endpoint, which includes every policy type — accruing,
+  manual, and unlimited.
+
   ## Parameters
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
@@ -24,14 +27,15 @@ defmodule BambooHR.TimeOff do
   """
   @spec get_employee_policies(Client.t(), integer()) :: Client.response()
   def get_employee_policies(client, employee_id) when is_integer(employee_id) do
-    Client.get("/employees/#{employee_id}/time_off/policies", client)
+    Client.get("/employees/#{employee_id}/time_off/policies", client, api_version: "v1_1")
   end
 
   @doc """
   Assigns time off policies to an employee.
 
-  A `nil` `accrualStartDate` removes an existing assignment. On success,
-  returns the current list of assigned policies.
+  Uses the `v1.1` endpoint. A `nil` `accrualStartDate` removes an existing
+  assignment. On success, returns the current list of assigned policies,
+  including manual and unlimited policy types.
 
   ## Parameters
 
@@ -48,62 +52,33 @@ defmodule BambooHR.TimeOff do
   @spec assign_employee_policies(Client.t(), integer(), list(map())) :: Client.response()
   def assign_employee_policies(client, employee_id, policies)
       when is_integer(employee_id) and is_list(policies) do
-    Client.put("/employees/#{employee_id}/time_off/policies", client, json: policies)
-  end
-
-  @doc """
-  Retrieves the time off policies currently assigned to an employee,
-  including manual and unlimited policy types.
-
-  Same endpoint as `get_employee_policies/2`, but the `v1.1` version — `v1`
-  silently excludes manual and unlimited (non-accruing) policy types from
-  the response; this includes them.
-
-  ## Parameters
-
-    * `client` - Client configuration created with `BambooHR.Client.new/1`
-    * `employee_id` - The ID of the employee
-
-  ## Examples
-
-      iex> BambooHR.TimeOff.get_employee_policies_v1_1(client, 123)
-      {:ok, [%{"timeOffPolicyId" => 4, "timeOffTypeId" => 1, "accrualStartDate" => nil}]}
-  """
-  @spec get_employee_policies_v1_1(Client.t(), integer()) :: Client.response()
-  def get_employee_policies_v1_1(client, employee_id) when is_integer(employee_id) do
-    Client.get("/employees/#{employee_id}/time_off/policies", client, api_version: "v1_1")
-  end
-
-  @doc """
-  Assigns time off policies to an employee, including manual and unlimited
-  policy types.
-
-  Same endpoint as `assign_employee_policies/3`, but the `v1.1` version —
-  `v1` silently excludes manual and unlimited (non-accruing) policy types
-  from the response; this includes them. A `nil` `accrualStartDate` removes
-  an existing assignment. On success, returns the current list of assigned
-  policies.
-
-  ## Parameters
-
-    * `client` - Client configuration created with `BambooHR.Client.new/1`
-    * `employee_id` - The ID of the employee to assign policies to
-    * `policies` - List of maps with `"timeOffPolicyId"` and `"accrualStartDate"`
-
-  ## Examples
-
-      iex> policies = [%{"timeOffPolicyId" => 4, "accrualStartDate" => "2024-02-01"}]
-      iex> BambooHR.TimeOff.assign_employee_policies_v1_1(client, 123, policies)
-      {:ok, [%{"timeOffPolicyId" => 4, "timeOffTypeId" => 1, "accrualStartDate" => "2024-02-01"}]}
-  """
-  @spec assign_employee_policies_v1_1(Client.t(), integer(), list(map())) :: Client.response()
-  def assign_employee_policies_v1_1(client, employee_id, policies)
-      when is_integer(employee_id) and is_list(policies) do
     Client.put("/employees/#{employee_id}/time_off/policies", client,
       json: policies,
       api_version: "v1_1"
     )
   end
+
+  @doc """
+  Retrieves the time off policies currently assigned to an employee.
+
+  Same as `get_employee_policies/2`, which now calls the `v1.1` endpoint.
+  """
+  @deprecated "Use get_employee_policies/2 instead"
+  @spec get_employee_policies_v1_1(Client.t(), integer()) :: Client.response()
+  defdelegate get_employee_policies_v1_1(client, employee_id),
+    to: __MODULE__,
+    as: :get_employee_policies
+
+  @doc """
+  Assigns time off policies to an employee.
+
+  Same as `assign_employee_policies/3`, which now calls the `v1.1` endpoint.
+  """
+  @deprecated "Use assign_employee_policies/3 instead"
+  @spec assign_employee_policies_v1_1(Client.t(), integer(), list(map())) :: Client.response()
+  defdelegate assign_employee_policies_v1_1(client, employee_id, policies),
+    to: __MODULE__,
+    as: :assign_employee_policies
 
   @doc """
   Calculates an employee's time off balances across all assigned categories.
@@ -200,25 +175,122 @@ defmodule BambooHR.TimeOff do
   end
 
   @doc """
+  Approves a time off request.
+
+  Completes the caller's step in the approval chain, or every remaining
+  step when `"bypass"` is `true`. The request stays in `REQUESTED` status
+  while further approvals are outstanding. On success, returns the updated
+  request.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `request_id` - The ID of the time off request to approve
+    * `approval_data` - Optional map with `"managerNote"` (up to 1024
+      characters) and `"bypass"`
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.approve_request(client, 1348, %{"managerNote" => "Enjoy!"})
+      {:ok, %{"id" => 1348, "status" => "APPROVED"}}
+  """
+  @spec approve_request(Client.t(), integer(), map()) :: Client.response()
+  def approve_request(client, request_id, approval_data \\ %{}) when is_integer(request_id) do
+    Client.post("/time-off/requests/#{request_id}/approvals", client, json: approval_data)
+  end
+
+  @doc """
+  Denies a time off request.
+
+  A denial is final: it completes the caller's step and discards the
+  remaining steps in the approval chain, so the request always ends up in
+  `DENIED` status. `"bypass"` changes who may deny, not what denying does —
+  without it the caller must be a current approver, and denying off-step
+  returns a `409` error. On success, returns the updated request.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `request_id` - The ID of the time off request to deny
+    * `denial_data` - Optional map with `"managerNote"` (up to 1024
+      characters) and `"bypass"`
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.deny_request(client, 1348, %{"managerNote" => "Need coverage."})
+      {:ok, %{"id" => 1348, "status" => "DENIED"}}
+  """
+  @spec deny_request(Client.t(), integer(), map()) :: Client.response()
+  def deny_request(client, request_id, denial_data \\ %{}) when is_integer(request_id) do
+    Client.post("/time-off/requests/#{request_id}/denials", client, json: denial_data)
+  end
+
+  @doc """
+  Cancels a time off request.
+
+  Open to the employee who requested the time off and to anyone who can
+  manage it. A request can be cancelled while it is `REQUESTED`, and after
+  approval only while it has not started yet. On success, returns the
+  updated request.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `request_id` - The ID of the time off request to cancel
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.cancel_request(client, 1348)
+      {:ok, %{"id" => 1348, "status" => "CANCELED"}}
+  """
+  @spec cancel_request(Client.t(), integer()) :: Client.response()
+  def cancel_request(client, request_id) when is_integer(request_id) do
+    Client.post("/time-off/requests/#{request_id}/cancellations", client, json: %{})
+  end
+
+  @doc """
   Updates the status of an existing time off request.
 
-  Valid statuses are `"approved"`, `"denied"` (or `"declined"`), and
-  `"canceled"`.
+  Routes to `approve_request/3`, `deny_request/3`, or `cancel_request/2`
+  based on `"status"`, and passes `"note"` through as `"managerNote"`.
+  Those endpoints return the updated request, where this one used to
+  return an empty body. An unrecognised status returns
+  `{:error, {:invalid_status, status}}`.
 
   ## Parameters
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `request_id` - The ID of the time off request to update
-    * `status_data` - Map with `"status"` (and optionally a note)
+    * `status_data` - Map with `"status"` (and optionally `"note"`)
 
   ## Examples
 
       iex> BambooHR.TimeOff.change_request_status(client, 1348, %{"status" => "approved"})
-      {:ok, %{}}
+      {:ok, %{"id" => 1348, "status" => "APPROVED"}}
   """
+  @deprecated "Use approve_request/3, deny_request/3, or cancel_request/2 instead"
   @spec change_request_status(Client.t(), integer(), map()) :: Client.response()
   def change_request_status(client, request_id, status_data) when is_integer(request_id) do
-    Client.put("/time_off/requests/#{request_id}/status", client, json: status_data)
+    case Map.get(status_data, "status") do
+      "approved" ->
+        approve_request(client, request_id, manager_note(status_data))
+
+      status when status in ["denied", "declined"] ->
+        deny_request(client, request_id, manager_note(status_data))
+
+      status when status in ["canceled", "cancelled"] ->
+        cancel_request(client, request_id)
+
+      status ->
+        {:error, {:invalid_status, status}}
+    end
+  end
+
+  defp manager_note(status_data) do
+    case Map.fetch(status_data, "note") do
+      {:ok, note} -> %{"managerNote" => note}
+      :error -> %{}
+    end
   end
 
   @doc """
