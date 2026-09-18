@@ -171,8 +171,16 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   concurrency; a stale value returns 409. Not `updatedAt` — that can lag
   behind changes to the hours.
   Remaining uncovered time tracking areas: projects/tasks,
-  configurations, employees, imports, kiosks, time clocks, shift
-  differentials, breaks, and scheduling.
+  configurations, employees, imports, kiosks, time clocks, and shift
+  differentials.
+  `BambooHR.Breaks` covers meal and rest breaks — break policies, the
+  breaks on them, employee assignment, per-employee views, and
+  compliance assessments. Kept out of `TimeTracking` despite the shared
+  `/time-tracking/` prefix: it is its own resource tree, its IDs are
+  UUID strings rather than integers, and it pages with `:offset` /
+  `:limit` instead of `:page` / `:page_size`. `update_policy/3` patches;
+  `sync_policy/3` replaces the policy and everything attached to it.
+  `assign_employees/3` adds, `set_employees/3` replaces.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
   candidates. `create_candidate/5` and `create_job_opening/7` use
