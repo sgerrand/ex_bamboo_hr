@@ -132,6 +132,10 @@ defmodule BambooHR.Scheduling do
   PDF bytes, not JSON, so it is returned undecoded alongside the response
   headers.
 
+  Needs an OAuth client (`auth: {:bearer, token}`, with the
+  `scheduling:schedules` scope). BambooHR does not accept API keys for
+  this endpoint, so an API key client gets an error back.
+
   ## Parameters
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
