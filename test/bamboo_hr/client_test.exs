@@ -610,13 +610,13 @@ defmodule BambooHR.ClientTest do
       ref = make_ref()
       test_pid = self()
 
+      # Only forward events fired from this test's process; other async
+      # tests emit the same events concurrently.
       :telemetry.attach(
         "bad-error-client-#{inspect(ref)}",
         [:bamboo_hr, :request, :stop],
-        fn event, measurements, metadata, _config ->
-          send(test_pid, {ref, event, measurements, metadata})
-        end,
-        nil
+        &__MODULE__.forward_telemetry/4,
+        {test_pid, ref}
       )
 
       on_exit(fn -> :telemetry.detach("bad-error-client-#{inspect(ref)}") end)

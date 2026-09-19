@@ -171,8 +171,23 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   concurrency; a stale value returns 409. Not `updatedAt` — that can lag
   behind changes to the hours.
   Remaining uncovered time tracking areas: projects/tasks,
-  configurations, employees, imports, kiosks, time clocks, shift
-  differentials, breaks, and scheduling.
+  configurations, employees, imports, kiosks, time clocks, and shift
+  differentials.
+  `BambooHR.Breaks` covers meal and rest breaks — break policies, the
+  breaks on them, employee assignment, per-employee views, and
+  compliance assessments. Kept out of `TimeTracking` despite the shared
+  `/time-tracking/` prefix: it is its own resource tree, its IDs are
+  UUID strings rather than integers, and it pages with `:offset` /
+  `:limit` instead of `:page` / `:page_size`. `update_policy/3` patches;
+  `sync_policy/3` replaces the policy and everything attached to it.
+  `assign_employees/3` adds, `set_employees/3` replaces.
+  The `:effective` option on `list_employee_break_availabilities/3` must
+  be `YYYY-MM-DDTHH:MM:SS` with no zone. `list_params/1` turns a `Date`,
+  `NaiveDateTime` or `DateTime` into that form, since Req would put a
+  space in place of the `T`. A `DateTime` keeps its local clock time and
+  loses its zone, because the spec does not say which zone BambooHR uses.
+  Bypass does not check the spec's patterns, so a test can pass with a
+  value the real API rejects.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
   candidates. `create_candidate/5` and `create_job_opening/7` use
@@ -186,6 +201,11 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   which provides `bypass` and `config` (a `Client.t()` pointing at the local
   Bypass port) in the test context.
 - Tests run `async: true`.
+- Telemetry handlers are global, so a test's handler also sees events
+  from other async tests. Attach with `&__MODULE__.forward_telemetry/4`
+  and `{self(), ref}` in `client_test.exs`: it forwards only events fired
+  from the test's own process. An anonymous handler also logs a
+  "local function" warning.
 
 ## Code Style Guidelines
 
