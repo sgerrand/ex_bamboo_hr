@@ -468,14 +468,15 @@ defmodule BambooHR.TimeTracking do
   Approves a timesheet.
 
   `last_changed_at` guards against approving a timesheet that changed
-  after you read it: pass the `"lastChangedAt"` from the timesheet you
+  after you read it: pass the `"hoursLastChangedAt"` from the timesheet you
   looked at, and BambooHR returns a `409` error if it has moved on since.
+  Don't use `"updatedAt"` — it can lag behind changes to the hours.
 
   ## Parameters
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `timesheet_id` - The ID of the timesheet to approve
-    * `last_changed_at` - The `"lastChangedAt"` value from that timesheet
+    * `last_changed_at` - The `"hoursLastChangedAt"` value from that timesheet
 
   ## Examples
 

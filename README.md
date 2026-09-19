@@ -229,7 +229,8 @@ clock_data = %{
 {:ok, entry} = BambooHR.TimeTracking.update_clock_entry(config, 1, %{"note" => "Corrected"})
 
 # Approve a timesheet, guarding against a concurrent change
-{:ok, timesheet} = BambooHR.TimeTracking.approve_timesheet(config, 9, last_changed_at)
+{:ok, approved} =
+  BambooHR.TimeTracking.approve_timesheet(config, 9, timesheet["hoursLastChangedAt"])
 
 # Clock out an employee
 clock_out_data = %{

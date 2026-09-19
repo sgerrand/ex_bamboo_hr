@@ -167,7 +167,9 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `create_clock_in/2` and `create_clock_out/2` are named apart from the
   older `clock_in/3` and `clock_out/3` on purpose — same idea, different
   request shape. `approve_timesheet/3` takes the timesheet's
-  `lastChangedAt` for optimistic concurrency; a stale value returns 409.
+  `hoursLastChangedAt` (sent as `lastChangedAt`) for optimistic
+  concurrency; a stale value returns 409. Not `updatedAt` — that can lag
+  behind changes to the hours.
   Remaining uncovered time tracking areas: projects/tasks,
   configurations, employees, imports, kiosks, time clocks, shift
   differentials, breaks, and scheduling.
