@@ -432,8 +432,10 @@ defmodule BambooHR.Breaks do
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `employee_id` - The employee's ID
     * `opts` - Optional keyword list: `:effective`, the moment to report
-      availability as of. Pass a `NaiveDateTime`, a `Date` (taken as
-      midnight), or a string in `YYYY-MM-DDTHH:MM:SS` form with no time zone
+      availability as of. Pass a `NaiveDateTime`, a `DateTime`, a `Date`
+      (taken as midnight), or a string in `YYYY-MM-DDTHH:MM:SS` form. The
+      API takes no time zone, so a `DateTime` is sent as its local clock
+      time with the zone dropped
 
   ## Examples
 
@@ -483,7 +485,11 @@ defmodule BambooHR.Breaks do
   end
 
   # BambooHR wants `effective` as `YYYY-MM-DDTHH:MM:SS` with no zone. Req
-  # would render a NaiveDateTime with a space instead of the `T`.
+  # would render a NaiveDateTime or DateTime with a space instead of the
+  # `T`, and a DateTime with its offset too.
+  defp format_param(%DateTime{} = value),
+    do: value |> DateTime.to_naive() |> format_param()
+
   defp format_param(%NaiveDateTime{} = value),
     do: value |> NaiveDateTime.truncate(:second) |> NaiveDateTime.to_iso8601()
 

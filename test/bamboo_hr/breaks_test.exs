@@ -349,6 +349,7 @@ defmodule BambooHR.BreaksTest do
     for {label, effective} <- [
           string: "2024-01-15T09:30:00",
           naive_date_time: ~N[2024-01-15 09:30:00.123456],
+          date_time: DateTime.new!(~D[2024-01-15], ~T[09:30:00], "Etc/UTC"),
           date: ~D[2024-01-15]
         ] do
       test "lists an employee's break availabilities with a #{label} :effective", %{
