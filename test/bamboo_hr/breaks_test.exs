@@ -123,11 +123,11 @@ defmodule BambooHR.BreaksTest do
 
           conn
           |> Plug.Conn.put_resp_header("content-type", "application/json")
-          |> Plug.Conn.resp(200, Jason.encode!(%{"suggestions" => []}))
+          |> Plug.Conn.resp(200, Jason.encode!(%{"suggestedPolicies" => []}))
         end
       )
 
-      assert {:ok, %{"suggestions" => []}} =
+      assert {:ok, %{"suggestedPolicies" => []}} =
                BambooHR.Breaks.get_policy_suggestions(config, "California retail staff")
     end
   end
@@ -185,11 +185,11 @@ defmodule BambooHR.BreaksTest do
 
           conn
           |> Plug.Conn.put_resp_header("content-type", "application/json")
-          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [%{"id" => "7b21aa10"}]}))
+          |> Plug.Conn.resp(200, Jason.encode!([%{"id" => "7b21aa10"}]))
         end
       )
 
-      assert {:ok, %{"data" => [%{"id" => "7b21aa10"}]}} =
+      assert {:ok, [%{"id" => "7b21aa10"}]} =
                BambooHR.Breaks.replace_policy_breaks(config, "0f8c1c2e", [
                  %{"name" => "Meal break", "duration" => 30}
                ])
@@ -368,11 +368,11 @@ defmodule BambooHR.BreaksTest do
 
             conn
             |> Plug.Conn.put_resp_header("content-type", "application/json")
-            |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+            |> Plug.Conn.resp(200, Jason.encode!([]))
           end
         )
 
-        assert {:ok, %{"data" => []}} =
+        assert {:ok, []} =
                  BambooHR.Breaks.list_employee_break_availabilities(config, 123,
                    effective: unquote(Macro.escape(effective))
                  )

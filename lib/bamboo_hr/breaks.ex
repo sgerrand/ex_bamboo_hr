@@ -168,7 +168,7 @@ defmodule BambooHR.Breaks do
   ## Examples
 
       iex> BambooHR.Breaks.get_policy_suggestions(client, "California retail staff")
-      {:ok, %{"suggestions" => [%{"name" => "Meal break", "duration" => 30}]}}
+      {:ok, %{"suggestedPolicies" => [%{"id" => "...", "title" => "California meal breaks", "breaks" => [...]}]}}
   """
   @spec get_policy_suggestions(Client.t(), String.t()) :: Client.response()
   def get_policy_suggestions(client, prompt) when is_binary(prompt) do
@@ -234,7 +234,7 @@ defmodule BambooHR.Breaks do
 
       iex> breaks = [%{"name" => "Meal break", "duration" => 30, "paid" => false}]
       iex> BambooHR.Breaks.replace_policy_breaks(client, "0f8c...", breaks)
-      {:ok, %{"data" => [%{"id" => "7b21...", "name" => "Meal break"}]}}
+      {:ok, [%{"id" => "7b21...", "name" => "Meal break"}]}
   """
   @spec replace_policy_breaks(Client.t(), String.t(), list(map())) :: Client.response()
   def replace_policy_breaks(client, policy_id, breaks)
@@ -438,7 +438,7 @@ defmodule BambooHR.Breaks do
   ## Examples
 
       iex> BambooHR.Breaks.list_employee_break_availabilities(client, 123)
-      {:ok, %{"data" => [%{"breakId" => "7b21...", "available" => true}]}}
+      {:ok, [%{"id" => "7b21...", "name" => "Meal break", "available" => true}]}
   """
   @spec list_employee_break_availabilities(Client.t(), integer(), keyword()) :: Client.response()
   def list_employee_break_availabilities(client, employee_id, opts \\ [])
