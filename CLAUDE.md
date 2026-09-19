@@ -188,6 +188,21 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   loses its zone, because the spec does not say which zone BambooHR uses.
   Bypass does not check the spec's patterns, so a test can pass with a
   value the real API rejects.
+  `BambooHR.Scheduling` covers schedules, shifts, shift assessments, and
+  the schedule PDF export (`:raw_response` + `:expose_headers`, like
+  `Files` downloads). IDs are UUID strings. The PDF endpoint is the only
+  one that takes OAuth alone, not API keys. `publish_shifts/2` can
+  half-succeed: BambooHR answers 207 when only some shifts published,
+  which this client treats as success, so callers must read `"failed"`
+  in the body rather than trusting `{:ok, _}`. The PDF endpoint wants
+  repeated `employeeIds[]` params, not a comma-joined list — Plug parses
+  the `[]` suffix back into a list, which is what the test asserts.
+  Enum values are lowercase (`planned`, `published`; `instance`,
+  `future`, `all` for `recurrenceEditOption`), `color` is 6 hex digits
+  with no `#`, and a publish failure is keyed `shiftId`, not `id`.
+  `update_shift/3` needs `recurrenceEditOption` when the shift already
+  repeats.
+  Bypass accepts any value, so check doc examples against the spec.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
   candidates. `create_candidate/5` and `create_job_opening/7` use
