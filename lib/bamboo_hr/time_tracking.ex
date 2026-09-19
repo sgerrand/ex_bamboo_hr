@@ -153,7 +153,7 @@ defmodule BambooHR.TimeTracking do
       iex> BambooHR.TimeTracking.list_clock_entries(client, filter: "employeeId eq 123")
       {:ok, %{
         "data" => [%{"id" => 1, "employeeId" => 123, "start" => "2024-01-15T09:00:00-05:00"}],
-        "meta" => %{"page" => 1, "pageSize" => 50, "total" => 1}
+        "meta" => %{"page" => 1, "pageSize" => 50, "totalItems" => 1, "totalPages" => 1}
       }}
   """
   @spec list_clock_entries(Client.t(), keyword()) :: Client.response()
@@ -313,7 +313,7 @@ defmodule BambooHR.TimeTracking do
       iex> BambooHR.TimeTracking.list_hour_entries(client, page_size: 10)
       {:ok, %{
         "data" => [%{"id" => 5, "employeeId" => 123, "date" => "2024-01-15", "hours" => 8}],
-        "meta" => %{"page" => 1, "pageSize" => 10, "total" => 1}
+        "meta" => %{"page" => 1, "pageSize" => 10, "totalItems" => 1, "totalPages" => 1}
       }}
   """
   @spec list_hour_entries(Client.t(), keyword()) :: Client.response()
@@ -420,7 +420,7 @@ defmodule BambooHR.TimeTracking do
       iex> BambooHR.TimeTracking.list_timesheets(client, filter: "status eq 'OPEN'")
       {:ok, %{
         "data" => [%{"id" => 9, "employeeId" => 123, "status" => "OPEN"}],
-        "meta" => %{"page" => 1, "pageSize" => 50, "total" => 1}
+        "meta" => %{"page" => 1, "pageSize" => 50, "totalItems" => 1, "totalPages" => 1}
       }}
   """
   @spec list_timesheets(Client.t(), keyword()) :: Client.response()

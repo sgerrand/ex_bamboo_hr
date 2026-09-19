@@ -259,7 +259,7 @@ defmodule BambooHR.TimeTrackingTest do
     test "lists a page of clock entries", %{bypass: bypass, config: config} do
       page = %{
         "data" => [%{"id" => 1, "employeeId" => 123}],
-        "meta" => %{"page" => 1, "pageSize" => 50, "total" => 1}
+        "meta" => %{"page" => 1, "pageSize" => 50, "totalItems" => 1, "totalPages" => 1}
       }
 
       Bypass.expect_once(
