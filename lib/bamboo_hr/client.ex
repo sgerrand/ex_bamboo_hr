@@ -40,7 +40,7 @@ defmodule BambooHR.Client do
 
   Metadata always includes:
 
-    * `:method` — `:get`, `:post`, `:put`, or `:delete`
+    * `:method` — `:get`, `:post`, `:patch`, `:put`, or `:delete`
     * `:path` — request path passed to the resource module
     * `:url` — fully-qualified request URL (no credentials)
 
@@ -234,6 +234,20 @@ defmodule BambooHR.Client do
   @spec put(String.t(), t(), keyword()) :: response()
   def put(path, %__MODULE__{} = client, opts) do
     request(:put, path, client, opts)
+  end
+
+  @doc """
+  Makes a PATCH request to the BambooHR API.
+
+  This function is meant to be used by resource modules. `opts` are forwarded
+  to the underlying HTTP client; keys controlled by the client itself —
+  `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
+  through this argument. `opts` may also include `api_version:` — see
+  "API versions" above.
+  """
+  @spec patch(String.t(), t(), keyword()) :: response()
+  def patch(path, %__MODULE__{} = client, opts) do
+    request(:patch, path, client, opts)
   end
 
   @doc """
