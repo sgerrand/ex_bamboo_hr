@@ -25,7 +25,7 @@ defmodule BambooHR.SchedulingTest do
     end
 
     test "creates a schedule", %{bypass: bypass, config: config} do
-      schedule_data = %{"name" => "Store floor", "locationId" => 4, "startOfWeek" => "MONDAY"}
+      schedule_data = %{"name" => "Store floor", "locationId" => 4, "startOfWeek" => "Monday"}
 
       Bypass.expect_once(
         bypass,
@@ -160,10 +160,10 @@ defmodule BambooHR.SchedulingTest do
           conn = Plug.Conn.fetch_query_params(conn)
 
           assert conn.query_params == %{
-                   "start" => "2024-01-01",
-                   "end" => "2024-01-07",
+                   "start" => "2024-01-01T00:00:00Z",
+                   "end" => "2024-01-07T23:59:59Z",
                    "scheduleIds" => @schedule_id,
-                   "statuses" => "PLANNED,PUBLISHED"
+                   "statuses" => "planned,published"
                  }
 
           conn
@@ -174,18 +174,18 @@ defmodule BambooHR.SchedulingTest do
 
       assert {:ok, %{"data" => [%{"id" => @shift_id}]}} =
                BambooHR.Scheduling.list_shifts(config,
-                 start: "2024-01-01",
-                 end: "2024-01-07",
+                 start: "2024-01-01T00:00:00Z",
+                 end: "2024-01-07T23:59:59Z",
                  schedule_ids: [@schedule_id],
-                 statuses: ["PLANNED", "PUBLISHED"]
+                 statuses: ["planned", "published"]
                )
     end
 
     test "creates a shift", %{bypass: bypass, config: config} do
       shift_data = %{
         "scheduleId" => @schedule_id,
-        "status" => "PLANNED",
-        "color" => "#336699",
+        "status" => "planned",
+        "color" => "336699",
         "timezone" => "America/New_York",
         "start" => "2024-01-15T09:00:00-05:00",
         "end" => "2024-01-15T17:00:00-05:00"
@@ -263,7 +263,7 @@ defmodule BambooHR.SchedulingTest do
         "/api/gateway.php/test_company/v1/scheduling/shifts/#{@shift_id}",
         fn conn ->
           conn = Plug.Conn.fetch_query_params(conn)
-          assert conn.query_params == %{"recurrenceEditOption" => "THIS_AND_FOLLOWING"}
+          assert conn.query_params == %{"recurrenceEditOption" => "future"}
 
           Plug.Conn.resp(conn, 204, "")
         end
@@ -271,7 +271,7 @@ defmodule BambooHR.SchedulingTest do
 
       assert {:ok, nil} =
                BambooHR.Scheduling.delete_shift(config, @shift_id,
-                 recurrence_edit_option: "THIS_AND_FOLLOWING"
+                 recurrence_edit_option: "future"
                )
     end
   end
@@ -288,11 +288,14 @@ defmodule BambooHR.SchedulingTest do
 
           conn
           |> Plug.Conn.put_resp_header("content-type", "application/json")
-          |> Plug.Conn.resp(200, Jason.encode!(%{"published" => [@shift_id], "failed" => []}))
+          |> Plug.Conn.resp(
+            200,
+            Jason.encode!(%{"published" => [%{"id" => @shift_id}], "failed" => []})
+          )
         end
       )
 
-      assert {:ok, %{"published" => [@shift_id], "failed" => []}} =
+      assert {:ok, %{"published" => [%{"id" => @shift_id}], "failed" => []}} =
                BambooHR.Scheduling.publish_shifts(config, [@shift_id])
     end
 
@@ -301,8 +304,13 @@ defmodule BambooHR.SchedulingTest do
       config: config
     } do
       response = %{
-        "published" => [@shift_id],
-        "failed" => [%{"id" => "2b77cd31", "reason" => "CONFLICT"}]
+        "published" => [%{"id" => @shift_id, "status" => "published"}],
+        "failed" => [
+          %{
+            "shiftId" => "2b77cd31",
+            "reason" => "Employee is already assigned to an overlapping shift."
+          }
+        ]
       }
 
       Bypass.expect_once(
