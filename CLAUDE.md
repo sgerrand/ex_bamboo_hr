@@ -190,7 +190,8 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   value the real API rejects.
   `BambooHR.Scheduling` covers schedules, shifts, shift assessments, and
   the schedule PDF export (`:raw_response` + `:expose_headers`, like
-  `Files` downloads). IDs are UUID strings. `publish_shifts/2` can
+  `Files` downloads). IDs are UUID strings. The PDF endpoint is the only
+  one that takes OAuth alone, not API keys. `publish_shifts/2` can
   half-succeed: BambooHR answers 207 when only some shifts published,
   which this client treats as success, so callers must read `"failed"`
   in the body rather than trusting `{:ok, _}`. The PDF endpoint wants
