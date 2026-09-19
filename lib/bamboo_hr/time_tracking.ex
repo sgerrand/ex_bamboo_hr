@@ -492,6 +492,227 @@ defmodule BambooHR.TimeTracking do
     )
   end
 
+  @doc """
+  Lists time tracking projects.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `opts` - Optional keyword list: `:filter`, `:sort`, `:page`,
+      `:page_size` (defaults to 100, caps at 500)
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.list_projects(client, filter: "billable eq true")
+      {:ok, %{
+        "data" => [%{"id" => 3, "name" => "Website rebuild", "billable" => true}],
+        "meta" => %{"page" => 1, "pageSize" => 100, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_projects(Client.t(), keyword()) :: Client.response()
+  def list_projects(client, opts \\ []) do
+    Client.get("/time-tracking/projects", client, params: list_params(opts))
+  end
+
+  @doc """
+  Creates a time tracking project.
+
+  If a **deleted** project already has this name, BambooHR restores that
+  project and applies the values given instead of creating a new one, so
+  the response can carry an ID you have seen before.
+
+  Tasks can be created alongside the project rather than added
+  afterwards.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `project_data` - Map with `"name"`, and optionally `"billable"`,
+      `"includeInPayroll"`, `"allEmployeesAssigned"`, `"employeeIds"`,
+      `"tasks"`
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.create_project(client, %{"name" => "Website rebuild"})
+      {:ok, %{"id" => 3, "name" => "Website rebuild"}}
+  """
+  @spec create_project(Client.t(), map()) :: Client.response()
+  def create_project(client, project_data) when is_map(project_data) do
+    Client.post("/time-tracking/projects", client, json: project_data)
+  end
+
+  @doc """
+  Retrieves a time tracking project, including who is assigned to it.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `project_id` - The project's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.get_project(client, 3)
+      {:ok, %{"id" => 3, "name" => "Website rebuild", "employeeIds" => [123]}}
+  """
+  @spec get_project(Client.t(), integer()) :: Client.response()
+  def get_project(client, project_id) when is_integer(project_id) do
+    Client.get("/time-tracking/projects/#{project_id}", client)
+  end
+
+  @doc """
+  Updates a time tracking project.
+
+  Only the fields given are changed. Setting `"archived"` hides the
+  project without deleting it.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `project_id` - The project's ID
+    * `changes` - Map of fields to change: `"name"`, `"billable"`,
+      `"includeInPayroll"`, `"allEmployeesAssigned"`, `"archived"`,
+      `"employeeIds"`, `"hasTasks"`
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.update_project(client, 3, %{"archived" => true})
+      {:ok, %{"id" => 3, "archived" => true}}
+  """
+  @spec update_project(Client.t(), integer(), map()) :: Client.response()
+  def update_project(client, project_id, changes)
+      when is_integer(project_id) and is_map(changes) do
+    Client.patch("/time-tracking/projects/#{project_id}", client, json: changes)
+  end
+
+  @doc """
+  Deletes a time tracking project.
+
+  On success, returns `nil` (no response body).
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `project_id` - The project's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.delete_project(client, 3)
+      {:ok, nil}
+  """
+  @spec delete_project(Client.t(), integer()) :: Client.response()
+  def delete_project(client, project_id) when is_integer(project_id) do
+    Client.delete("/time-tracking/projects/#{project_id}", client)
+  end
+
+  @doc """
+  Lists a project's tasks.
+
+  Only active tasks are returned unless `:statuses` says otherwise.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `project_id` - The project's ID
+    * `opts` - Optional keyword list: `:statuses` (a list of `"active"`
+      and `"deleted"`, defaulting to `["active"]`), `:filter`, `:sort`,
+      `:page`, `:page_size` (defaults to 25, caps at 500)
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.list_project_tasks(client, 3, statuses: ["active", "deleted"])
+      {:ok, %{
+        "data" => [%{"id" => 7, "projectId" => 3, "name" => "Design", "billable" => true}],
+        "meta" => %{"page" => 1, "pageSize" => 25, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_project_tasks(Client.t(), integer(), keyword()) :: Client.response()
+  def list_project_tasks(client, project_id, opts \\ []) when is_integer(project_id) do
+    statuses = for status <- List.wrap(opts[:statuses]), do: {"statuses[]", status}
+
+    Client.get("/time-tracking/projects/#{project_id}/tasks", client,
+      params: statuses ++ list_params(opts)
+    )
+  end
+
+  @doc """
+  Creates a task on a project.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `project_id` - The project's ID
+    * `task_data` - Map with `"name"`, and optionally `"billable"`
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.create_project_task(client, 3, %{"name" => "Design"})
+      {:ok, %{"id" => 7, "projectId" => 3, "name" => "Design"}}
+  """
+  @spec create_project_task(Client.t(), integer(), map()) :: Client.response()
+  def create_project_task(client, project_id, task_data)
+      when is_integer(project_id) and is_map(task_data) do
+    Client.post("/time-tracking/projects/#{project_id}/tasks", client, json: task_data)
+  end
+
+  @doc """
+  Retrieves a task.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `task_id` - The task's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.get_task(client, 7)
+      {:ok, %{"id" => 7, "projectId" => 3, "name" => "Design"}}
+  """
+  @spec get_task(Client.t(), integer()) :: Client.response()
+  def get_task(client, task_id) when is_integer(task_id) do
+    Client.get("/time-tracking/tasks/#{task_id}", client)
+  end
+
+  @doc """
+  Updates a task.
+
+  Only the fields given are changed, and at least one must be given.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `task_id` - The task's ID
+    * `changes` - Map with `"name"` and/or `"billable"`
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.update_task(client, 7, %{"billable" => false})
+      {:ok, %{"id" => 7, "billable" => false}}
+  """
+  @spec update_task(Client.t(), integer(), map()) :: Client.response()
+  def update_task(client, task_id, changes) when is_integer(task_id) and is_map(changes) do
+    Client.patch("/time-tracking/tasks/#{task_id}", client, json: changes)
+  end
+
+  @doc """
+  Deletes a task.
+
+  On success, returns `nil` (no response body).
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `task_id` - The task's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.delete_task(client, 7)
+      {:ok, nil}
+  """
+  @spec delete_task(Client.t(), integer()) :: Client.response()
+  def delete_task(client, task_id) when is_integer(task_id) do
+    Client.delete("/time-tracking/tasks/#{task_id}", client)
+  end
+
   defp list_params(opts) do
     for {key, param} <- [filter: "filter", sort: "sort", page: "page", page_size: "pageSize"],
         value = opts[key] do

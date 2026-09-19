@@ -170,9 +170,16 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `hoursLastChangedAt` (sent as `lastChangedAt`) for optimistic
   concurrency; a stale value returns 409. Not `updatedAt` — that can lag
   behind changes to the hours.
-  Remaining uncovered time tracking areas: projects/tasks,
-  configurations, employees, imports, kiosks, time clocks, and shift
-  differentials.
+  Projects and tasks live here too (`list_projects/2` and friends): same
+  integer IDs and `page`/`pageSize` paging as the entry lists, so no
+  separate module. `create_project/2` restores and updates a deleted
+  project of the same name rather than erroring, returning that
+  project's old ID. `list_project_tasks/3` sends `:statuses` as repeated
+  `statuses[]` params and defaults to active tasks only. The legacy
+  `POST /time_tracking/projects` is deprecated upstream and skipped.
+  Paginated responses report `totalItems` and `totalPages`, not `total`.
+  Remaining uncovered time tracking areas: configurations, employees,
+  imports, kiosks, time clocks, shift differentials, and scheduling.
   `BambooHR.Breaks` covers meal and rest breaks — break policies, the
   breaks on them, employee assignment, per-employee views, and
   compliance assessments. Kept out of `TimeTracking` despite the shared
