@@ -201,6 +201,11 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   which provides `bypass` and `config` (a `Client.t()` pointing at the local
   Bypass port) in the test context.
 - Tests run `async: true`.
+- Telemetry handlers are global, so a test's handler also sees events
+  from other async tests. Attach with `&__MODULE__.forward_telemetry/4`
+  and `{self(), ref}` in `client_test.exs`: it forwards only events fired
+  from the test's own process. An anonymous handler also logs a
+  "local function" warning.
 
 ## Code Style Guidelines
 
