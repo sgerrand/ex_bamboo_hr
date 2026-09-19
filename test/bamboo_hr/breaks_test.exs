@@ -346,25 +346,37 @@ defmodule BambooHR.BreaksTest do
       assert {:ok, %{"data" => []}} = BambooHR.Breaks.list_employee_policies(config, 123)
     end
 
-    test "lists an employee's break availabilities", %{bypass: bypass, config: config} do
-      Bypass.expect_once(
-        bypass,
-        "GET",
-        "/api/gateway.php/test_company/v1/time-tracking/employees/123/break-availabilities",
-        fn conn ->
-          conn = Plug.Conn.fetch_query_params(conn)
-          assert conn.query_params == %{"effective" => "2024-01-15"}
+    for {label, effective} <- [
+          string: "2024-01-15T09:30:00",
+          naive_date_time: ~N[2024-01-15 09:30:00.123456],
+          date: ~D[2024-01-15]
+        ] do
+      test "lists an employee's break availabilities with a #{label} :effective", %{
+        bypass: bypass,
+        config: config
+      } do
+        expected =
+          if unquote(label) == :date, do: "2024-01-15T00:00:00", else: "2024-01-15T09:30:00"
 
-          conn
-          |> Plug.Conn.put_resp_header("content-type", "application/json")
-          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
-        end
-      )
+        Bypass.expect_once(
+          bypass,
+          "GET",
+          "/api/gateway.php/test_company/v1/time-tracking/employees/123/break-availabilities",
+          fn conn ->
+            conn = Plug.Conn.fetch_query_params(conn)
+            assert conn.query_params == %{"effective" => expected}
 
-      assert {:ok, %{"data" => []}} =
-               BambooHR.Breaks.list_employee_break_availabilities(config, 123,
-                 effective: "2024-01-15"
-               )
+            conn
+            |> Plug.Conn.put_resp_header("content-type", "application/json")
+            |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+          end
+        )
+
+        assert {:ok, %{"data" => []}} =
+                 BambooHR.Breaks.list_employee_break_availabilities(config, 123,
+                   effective: unquote(Macro.escape(effective))
+                 )
+      end
     end
 
     test "lists assessments", %{bypass: bypass, config: config} do

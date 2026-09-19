@@ -181,6 +181,11 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `:limit` instead of `:page` / `:page_size`. `update_policy/3` patches;
   `sync_policy/3` replaces the policy and everything attached to it.
   `assign_employees/3` adds, `set_employees/3` replaces.
+  The `:effective` option on `list_employee_break_availabilities/3` must
+  be `YYYY-MM-DDTHH:MM:SS` with no zone. `list_params/1` turns a `Date`
+  or `NaiveDateTime` into that form, since Req would put a space in place
+  of the `T`. Bypass does not check the spec's patterns, so a test can
+  pass with a value the real API rejects.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
   candidates. `create_candidate/5` and `create_job_opening/7` use
