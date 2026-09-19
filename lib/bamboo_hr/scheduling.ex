@@ -270,8 +270,11 @@ defmodule BambooHR.Scheduling do
 
   Only the fields given are changed. On a **published** shift the changes
   are not applied straight away: they are held as `"unpublishedChanges"`
-  and take effect when the shift is published again. For a recurring
-  shift, `"recurrenceEditOption"` says how many of the repeats to change.
+  and take effect when the shift is published again.
+
+  If the shift already repeats, `"recurrenceEditOption"` is required:
+  `"instance"` (just this shift), `"future"` (this shift and the ones
+  after it), or `"all"` (every repeat from now on).
 
   ## Parameters
 
@@ -284,6 +287,12 @@ defmodule BambooHR.Scheduling do
   ## Examples
 
       iex> BambooHR.Scheduling.update_shift(client, "9c14...", %{"capacity" => 3})
+      {:ok, %{"id" => "9c14...", "capacity" => 3}}
+
+      iex> BambooHR.Scheduling.update_shift(client, "9c14...", %{
+      ...>   "capacity" => 3,
+      ...>   "recurrenceEditOption" => "future"
+      ...> })
       {:ok, %{"id" => "9c14...", "capacity" => 3}}
   """
   @spec update_shift(Client.t(), String.t(), map()) :: Client.response()

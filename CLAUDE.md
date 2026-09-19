@@ -200,6 +200,8 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   Enum values are lowercase (`planned`, `published`; `instance`,
   `future`, `all` for `recurrenceEditOption`), `color` is 6 hex digits
   with no `#`, and a publish failure is keyed `shiftId`, not `id`.
+  `update_shift/3` needs `recurrenceEditOption` when the shift already
+  repeats.
   Bypass accepts any value, so check doc examples against the spec.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
