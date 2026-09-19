@@ -26,7 +26,8 @@ defmodule BambooHR.TimeTracking do
   take `:filter`, `:sort`, `:page` and `:page_size`. `:filter` and
   `:sort` are OData-style strings passed straight through, e.g.
   `filter: "employeeId eq 123"`, `sort: "start desc"`. Page size defaults
-  to 50 and caps at 200.
+  to 50 and caps at 200. Clock and hour entries also need at least 10;
+  a smaller `:page_size` returns a `422` error.
   """
 
   alias BambooHR.Client
