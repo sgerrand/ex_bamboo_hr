@@ -54,7 +54,7 @@ defmodule BambooHR.Scheduling do
 
   ## Examples
 
-      iex> schedule_data = %{"name" => "Store floor", "locationId" => 4, "startOfWeek" => "MONDAY"}
+      iex> schedule_data = %{"name" => "Store floor", "locationId" => 4, "startOfWeek" => "Monday"}
       iex> BambooHR.Scheduling.create_schedule(client, schedule_data)
       {:ok, %{"id" => "3fa8...", "name" => "Store floor"}}
   """
@@ -192,16 +192,18 @@ defmodule BambooHR.Scheduling do
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `opts` - Keyword list: `:ids`, `:start`, `:end`, `:employee_ids`,
       `:schedule_ids`, `:statuses`, `:page`, `:page_size`. List values
-      are joined with commas.
+      are joined with commas. `:start` and `:end` are ISO-8601
+      date-times. `:statuses` takes lowercase values: `"planned"`,
+      `"published"`, `"cancelled"`, `"deleted"`.
 
   ## Examples
 
       iex> BambooHR.Scheduling.list_shifts(client,
-      ...>   start: "2024-01-01",
-      ...>   end: "2024-01-07",
+      ...>   start: "2024-01-01T00:00:00Z",
+      ...>   end: "2024-01-07T23:59:59Z",
       ...>   schedule_ids: ["3fa8..."]
       ...> )
-      {:ok, %{"data" => [%{"id" => "9c14...", "status" => "PUBLISHED"}]}}
+      {:ok, %{"data" => [%{"id" => "9c14...", "status" => "published"}]}}
   """
   @spec list_shifts(Client.t(), keyword()) :: Client.response()
   def list_shifts(client, opts \\ []) do
@@ -216,20 +218,22 @@ defmodule BambooHR.Scheduling do
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `shift_data` - Map with `"scheduleId"`, `"status"`, `"color"`,
       `"timezone"`, `"start"` and `"end"`, and optionally `"name"`,
-      `"capacity"`, `"employeeIds"` and the `"recurrence*"` fields
+      `"capacity"`, `"employeeIds"` and the `"recurrence*"` fields.
+      `"status"` is lowercase (`"planned"` or `"published"`) and `"color"`
+      is a 6-character hex code with no `#`
 
   ## Examples
 
       iex> shift_data = %{
       ...>   "scheduleId" => "3fa8...",
-      ...>   "status" => "PLANNED",
-      ...>   "color" => "#336699",
+      ...>   "status" => "planned",
+      ...>   "color" => "336699",
       ...>   "timezone" => "America/New_York",
       ...>   "start" => "2024-01-15T09:00:00-05:00",
       ...>   "end" => "2024-01-15T17:00:00-05:00"
       ...> }
       iex> BambooHR.Scheduling.create_shift(client, shift_data)
-      {:ok, %{"id" => "9c14...", "status" => "PLANNED"}}
+      {:ok, %{"id" => "9c14...", "status" => "planned"}}
   """
   @spec create_shift(Client.t(), map()) :: Client.response()
   def create_shift(client, shift_data) when is_map(shift_data) do
@@ -250,7 +254,7 @@ defmodule BambooHR.Scheduling do
   ## Examples
 
       iex> BambooHR.Scheduling.get_shift(client, "9c14...")
-      {:ok, %{"id" => "9c14...", "status" => "PUBLISHED"}}
+      {:ok, %{"id" => "9c14...", "status" => "published"}}
   """
   @spec get_shift(Client.t(), String.t()) :: Client.response()
   def get_shift(client, shift_id) when is_binary(shift_id) do
@@ -293,7 +297,9 @@ defmodule BambooHR.Scheduling do
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `shift_id` - The shift's UUID, or a composite recurrence ID
     * `opts` - Optional keyword list: `:recurrence_edit_option`, which
-      says how many of a recurring shift's repeats to delete
+      says how many of a recurring shift's repeats to delete:
+      `"instance"` (the default, just this shift), `"future"` (this shift
+      and the ones after it), or `"all"` (every repeat from now on)
 
   ## Examples
 
@@ -325,7 +331,11 @@ defmodule BambooHR.Scheduling do
   ## Examples
 
       iex> BambooHR.Scheduling.publish_shifts(client, ["9c14...", "2b77..."])
-      {:ok, %{"published" => ["9c14..."], "failed" => [%{"id" => "2b77...", "reason" => "CONFLICT"}]}}
+      {:ok,
+       %{
+         "published" => [%{"id" => "9c14...", "status" => "published"}],
+         "failed" => [%{"shiftId" => "2b77...", "reason" => "Employee is already assigned to an overlapping shift."}]
+       }}
   """
   @spec publish_shifts(Client.t(), list(String.t())) :: Client.response()
   def publish_shifts(client, shift_ids) when is_list(shift_ids) do
