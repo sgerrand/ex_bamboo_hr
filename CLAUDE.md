@@ -172,9 +172,17 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `hoursLastChangedAt` (sent as `lastChangedAt`) for optimistic
   concurrency; a stale value returns 409. Not `updatedAt` — that can lag
   behind changes to the hours.
-  Remaining uncovered time tracking areas: projects/tasks,
-  configurations, employees, imports, kiosks, time clocks, and shift
-  differentials.
+  Configurations and employee enrolments are here too. Both PATCH
+  endpoints take JSON Merge Patch (RFC 7396) — the enrolment one rejects
+  anything else with a 415 — so `merge_patch/3` encodes the body itself
+  and sets `content_type:`, rather than using Req's `:json`, which would
+  send `application/json`. Both listing endpoints use `orderBy` and
+  `select`, not the `sort` used elsewhere in the module, so they have
+  their own params builder. `bulk_upsert_employee_enrollments/3` returns
+  202 (accepted, not finished) and takes `:atomic` and
+  `:idempotency_key`.
+  Remaining uncovered time tracking areas: projects/tasks, imports,
+  kiosks, time clocks, and shift differentials.
   `BambooHR.Breaks` covers meal and rest breaks — break policies, the
   breaks on them, employee assignment, per-employee views, and
   compliance assessments. Kept out of `TimeTracking` despite the shared

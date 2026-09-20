@@ -492,6 +492,267 @@ defmodule BambooHR.TimeTracking do
     )
   end
 
+  @doc """
+  Lists time tracking configurations.
+
+  Returns both the auto-managed `GLOBAL` configuration and any `GROUP`
+  ones. Deleted configurations are never returned.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `opts` - Optional keyword list: `:filter`, `:order_by`, `:select`
+      (a sparse fieldset), `:page`, `:page_size` (defaults to 20)
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.list_configurations(client, filter: "type eq 'GROUP'")
+      {:ok, %{
+        "data" => [%{"id" => 2, "name" => "Warehouse", "timesheetType" => "CLOCK"}],
+        "meta" => %{"page" => 1, "pageSize" => 20, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_configurations(Client.t(), keyword()) :: Client.response()
+  def list_configurations(client, opts \\ []) do
+    Client.get("/time-tracking/configurations", client, params: configuration_params(opts))
+  end
+
+  @doc """
+  Creates a group time tracking configuration, with its approval workflow.
+
+  The type is always `GROUP`: the `GLOBAL` configuration is managed by
+  BambooHR and cannot be created here.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `configuration_data` - Map with `"name"`, `"timesheetType"`,
+      `"workWeekStartsOn"`, `"approverType"`, `"approvalCutoff"` and
+      `"approvalCutoffDays"`, plus the optional clock-in, mobile,
+      geolocation and overtime settings
+    * `opts` - Optional keyword list: `:idempotency_key`, which lets a
+      retry of the same request be recognised rather than creating a
+      second configuration
+
+  ## Examples
+
+      iex> configuration_data = %{
+      ...>   "name" => "Warehouse",
+      ...>   "timesheetType" => "CLOCK",
+      ...>   "workWeekStartsOn" => "MONDAY",
+      ...>   "approverType" => "MANAGER",
+      ...>   "approvalCutoff" => "DAY_OF_WEEK",
+      ...>   "approvalCutoffDays" => 2
+      ...> }
+      iex> BambooHR.TimeTracking.create_configuration(client, configuration_data)
+      {:ok, %{"id" => 2, "name" => "Warehouse"}}
+  """
+  @spec create_configuration(Client.t(), map(), keyword()) :: Client.response()
+  def create_configuration(client, configuration_data, opts \\ [])
+      when is_map(configuration_data) do
+    Client.post(
+      "/time-tracking/configurations",
+      client,
+      [json: configuration_data] ++ idempotency(opts)
+    )
+  end
+
+  @doc """
+  Retrieves a time tracking configuration.
+
+  A deleted configuration returns a `404` error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `configuration_id` - The configuration's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.get_configuration(client, 2)
+      {:ok, %{"id" => 2, "name" => "Warehouse", "type" => "GROUP"}}
+  """
+  @spec get_configuration(Client.t(), integer()) :: Client.response()
+  def get_configuration(client, configuration_id) when is_integer(configuration_id) do
+    Client.get("/time-tracking/configurations/#{configuration_id}", client)
+  end
+
+  @doc """
+  Updates a time tracking configuration.
+
+  Uses JSON Merge Patch (RFC 7396): fields you pass are applied, fields
+  you leave out keep their values, and an explicit `nil` clears a
+  nullable field. Both `GLOBAL` and `GROUP` configurations can be
+  updated.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `configuration_id` - The configuration's ID
+    * `changes` - Map of the fields to change, same shape as
+      `create_configuration/3`
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.update_configuration(client, 2, %{"mobileEnabled" => false})
+      {:ok, %{"id" => 2, "mobileEnabled" => false}}
+  """
+  @spec update_configuration(Client.t(), integer(), map()) :: Client.response()
+  def update_configuration(client, configuration_id, changes)
+      when is_integer(configuration_id) and is_map(changes) do
+    merge_patch("/time-tracking/configurations/#{configuration_id}", client, changes)
+  end
+
+  @doc """
+  Deletes a group time tracking configuration.
+
+  Only works when no employees are enrolled: move or un-enrol them first,
+  otherwise BambooHR returns a `422` error. On success, returns `nil` (no
+  response body).
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `configuration_id` - The configuration's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.delete_configuration(client, 2)
+      {:ok, nil}
+  """
+  @spec delete_configuration(Client.t(), integer()) :: Client.response()
+  def delete_configuration(client, configuration_id) when is_integer(configuration_id) do
+    Client.delete("/time-tracking/configurations/#{configuration_id}", client)
+  end
+
+  @doc """
+  Lists employee time tracking enrolments.
+
+  Both enabled and disabled enrolments are returned; narrow with a
+  `:filter` on `enabled`.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `opts` - Optional keyword list: `:filter`, `:order_by`, `:select`,
+      `:page`, `:page_size` (defaults to 20)
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.list_enrolled_employees(client, filter: "enabled eq true")
+      {:ok, %{
+        "data" => [%{"employeeId" => 123, "enabled" => true, "configurationId" => 2}],
+        "meta" => %{"page" => 1, "pageSize" => 20, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_enrolled_employees(Client.t(), keyword()) :: Client.response()
+  def list_enrolled_employees(client, opts \\ []) do
+    Client.get("/time-tracking/employees", client, params: configuration_params(opts))
+  end
+
+  @doc """
+  Retrieves an employee's time tracking enrolment.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `employee_id` - The employee's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.get_employee_enrollment(client, 123)
+      {:ok, %{"employeeId" => 123, "enabled" => true, "configurationId" => 2}}
+  """
+  @spec get_employee_enrollment(Client.t(), integer()) :: Client.response()
+  def get_employee_enrollment(client, employee_id) when is_integer(employee_id) do
+    Client.get("/time-tracking/employees/#{employee_id}", client)
+  end
+
+  @doc """
+  Enables, disables or reassigns an employee's time tracking enrolment.
+
+  Uses JSON Merge Patch (RFC 7396), so only the fields you pass are
+  applied. An employee with no enrolment record yet gets one.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `employee_id` - The employee's ID
+    * `changes` - Map with `"enabled"`, `"configurationId"` and/or
+      `"enabledOn"`
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.update_employee_enrollment(client, 123, %{"enabled" => true})
+      {:ok, %{"employeeId" => 123, "enabled" => true}}
+  """
+  @spec update_employee_enrollment(Client.t(), integer(), map()) :: Client.response()
+  def update_employee_enrollment(client, employee_id, changes)
+      when is_integer(employee_id) and is_map(changes) do
+    merge_patch("/time-tracking/employees/#{employee_id}", client, changes)
+  end
+
+  @doc """
+  Enables, disables or reassigns many enrolments at once.
+
+  Takes 1 to 1000 records, each needing an `"employeeId"` and otherwise
+  shaped like `update_employee_enrollment/3`. BambooHR answers `202` —
+  the batch is accepted, not necessarily finished, so read the response
+  for per-record results.
+
+  By default a record that fails leaves the rest applied. Pass
+  `atomic: true` to have the whole batch rejected instead.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `records` - List of maps, each with at least `"employeeId"`
+    * `opts` - Optional keyword list: `:atomic`, `:idempotency_key`
+
+  ## Examples
+
+      iex> records = [%{"employeeId" => 123, "enabled" => true, "configurationId" => 2}]
+      iex> BambooHR.TimeTracking.bulk_upsert_employee_enrollments(client, records)
+      {:ok, %{"results" => [%{"employeeId" => 123, "status" => "UPDATED"}]}}
+  """
+  @spec bulk_upsert_employee_enrollments(Client.t(), list(map()), keyword()) :: Client.response()
+  def bulk_upsert_employee_enrollments(client, records, opts \\ []) when is_list(records) do
+    params = for {:atomic, value} <- opts, do: {"atomic", value}
+
+    Client.post(
+      "/time-tracking/employees/bulk-upsert",
+      client,
+      [json: records, params: params] ++ idempotency(opts)
+    )
+  end
+
+  # These endpoints take JSON Merge Patch, and the employee enrolment one
+  # rejects anything else with a 415, so the body is encoded here rather
+  # than through Req's :json option, which would set application/json.
+  defp merge_patch(path, client, changes) do
+    Client.patch(path, client,
+      body: Jason.encode!(changes),
+      content_type: "application/merge-patch+json"
+    )
+  end
+
+  defp idempotency(opts) do
+    for {:idempotency_key, key} <- opts, do: {:idempotency_key, key}
+  end
+
+  defp configuration_params(opts) do
+    for {key, param} <- [
+          filter: "filter",
+          order_by: "orderBy",
+          select: "select",
+          page: "page",
+          page_size: "pageSize"
+        ],
+        value = opts[key] do
+      {param, value}
+    end
+  end
+
   defp list_params(opts) do
     for {key, param} <- [filter: "filter", sort: "sort", page: "page", page_size: "pageSize"],
         value = opts[key] do
