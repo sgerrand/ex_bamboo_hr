@@ -382,7 +382,7 @@ defmodule BambooHR.SchedulingTest do
         "/api/gateway.php/test_company/v1/scheduling/shifts",
         fn conn ->
           assert conn.query_string ==
-                   "start=2024-01-01T00%3A00%3A00Z&end=2024-01-07T23%3A59%3A59&scheduleIds=#{@schedule_id}"
+                   "start=2024-01-01T00%3A00%3A00Z&end=2024-01-07T23%3A59%3A59Z&scheduleIds=#{@schedule_id}"
 
           conn
           |> Plug.Conn.put_resp_header("content-type", "application/json")
@@ -396,6 +396,25 @@ defmodule BambooHR.SchedulingTest do
                  end: ~N[2024-01-07 23:59:59],
                  schedule_ids: [@schedule_id]
                )
+    end
+
+    test "sends nil in a list as the open-shift filter", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/shifts",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params["employeeIds"] == "123,null"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} =
+               BambooHR.Scheduling.list_shifts(config, employee_ids: [123, nil])
     end
 
     test "keeps a flag that was explicitly set to false", %{bypass: bypass, config: config} do

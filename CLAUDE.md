@@ -207,9 +207,13 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `update_shift/3` needs `recurrenceEditOption` when the shift already
   repeats. Shift `start`/`end` are UTC, with `timezone` a separate
   display field. `build_params/2` keeps an explicit `false`, and
-  `format_value/1` converts a `DateTime` or `NaiveDateTime`, which Req
-  would otherwise render with a space in place of the `T` — same trap as
-  `Breaks.format_param/1`.
+  `format_value/1` converts a `DateTime`, `NaiveDateTime` or `Date`,
+  which Req would otherwise render with a space in place of the `T` —
+  same trap as `Breaks.format_param/1`. A zoneless value is read as
+  UTC, since the spec wants an offset. `nil` in an ID list becomes the
+  literal `"null"`, which is how the spec spells the open-shift filter.
+  The PDF endpoint also documents a `500` for a failed render, and a
+  `GET` retries that, so `retry: false` is worth passing there.
   Bypass accepts any value, so check doc examples against the spec.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
