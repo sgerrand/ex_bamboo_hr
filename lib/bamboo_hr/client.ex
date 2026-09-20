@@ -201,7 +201,9 @@ defmodule BambooHR.Client do
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
   through this argument. `opts` may also include `api_version:` — see
-  "API versions" above.
+  "API versions" above — plus `content_type:` and `idempotency_key:`, which
+  add those two headers. They are named individually rather than accepting
+  arbitrary headers, so nothing can displace the `Authorization` header.
   """
   @spec get(String.t(), t(), keyword()) :: response()
   def get(path, %__MODULE__{} = client, opts \\ []) do
@@ -215,7 +217,9 @@ defmodule BambooHR.Client do
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
   through this argument. `opts` may also include `api_version:` — see
-  "API versions" above.
+  "API versions" above — plus `content_type:` and `idempotency_key:`, which
+  add those two headers. They are named individually rather than accepting
+  arbitrary headers, so nothing can displace the `Authorization` header.
   """
   @spec post(String.t(), t(), keyword()) :: response()
   def post(path, %__MODULE__{} = client, opts) do
@@ -229,7 +233,9 @@ defmodule BambooHR.Client do
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
   through this argument. `opts` may also include `api_version:` — see
-  "API versions" above.
+  "API versions" above — plus `content_type:` and `idempotency_key:`, which
+  add those two headers. They are named individually rather than accepting
+  arbitrary headers, so nothing can displace the `Authorization` header.
   """
   @spec put(String.t(), t(), keyword()) :: response()
   def put(path, %__MODULE__{} = client, opts) do
@@ -243,7 +249,9 @@ defmodule BambooHR.Client do
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
   through this argument. `opts` may also include `api_version:` — see
-  "API versions" above.
+  "API versions" above — plus `content_type:` and `idempotency_key:`, which
+  add those two headers. They are named individually rather than accepting
+  arbitrary headers, so nothing can displace the `Authorization` header.
   """
   @spec patch(String.t(), t(), keyword()) :: response()
   def patch(path, %__MODULE__{} = client, opts) do
@@ -257,7 +265,9 @@ defmodule BambooHR.Client do
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
   through this argument. `opts` may also include `api_version:` — see
-  "API versions" above.
+  "API versions" above — plus `content_type:` and `idempotency_key:`, which
+  add those two headers. They are named individually rather than accepting
+  arbitrary headers, so nothing can displace the `Authorization` header.
   """
   @spec delete(String.t(), t(), keyword()) :: response()
   def delete(path, %__MODULE__{} = client, opts \\ []) do
@@ -268,8 +278,13 @@ defmodule BambooHR.Client do
 
   defp request(method, path, client, opts) do
     {version, opts} = Keyword.pop(opts, :api_version, "v1")
+    {content_type, opts} = Keyword.pop(opts, :content_type)
+    {idempotency_key, opts} = Keyword.pop(opts, :idempotency_key)
     url = build_url(client, path, version)
-    headers = build_headers(client.auth, Keyword.get(opts, :raw_response, false))
+
+    headers =
+      build_headers(client.auth, Keyword.get(opts, :raw_response, false)) ++
+        optional_headers(content_type, idempotency_key)
 
     req_opts =
       Keyword.merge(opts,
@@ -315,6 +330,13 @@ defmodule BambooHR.Client do
 
   defp normalize_path("/" <> _ = path), do: path
   defp normalize_path(path), do: "/" <> path
+
+  defp optional_headers(content_type, idempotency_key) do
+    for {name, value} <- [{"Content-Type", content_type}, {"Idempotency-Key", idempotency_key}],
+        is_binary(value) do
+      {name, value}
+    end
+  end
 
   defp build_headers(auth, raw_response) do
     accept = if raw_response, do: "*/*", else: "application/json"

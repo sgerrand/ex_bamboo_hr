@@ -552,6 +552,53 @@ defmodule BambooHR.ClientTest do
              ]
     end
 
+    test ":content_type and :idempotency_key are appended, not substituted" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: CaptureHTTPClient
+        )
+
+      {:ok, %{}} =
+        BambooHR.Client.patch("/anything", config,
+          body: "{}",
+          content_type: "application/merge-patch+json",
+          idempotency_key: "abc-123"
+        )
+
+      assert_received {:request_opts, opts}
+
+      assert opts[:headers] == [
+               {"Authorization", "Basic " <> Base.encode64("test_key:x")},
+               {"Accept", "application/json"},
+               {"Content-Type", "application/merge-patch+json"},
+               {"Idempotency-Key", "abc-123"}
+             ]
+
+      refute Keyword.has_key?(opts, :content_type)
+      refute Keyword.has_key?(opts, :idempotency_key)
+    end
+
+    test "a non-binary :content_type or :idempotency_key adds no header" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: CaptureHTTPClient
+        )
+
+      {:ok, %{}} =
+        BambooHR.Client.get("/anything", config, content_type: nil, idempotency_key: nil)
+
+      assert_received {:request_opts, opts}
+
+      assert opts[:headers] == [
+               {"Authorization", "Basic " <> Base.encode64("test_key:x")},
+               {"Accept", "application/json"}
+             ]
+    end
+
     test "caller-supplied :method, :url, :receive_timeout are ignored" do
       config =
         BambooHR.Client.new(

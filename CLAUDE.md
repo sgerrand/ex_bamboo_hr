@@ -79,7 +79,9 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   on anything else). `Client.get/3`, `Client.post/3`, `Client.patch/3`,
   `Client.put/3`, and `Client.delete/3` lock down `:method`, `:url`, `:headers`, and
   `:receive_timeout` against caller-supplied opts so resource modules can't
-  accidentally drop auth headers.
+  accidentally drop auth headers. Two headers are settable through named
+  opts instead — `content_type:` and `idempotency_key:` — which append to
+  the built headers, so nothing can displace `Authorization`.
 - `BambooHR.HTTPClient` — Behaviour with a single `request/1` callback.
   The opts keyword list passed to implementations is documented in the
   behaviour's `@moduledoc`, including `:expose_headers` (surface response
