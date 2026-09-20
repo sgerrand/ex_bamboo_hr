@@ -181,8 +181,12 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   send `application/json`. Both listing endpoints use `orderBy` and
   `select`, not the `sort` used elsewhere in the module, so they have
   their own params builder. `bulk_upsert_employee_enrollments/3` returns
-  202 (accepted, not finished) and takes `:atomic` and
-  `:idempotency_key`.
+  202 with only `requestId` and `message` — never per-record outcomes,
+  and there is nothing to poll, so confirm via
+  `list_enrolled_employees/2`. It takes `:atomic` (boolean; a non-boolean
+  is dropped, since an empty `atomic=` is a 422) and `:idempotency_key`.
+  Enrolling an employee who has no record needs `"enabled" => true` in
+  the same body, otherwise it is a 404.
   Remaining uncovered time tracking areas: projects/tasks, imports,
   kiosks, time clocks, and shift differentials.
   `BambooHR.Breaks` covers meal and rest breaks — break policies, the

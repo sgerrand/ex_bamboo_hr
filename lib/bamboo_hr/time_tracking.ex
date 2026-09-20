@@ -502,7 +502,9 @@ defmodule BambooHR.TimeTracking do
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `opts` - Optional keyword list: `:filter`, `:order_by`, `:select`
-      (a sparse fieldset), `:page`, `:page_size` (defaults to 20)
+      (a sparse fieldset), `:page`, `:page_size` (defaults to 20).
+      Note `:order_by`, not the `:sort` the entry lists take — a `:sort`
+      here is ignored rather than rejected.
 
   ## Examples
 
@@ -607,8 +609,13 @@ defmodule BambooHR.TimeTracking do
   Deletes a group time tracking configuration.
 
   Only works when no employees are enrolled: move or un-enrol them first,
-  otherwise BambooHR returns a `422` error. On success, returns `nil` (no
-  response body).
+  otherwise BambooHR returns a `422` error. The `GLOBAL` configuration is
+  managed by BambooHR and also returns `422`.
+
+  Deletion is idempotent, so `{:ok, nil}` does **not** prove the
+  configuration existed — an ID that never existed, or one already
+  deleted, returns `204` just the same. Open timesheets keep the old
+  rules until the next pay period boundary.
 
   ## Parameters
 
@@ -635,7 +642,9 @@ defmodule BambooHR.TimeTracking do
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `opts` - Optional keyword list: `:filter`, `:order_by`, `:select`,
-      `:page`, `:page_size` (defaults to 20)
+      `:page`, `:page_size` (defaults to 20). Note `:order_by`, not the
+      `:sort` the entry lists take — a `:sort` here is ignored rather
+      than rejected.
 
   ## Examples
 
@@ -672,7 +681,18 @@ defmodule BambooHR.TimeTracking do
   Enables, disables or reassigns an employee's time tracking enrolment.
 
   Uses JSON Merge Patch (RFC 7396), so only the fields you pass are
-  applied. An employee with no enrolment record yet gets one.
+  applied.
+
+  An employee with no enrolment record gets one **only when `"enabled"`
+  is `true` in the same body**. Without that, an employee who has no
+  record — or whose time tracking is already off — returns a `404`
+  error rather than being enrolled. Reassigning someone whose time
+  tracking is currently off therefore means sending `"enabled" => true`
+  alongside the new `"configurationId"`.
+
+  `"configurationId"` and `"enabledOn"` cannot be combined with
+  `"enabled" => false`, and `"timezone"` and `"clockInId"` are read-only
+  here; both return a `422` error.
 
   ## Parameters
 
@@ -696,28 +716,41 @@ defmodule BambooHR.TimeTracking do
   Enables, disables or reassigns many enrolments at once.
 
   Takes 1 to 1000 records, each needing an `"employeeId"` and otherwise
-  shaped like `update_employee_enrollment/3`. BambooHR answers `202` —
-  the batch is accepted, not necessarily finished, so read the response
-  for per-record results.
+  shaped like `update_employee_enrollment/3`.
 
-  By default a record that fails leaves the rest applied. Pass
-  `atomic: true` to have the whole batch rejected instead.
+  Only the shape of the request is checked before it returns. The records
+  themselves are applied afterwards, so the `202` response carries a
+  `"requestId"` for log correlation and a `"message"` — **not the
+  resulting enrolments, and not per-record outcomes**. A record that
+  fails later, an unknown `"employeeId"` or `"configurationId"` say, is
+  not reported anywhere in this response, and there is no status to poll.
+  Confirm what actually happened by reading the enrolments back with
+  `list_enrolled_employees/2`.
+
+  Pass `atomic: true` to commit the batch as one unit instead: any
+  per-record failure then aborts the whole thing and returns a `422`
+  error with nothing applied.
 
   ## Parameters
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `records` - List of maps, each with at least `"employeeId"`
-    * `opts` - Optional keyword list: `:atomic`, `:idempotency_key`
+    * `opts` - Optional keyword list: `:atomic` (a boolean),
+      `:idempotency_key`
 
   ## Examples
 
       iex> records = [%{"employeeId" => 123, "enabled" => true, "configurationId" => 2}]
       iex> BambooHR.TimeTracking.bulk_upsert_employee_enrollments(client, records)
-      {:ok, %{"results" => [%{"employeeId" => 123, "status" => "UPDATED"}]}}
+      {:ok, %{
+        "requestId" => "8b3e1c2a-6b1f-4f0e-9a2b-2c8f0a1d3e4f",
+        "message" => "Your bulk upsert has been accepted and is being processed."
+      }}
   """
   @spec bulk_upsert_employee_enrollments(Client.t(), list(map()), keyword()) :: Client.response()
   def bulk_upsert_employee_enrollments(client, records, opts \\ []) when is_list(records) do
-    params = for {:atomic, value} <- opts, do: {"atomic", value}
+    # An empty `atomic=` is a 422, so only a real boolean is sent.
+    params = for {:atomic, value} <- opts, is_boolean(value), do: {"atomic", value}
 
     Client.post(
       "/time-tracking/employees/bulk-upsert",

@@ -871,11 +871,18 @@ defmodule BambooHR.TimeTrackingTest do
 
           conn
           |> Plug.Conn.put_resp_header("content-type", "application/json")
-          |> Plug.Conn.resp(202, Jason.encode!(%{"results" => []}))
+          |> Plug.Conn.resp(
+            202,
+            Jason.encode!(%{
+              "requestId" => "8b3e1c2a",
+              "message" => "Accepted; verify via GET /time-tracking/employees."
+            })
+          )
         end
       )
 
-      assert {:ok, %{"results" => []}} =
+      # The 202 acknowledges the batch; it carries no per-record outcomes.
+      assert {:ok, %{"requestId" => "8b3e1c2a", "message" => _}} =
                BambooHR.TimeTracking.bulk_upsert_employee_enrollments(config, records)
     end
 
@@ -891,16 +898,51 @@ defmodule BambooHR.TimeTrackingTest do
 
           conn
           |> Plug.Conn.put_resp_header("content-type", "application/json")
-          |> Plug.Conn.resp(202, Jason.encode!(%{"results" => []}))
+          |> Plug.Conn.resp(
+            202,
+            Jason.encode!(%{
+              "requestId" => "8b3e1c2a",
+              "message" => "Accepted; verify via GET /time-tracking/employees."
+            })
+          )
         end
       )
 
-      assert {:ok, %{"results" => []}} =
+      assert {:ok, %{"requestId" => "8b3e1c2a"}} =
                BambooHR.TimeTracking.bulk_upsert_employee_enrollments(
                  config,
                  [%{"employeeId" => 123}],
                  atomic: true,
                  idempotency_key: "batch-9"
+               )
+    end
+
+    test "omits atomic when it is not a boolean", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/employees/bulk-upsert",
+        fn conn ->
+          # An empty `atomic=` is a 422, so a nil must not reach the wire.
+          assert conn.query_string == ""
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(
+            202,
+            Jason.encode!(%{
+              "requestId" => "8b3e1c2a",
+              "message" => "Accepted; verify via GET /time-tracking/employees."
+            })
+          )
+        end
+      )
+
+      assert {:ok, %{"requestId" => _}} =
+               BambooHR.TimeTracking.bulk_upsert_employee_enrollments(
+                 config,
+                 [%{"employeeId" => 123}],
+                 atomic: nil
                )
     end
   end
