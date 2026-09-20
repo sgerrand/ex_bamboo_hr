@@ -187,8 +187,8 @@ defmodule BambooHR.SchedulingTest do
         "status" => "planned",
         "color" => "336699",
         "timezone" => "America/New_York",
-        "start" => "2024-01-15T09:00:00-05:00",
-        "end" => "2024-01-15T17:00:00-05:00"
+        "start" => "2024-01-15T14:00:00Z",
+        "end" => "2024-01-15T22:00:00Z"
       }
 
       Bypass.expect_once(
