@@ -86,7 +86,10 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   idempotency key would let a retry create a second resource.
 - `BambooHR.HTTPClient` — Behaviour with a single `request/1` callback.
   The opts keyword list passed to implementations is documented in the
-  behaviour's `@moduledoc`, including `:expose_headers` (surface response
+  behaviour's `@moduledoc` — it is the contract a third-party
+  implementation is written against, so an option used in `lib/` but
+  missing from that list is a bug. It includes `:body` (pre-encoded,
+  used by the merge-patch endpoints) and `:expose_headers` (surface response
   headers alongside the body — needed when a header, not the body, carries
   the useful data, e.g. a `Location` header) and `:raw_response` (skip
   JSON-decoding — needed for binary responses like file downloads).

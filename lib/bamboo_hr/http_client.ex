@@ -14,13 +14,22 @@ defmodule BambooHR.HTTPClient do
 
     * `:method` — `:get`, `:post`, `:patch`, `:put`, or `:delete`
     * `:url` — fully-qualified URL
-    * `:headers` — list of `{name, value}` tuples (includes `Authorization`
-      and `Accept`; `BambooHR.Client` sets `Accept: application/json`
-      normally, or `Accept: */*` when `:raw_response` is `true`, so binary
-      downloads aren't forced into requesting a JSON representation)
+    * `:headers` — list of `{name, value}` tuples. Always includes
+      `Authorization` and `Accept`; `BambooHR.Client` sets
+      `Accept: application/json` normally, or `Accept: */*` when
+      `:raw_response` is `true`, so binary downloads aren't forced into
+      requesting a JSON representation. May also include `Content-Type`
+      and `Idempotency-Key`, from the `content_type:` and
+      `idempotency_key:` opts.
     * `:receive_timeout` — milliseconds
     * `:params` — query string parameters (optional)
     * `:json` — request body to JSON-encode (optional)
+    * `:body` — request body to send as-is, already encoded (optional).
+      Used where the body must carry a content type the implementation
+      would not pick itself, such as the JSON Merge Patch endpoints in
+      `BambooHR.TimeTracking`, which send `:body` alongside a
+      `Content-Type` header. An implementation that ignores `:body` will
+      send those requests empty.
     * `:form_multipart` — request body to encode as `multipart/form-data`,
       `Req`'s `:form_multipart` shape (optional)
     * `:expose_headers` — when `true`, the `:ok` payload for a 2xx response
