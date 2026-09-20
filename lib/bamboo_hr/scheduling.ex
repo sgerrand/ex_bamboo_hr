@@ -8,7 +8,11 @@ defmodule BambooHR.Scheduling do
 
   ## IDs
 
-  Schedule and shift IDs are UUID strings, not integers.
+  Schedule IDs are UUID strings, not integers. A shift ID is usually a
+  UUID too, but a recurring shift that has not been created yet has a
+  composite ID (`"<shiftId>_<recurrenceId>"`), which `list_shifts/2`
+  returns and `publish_shifts/2` and `delete_shift/3` accept. Treat a
+  shift ID as an opaque string rather than validating it as a UUID.
 
   ## Paging and filtering
 
@@ -136,6 +140,11 @@ defmodule BambooHR.Scheduling do
   `scheduling:schedules` scope). BambooHR does not accept API keys for
   this endpoint, so an API key client gets an error back.
 
+  BambooHR renders the PDF on request, so a large schedule can outrun
+  the client's default 15s `:timeout`. A timed-out `GET` is retried, so
+  each attempt costs another render — give this call a client with a
+  longer `:timeout` rather than letting it retry.
+
   ## Parameters
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
@@ -225,7 +234,8 @@ defmodule BambooHR.Scheduling do
       `"timezone"`, `"start"` and `"end"`, and optionally `"name"`,
       `"capacity"`, `"employeeIds"` and the `"recurrence*"` fields.
       `"status"` is lowercase (`"planned"` or `"published"`) and `"color"`
-      is a 6-character hex code with no `#`
+      is a 6-character hex code with no `#`. `"start"` and `"end"` are
+      UTC timestamps; `"timezone"` is what the shift is shown in
 
   ## Examples
 
@@ -234,8 +244,8 @@ defmodule BambooHR.Scheduling do
       ...>   "status" => "planned",
       ...>   "color" => "336699",
       ...>   "timezone" => "America/New_York",
-      ...>   "start" => "2024-01-15T09:00:00-05:00",
-      ...>   "end" => "2024-01-15T17:00:00-05:00"
+      ...>   "start" => "2024-01-15T14:00:00Z",
+      ...>   "end" => "2024-01-15T22:00:00Z"
       ...> }
       iex> BambooHR.Scheduling.create_shift(client, shift_data)
       {:ok, %{"id" => "9c14...", "status" => "planned"}}
@@ -335,7 +345,8 @@ defmodule BambooHR.Scheduling do
   the whole call, and come back in the response as failures — so check
   the result even on success. BambooHR answers `207` when only some
   shifts published, which this client treats as success, and `409` when
-  none of them did, which is an error.
+  none of them did, which is an error. The `409` body has the same shape,
+  with a reason per shift, and is kept undecoded in the error's `:body`.
 
   ## Parameters
 

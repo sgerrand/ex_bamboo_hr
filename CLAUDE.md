@@ -190,8 +190,12 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   value the real API rejects.
   `BambooHR.Scheduling` covers schedules, shifts, shift assessments, and
   the schedule PDF export (`:raw_response` + `:expose_headers`, like
-  `Files` downloads). IDs are UUID strings. The PDF endpoint is the only
-  one that takes OAuth alone, not API keys. `publish_shifts/2` can
+  `Files` downloads). Schedule IDs are UUID strings; a shift ID can also
+  be a composite `<shiftId>_<recurrenceId>` for a recurring shift that
+  does not exist yet, so treat shift IDs as opaque. The PDF endpoint is
+  the only one that takes OAuth alone, not API keys, and it renders
+  server-side, so it can outrun the default 15s timeout and then be
+  retried once per render. `publish_shifts/2` can
   half-succeed: BambooHR answers 207 when only some shifts published,
   which this client treats as success, so callers must read `"failed"`
   in the body rather than trusting `{:ok, _}`. The PDF endpoint wants
@@ -201,7 +205,11 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `future`, `all` for `recurrenceEditOption`), `color` is 6 hex digits
   with no `#`, and a publish failure is keyed `shiftId`, not `id`.
   `update_shift/3` needs `recurrenceEditOption` when the shift already
-  repeats.
+  repeats. Shift `start`/`end` are UTC, with `timezone` a separate
+  display field. `build_params/2` keeps an explicit `false`, and
+  `format_value/1` converts a `DateTime` or `NaiveDateTime`, which Req
+  would otherwise render with a space in place of the `T` — same trap as
+  `Breaks.format_param/1`.
   Bypass accepts any value, so check doc examples against the spec.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
