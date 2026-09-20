@@ -81,7 +81,9 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `:receive_timeout` against caller-supplied opts so resource modules can't
   accidentally drop auth headers. Two headers are settable through named
   opts instead — `content_type:` and `idempotency_key:` — which append to
-  the built headers, so nothing can displace `Authorization`.
+  the built headers, so nothing can displace `Authorization`. `nil` sends
+  no header; any other non-string raises, because a silently dropped
+  idempotency key would let a retry create a second resource.
 - `BambooHR.HTTPClient` — Behaviour with a single `request/1` callback.
   The opts keyword list passed to implementations is documented in the
   behaviour's `@moduledoc`, including `:expose_headers` (surface response

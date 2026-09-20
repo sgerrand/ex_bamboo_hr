@@ -580,7 +580,24 @@ defmodule BambooHR.ClientTest do
       refute Keyword.has_key?(opts, :idempotency_key)
     end
 
-    test "a non-binary :content_type or :idempotency_key adds no header" do
+    test "a non-string :idempotency_key raises rather than being dropped" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: CaptureHTTPClient
+        )
+
+      assert_raise ArgumentError, ~r/:idempotency_key to be a string/, fn ->
+        BambooHR.Client.post("/anything", config, json: %{}, idempotency_key: 12_345)
+      end
+
+      assert_raise ArgumentError, ~r/:content_type to be a string/, fn ->
+        BambooHR.Client.patch("/anything", config, body: "{}", content_type: :merge_patch)
+      end
+    end
+
+    test "a nil :content_type or :idempotency_key adds no header" do
       config =
         BambooHR.Client.new(
           company_domain: "test_company",
