@@ -735,8 +735,9 @@ defmodule BambooHR.TimeTracking do
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `records` - List of maps, each with at least `"employeeId"`
-    * `opts` - Optional keyword list: `:atomic` (a boolean),
-      `:idempotency_key`
+    * `opts` - Optional keyword list: `:atomic` (a boolean; a non-boolean
+      raises `ArgumentError` rather than quietly falling back to a
+      non-atomic batch), `:idempotency_key`
 
   ## Examples
 
@@ -749,8 +750,7 @@ defmodule BambooHR.TimeTracking do
   """
   @spec bulk_upsert_employee_enrollments(Client.t(), list(map()), keyword()) :: Client.response()
   def bulk_upsert_employee_enrollments(client, records, opts \\ []) when is_list(records) do
-    # An empty `atomic=` is a 422, so only a real boolean is sent.
-    params = for {:atomic, value} <- opts, is_boolean(value), do: {"atomic", value}
+    params = atomic_param(opts)
 
     Client.post(
       "/time-tracking/employees/bulk-upsert",
@@ -767,6 +767,26 @@ defmodule BambooHR.TimeTracking do
       body: Jason.encode!(changes),
       content_type: "application/merge-patch+json"
     )
+  end
+
+  # nil means "not given", so no parameter is sent — an empty `atomic=`
+  # is a 422. Anything else that is not a boolean is a mistake worth
+  # reporting: dropping it would quietly apply the batch non-atomically,
+  # which is the opposite of what the caller asked for.
+  defp atomic_param(opts) do
+    case Keyword.fetch(opts, :atomic) do
+      {:ok, value} when is_boolean(value) ->
+        [{"atomic", value}]
+
+      {:ok, nil} ->
+        []
+
+      :error ->
+        []
+
+      {:ok, value} ->
+        raise ArgumentError, "expected :atomic to be a boolean, got: #{inspect(value)}"
+    end
   end
 
   defp idempotency(opts) do

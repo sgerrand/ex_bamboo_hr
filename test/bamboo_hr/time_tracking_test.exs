@@ -917,7 +917,17 @@ defmodule BambooHR.TimeTrackingTest do
                )
     end
 
-    test "omits atomic when it is not a boolean", %{bypass: bypass, config: config} do
+    test "raises rather than silently dropping a non-boolean atomic", %{config: config} do
+      assert_raise ArgumentError, ~r/:atomic to be a boolean/, fn ->
+        BambooHR.TimeTracking.bulk_upsert_employee_enrollments(
+          config,
+          [%{"employeeId" => 123}],
+          atomic: "true"
+        )
+      end
+    end
+
+    test "omits atomic when it is nil", %{bypass: bypass, config: config} do
       Bypass.expect_once(
         bypass,
         "POST",
