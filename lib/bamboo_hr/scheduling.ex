@@ -141,9 +141,10 @@ defmodule BambooHR.Scheduling do
   this endpoint, so an API key client gets an error back.
 
   BambooHR renders the PDF on request, so a large schedule can outrun
-  the client's default 15s `:timeout`. A timed-out `GET` is retried, so
-  each attempt costs another render — give this call a client with a
-  longer `:timeout` rather than letting it retry.
+  the client's default 15s `:timeout`, and a failed render comes back as
+  a `500`. Both are retried on a `GET`, so each attempt costs another
+  render — give this call a client with a longer `:timeout`, and pass
+  `retry: false` in `opts` if one render attempt is enough.
 
   ## Parameters
 
@@ -152,7 +153,8 @@ defmodule BambooHR.Scheduling do
     * `start_ymd` - First day to include, as `YYYY-MM-DD`
     * `end_ymd` - Last day to include, as `YYYY-MM-DD`
     * `opts` - Optional keyword list: `:group_by`, `:employee_ids` (a
-      list), `:include_employees_without_shifts`, `:include_holidays`,
+      list, where `nil` means unassigned shifts),
+      `:include_employees_without_shifts`, `:include_holidays`,
       `:include_time_off`
 
   ## Examples
@@ -206,9 +208,10 @@ defmodule BambooHR.Scheduling do
     * `opts` - Keyword list: `:ids`, `:start`, `:end`, `:employee_ids`,
       `:schedule_ids`, `:statuses`, `:page`, `:page_size`. List values
       are joined with commas. `:start` and `:end` are ISO-8601
-      date-times, and the spec reads them as UTC, so pass a `DateTime`
-      or a string with a zone — a `NaiveDateTime` is sent without one. `:statuses` takes lowercase values: `"planned"`,
-      `"published"`, `"cancelled"`, `"deleted"`.
+      date-times; a `Date` or `NaiveDateTime` is read as UTC. Pass
+      `nil` in `:employee_ids` to include unassigned (open) shifts.
+      `:statuses` takes lowercase values: `"planned"`, `"published"`,
+      `"cancelled"`, `"deleted"`.
 
   ## Examples
 
@@ -332,8 +335,7 @@ defmodule BambooHR.Scheduling do
   """
   @spec delete_shift(Client.t(), String.t(), keyword()) :: Client.response()
   def delete_shift(client, shift_id, opts \\ []) when is_binary(shift_id) do
-    params =
-      for {:recurrence_edit_option, value} <- opts, do: {"recurrenceEditOption", value}
+    params = build_params(opts, recurrence_edit_option: "recurrenceEditOption")
 
     Client.delete("/scheduling/shifts/#{shift_id}", client, params: params)
   end
@@ -408,7 +410,8 @@ defmodule BambooHR.Scheduling do
   # The PDF endpoint takes employeeIds[] as a repeated parameter rather
   # than a comma-separated list, so each ID gets its own entry.
   defp pdf_params(opts) do
-    employee_ids = for id <- List.wrap(opts[:employee_ids]), do: {"employeeIds[]", id}
+    employee_ids =
+      for id <- List.wrap(opts[:employee_ids]), do: {"employeeIds[]", format_value(id)}
 
     employee_ids ++
       build_params(opts,
@@ -428,10 +431,21 @@ defmodule BambooHR.Scheduling do
   defp join(value) when is_list(value), do: Enum.map_join(value, ",", &format_value/1)
   defp join(value), do: format_value(value)
 
-  # BambooHR wants the shift window as an ISO-8601 date-time. Req renders a
-  # DateTime or NaiveDateTime with a space in place of the `T`, so convert
-  # them first.
+  # BambooHR spells the open-shift filter as the literal string "null",
+  # which `nil` would otherwise render as an empty element.
+  defp format_value(nil), do: "null"
+
+  # BambooHR wants the shift window as an ISO-8601 date-time with an
+  # offset. Req renders a DateTime or NaiveDateTime with a space in place
+  # of the `T`, and a Date or NaiveDateTime carries no offset at all, so
+  # the zoneless forms are read as UTC.
   defp format_value(%DateTime{} = value), do: DateTime.to_iso8601(value)
-  defp format_value(%NaiveDateTime{} = value), do: NaiveDateTime.to_iso8601(value)
+
+  defp format_value(%NaiveDateTime{} = value),
+    do: value |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
+
+  defp format_value(%Date{} = value),
+    do: value |> NaiveDateTime.new!(~T[00:00:00]) |> format_value()
+
   defp format_value(value), do: value
 end
