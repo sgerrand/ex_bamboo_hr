@@ -197,7 +197,8 @@ defmodule BambooHR.Scheduling do
     * `opts` - Keyword list: `:ids`, `:start`, `:end`, `:employee_ids`,
       `:schedule_ids`, `:statuses`, `:page`, `:page_size`. List values
       are joined with commas. `:start` and `:end` are ISO-8601
-      date-times. `:statuses` takes lowercase values: `"planned"`,
+      date-times, and the spec reads them as UTC, so pass a `DateTime`
+      or a string with a zone — a `NaiveDateTime` is sent without one. `:statuses` takes lowercase values: `"planned"`,
       `"published"`, `"cancelled"`, `"deleted"`.
 
   ## Examples
@@ -407,10 +408,19 @@ defmodule BambooHR.Scheduling do
       )
   end
 
+  # `false` is a meaningful value for the PDF flags, so only a missing
+  # option is dropped.
   defp build_params(opts, mapping) do
-    for {key, param} <- mapping, value = opts[key], do: {param, join(value)}
+    for {key, param} <- mapping, (value = opts[key]) != nil, do: {param, join(value)}
   end
 
-  defp join(value) when is_list(value), do: Enum.join(value, ",")
-  defp join(value), do: value
+  defp join(value) when is_list(value), do: Enum.map_join(value, ",", &format_value/1)
+  defp join(value), do: format_value(value)
+
+  # BambooHR wants the shift window as an ISO-8601 date-time. Req renders a
+  # DateTime or NaiveDateTime with a space in place of the `T`, so convert
+  # them first.
+  defp format_value(%DateTime{} = value), do: DateTime.to_iso8601(value)
+  defp format_value(%NaiveDateTime{} = value), do: NaiveDateTime.to_iso8601(value)
+  defp format_value(value), do: value
 end
