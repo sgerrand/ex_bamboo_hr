@@ -79,10 +79,17 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   on anything else). `Client.get/3`, `Client.post/3`, `Client.patch/3`,
   `Client.put/3`, and `Client.delete/3` lock down `:method`, `:url`, `:headers`, and
   `:receive_timeout` against caller-supplied opts so resource modules can't
-  accidentally drop auth headers.
+  accidentally drop auth headers. Two headers are settable through named
+  opts instead — `content_type:` and `idempotency_key:` — which append to
+  the built headers, so nothing can displace `Authorization`. `nil` sends
+  no header; any other non-string raises, because a silently dropped
+  idempotency key would let a retry create a second resource.
 - `BambooHR.HTTPClient` — Behaviour with a single `request/1` callback.
   The opts keyword list passed to implementations is documented in the
-  behaviour's `@moduledoc`, including `:expose_headers` (surface response
+  behaviour's `@moduledoc` — it is the contract a third-party
+  implementation is written against, so an option used in `lib/` but
+  missing from that list is a bug. It includes `:body` (pre-encoded,
+  used by the merge-patch endpoints) and `:expose_headers` (surface response
   headers alongside the body — needed when a header, not the body, carries
   the useful data, e.g. a `Location` header) and `:raw_response` (skip
   JSON-decoding — needed for binary responses like file downloads).
@@ -170,9 +177,23 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `hoursLastChangedAt` (sent as `lastChangedAt`) for optimistic
   concurrency; a stale value returns 409. Not `updatedAt` — that can lag
   behind changes to the hours.
-  Remaining uncovered time tracking areas: projects/tasks,
-  configurations, employees, imports, kiosks, time clocks, and shift
-  differentials.
+  Configurations and employee enrolments are here too. Both PATCH
+  endpoints take JSON Merge Patch (RFC 7396) — the enrolment one rejects
+  anything else with a 415 — so `merge_patch/3` encodes the body itself
+  and sets `content_type:`, rather than using Req's `:json`, which would
+  send `application/json`. Both listing endpoints use `orderBy` and
+  `select`, not the `sort` used elsewhere in the module, so they have
+  their own params builder. `bulk_upsert_employee_enrollments/3` returns
+  202 with only `requestId` and `message` — never per-record outcomes,
+  and there is nothing to poll, so confirm via
+  `list_enrolled_employees/2`. It takes `:atomic` (boolean) and
+  `:idempotency_key`. `atomic: nil` means "not given" and leaves the
+  non-atomic default; any other non-boolean raises. `nil` is dropped
+  rather than sent because an empty `atomic=` is itself a 422.
+  Enrolling an employee who has no record needs `"enabled" => true` in
+  the same body, otherwise it is a 404.
+  Remaining uncovered time tracking areas: projects/tasks, imports,
+  kiosks, time clocks, and shift differentials.
   `BambooHR.Breaks` covers meal and rest breaks — break policies, the
   breaks on them, employee assignment, per-employee views, and
   compliance assessments. Kept out of `TimeTracking` despite the shared

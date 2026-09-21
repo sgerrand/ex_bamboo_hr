@@ -628,4 +628,332 @@ defmodule BambooHR.TimeTrackingTest do
                BambooHR.TimeTracking.approve_timesheet(config, 9, "2024-01-15T16:00:00Z")
     end
   end
+
+  describe "configurations" do
+    test "lists configurations with orderBy and select", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/configurations",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+
+          assert conn.query_params == %{
+                   "filter" => "type eq 'GROUP'",
+                   "orderBy" => "name asc",
+                   "select" => "id,name",
+                   "pageSize" => "20"
+                 }
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [%{"id" => 2}]}))
+        end
+      )
+
+      assert {:ok, %{"data" => [%{"id" => 2}]}} =
+               BambooHR.TimeTracking.list_configurations(config,
+                 filter: "type eq 'GROUP'",
+                 order_by: "name asc",
+                 select: "id,name",
+                 page_size: 20
+               )
+    end
+
+    test "creates a configuration", %{bypass: bypass, config: config} do
+      configuration_data = %{"name" => "Warehouse", "timesheetType" => "CLOCK"}
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/configurations",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == configuration_data
+          assert Plug.Conn.get_req_header(conn, "idempotency-key") == []
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(201, Jason.encode!(%{"id" => 2}))
+        end
+      )
+
+      assert {:ok, %{"id" => 2}} =
+               BambooHR.TimeTracking.create_configuration(config, configuration_data)
+    end
+
+    test "sends an idempotency key when given one", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/configurations",
+        fn conn ->
+          assert Plug.Conn.get_req_header(conn, "idempotency-key") == ["abc-123"]
+          assert Plug.Conn.get_req_header(conn, "authorization") != []
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(201, Jason.encode!(%{"id" => 2}))
+        end
+      )
+
+      assert {:ok, %{"id" => 2}} =
+               BambooHR.TimeTracking.create_configuration(config, %{"name" => "Warehouse"},
+                 idempotency_key: "abc-123"
+               )
+    end
+
+    test "retrieves a configuration", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/configurations/2",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 2, "type" => "GROUP"}))
+        end
+      )
+
+      assert {:ok, %{"id" => 2}} = BambooHR.TimeTracking.get_configuration(config, 2)
+    end
+
+    test "updates a configuration as a merge patch", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/configurations/2",
+        fn conn ->
+          assert Plug.Conn.get_req_header(conn, "content-type") == [
+                   "application/merge-patch+json"
+                 ]
+
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"mobileEnabled" => false}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 2, "mobileEnabled" => false}))
+        end
+      )
+
+      assert {:ok, %{"mobileEnabled" => false}} =
+               BambooHR.TimeTracking.update_configuration(config, 2, %{"mobileEnabled" => false})
+    end
+
+    test "clears a nullable field with an explicit null", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/configurations/2",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"approverUserId" => nil}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"approverUserId" => nil}))
+        end
+      )
+
+      assert {:ok, %{"approverUserId" => nil}} =
+               BambooHR.TimeTracking.update_configuration(config, 2, %{"approverUserId" => nil})
+    end
+
+    test "deletes a configuration", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "DELETE",
+        "/api/gateway.php/test_company/v1/time-tracking/configurations/2",
+        fn conn -> Plug.Conn.resp(conn, 204, "") end
+      )
+
+      assert {:ok, nil} = BambooHR.TimeTracking.delete_configuration(config, 2)
+    end
+
+    test "surfaces a configuration that still has employees", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "DELETE",
+        "/api/gateway.php/test_company/v1/time-tracking/configurations/2",
+        fn conn -> Plug.Conn.resp(conn, 422, "") end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :unprocessable_entity}} =
+               BambooHR.TimeTracking.delete_configuration(config, 2)
+    end
+  end
+
+  describe "employee enrolments" do
+    test "lists enrolled employees", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/employees",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params == %{"filter" => "enabled eq true"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [%{"employeeId" => 123}]}))
+        end
+      )
+
+      assert {:ok, %{"data" => [%{"employeeId" => 123}]}} =
+               BambooHR.TimeTracking.list_enrolled_employees(config, filter: "enabled eq true")
+    end
+
+    test "retrieves an enrolment", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/employees/123",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"employeeId" => 123, "enabled" => true}))
+        end
+      )
+
+      assert {:ok, %{"employeeId" => 123}} =
+               BambooHR.TimeTracking.get_employee_enrollment(config, 123)
+    end
+
+    test "updates an enrolment as a merge patch", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/employees/123",
+        fn conn ->
+          assert Plug.Conn.get_req_header(conn, "content-type") == [
+                   "application/merge-patch+json"
+                 ]
+
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"enabled" => true}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"employeeId" => 123, "enabled" => true}))
+        end
+      )
+
+      assert {:ok, %{"enabled" => true}} =
+               BambooHR.TimeTracking.update_employee_enrollment(config, 123, %{"enabled" => true})
+    end
+
+    test "surfaces a rejected content type", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/employees/123",
+        fn conn -> Plug.Conn.resp(conn, 415, "") end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :unsupported_media_type}} =
+               BambooHR.TimeTracking.update_employee_enrollment(config, 123, %{"enabled" => true})
+    end
+
+    test "bulk upserts enrolments", %{bypass: bypass, config: config} do
+      records = [%{"employeeId" => 123, "enabled" => true, "configurationId" => 2}]
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/employees/bulk-upsert",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params == %{}
+
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == records
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(
+            202,
+            Jason.encode!(%{
+              "requestId" => "8b3e1c2a",
+              "message" => "Accepted; verify via GET /time-tracking/employees."
+            })
+          )
+        end
+      )
+
+      # The 202 acknowledges the batch; it carries no per-record outcomes.
+      assert {:ok, %{"requestId" => "8b3e1c2a", "message" => _}} =
+               BambooHR.TimeTracking.bulk_upsert_employee_enrollments(config, records)
+    end
+
+    test "bulk upserts atomically with an idempotency key", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/employees/bulk-upsert",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params == %{"atomic" => "true"}
+          assert Plug.Conn.get_req_header(conn, "idempotency-key") == ["batch-9"]
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(
+            202,
+            Jason.encode!(%{
+              "requestId" => "8b3e1c2a",
+              "message" => "Accepted; verify via GET /time-tracking/employees."
+            })
+          )
+        end
+      )
+
+      assert {:ok, %{"requestId" => "8b3e1c2a"}} =
+               BambooHR.TimeTracking.bulk_upsert_employee_enrollments(
+                 config,
+                 [%{"employeeId" => 123}],
+                 atomic: true,
+                 idempotency_key: "batch-9"
+               )
+    end
+
+    test "raises rather than silently dropping a non-boolean atomic", %{config: config} do
+      assert_raise ArgumentError, ~r/:atomic to be a boolean/, fn ->
+        BambooHR.TimeTracking.bulk_upsert_employee_enrollments(
+          config,
+          [%{"employeeId" => 123}],
+          atomic: "true"
+        )
+      end
+    end
+
+    test "omits atomic when it is nil", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/employees/bulk-upsert",
+        fn conn ->
+          # An empty `atomic=` is a 422, so a nil must not reach the wire.
+          assert conn.query_string == ""
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(
+            202,
+            Jason.encode!(%{
+              "requestId" => "8b3e1c2a",
+              "message" => "Accepted; verify via GET /time-tracking/employees."
+            })
+          )
+        end
+      )
+
+      assert {:ok, %{"requestId" => _}} =
+               BambooHR.TimeTracking.bulk_upsert_employee_enrollments(
+                 config,
+                 [%{"employeeId" => 123}],
+                 atomic: nil
+               )
+    end
+  end
 end

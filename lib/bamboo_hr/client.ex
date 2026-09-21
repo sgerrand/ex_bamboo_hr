@@ -201,7 +201,11 @@ defmodule BambooHR.Client do
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
   through this argument. `opts` may also include `api_version:` — see
-  "API versions" above.
+  "API versions" above — plus `content_type:` and `idempotency_key:`, which
+  add those two headers. They are named individually rather than accepting
+  arbitrary headers, so nothing can displace the `Authorization` header.
+  Either may be `nil`, which sends no header; any other non-string raises
+  `ArgumentError` rather than being dropped silently.
   """
   @spec get(String.t(), t(), keyword()) :: response()
   def get(path, %__MODULE__{} = client, opts \\ []) do
@@ -215,7 +219,11 @@ defmodule BambooHR.Client do
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
   through this argument. `opts` may also include `api_version:` — see
-  "API versions" above.
+  "API versions" above — plus `content_type:` and `idempotency_key:`, which
+  add those two headers. They are named individually rather than accepting
+  arbitrary headers, so nothing can displace the `Authorization` header.
+  Either may be `nil`, which sends no header; any other non-string raises
+  `ArgumentError` rather than being dropped silently.
   """
   @spec post(String.t(), t(), keyword()) :: response()
   def post(path, %__MODULE__{} = client, opts) do
@@ -229,7 +237,11 @@ defmodule BambooHR.Client do
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
   through this argument. `opts` may also include `api_version:` — see
-  "API versions" above.
+  "API versions" above — plus `content_type:` and `idempotency_key:`, which
+  add those two headers. They are named individually rather than accepting
+  arbitrary headers, so nothing can displace the `Authorization` header.
+  Either may be `nil`, which sends no header; any other non-string raises
+  `ArgumentError` rather than being dropped silently.
   """
   @spec put(String.t(), t(), keyword()) :: response()
   def put(path, %__MODULE__{} = client, opts) do
@@ -243,7 +255,11 @@ defmodule BambooHR.Client do
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
   through this argument. `opts` may also include `api_version:` — see
-  "API versions" above.
+  "API versions" above — plus `content_type:` and `idempotency_key:`, which
+  add those two headers. They are named individually rather than accepting
+  arbitrary headers, so nothing can displace the `Authorization` header.
+  Either may be `nil`, which sends no header; any other non-string raises
+  `ArgumentError` rather than being dropped silently.
   """
   @spec patch(String.t(), t(), keyword()) :: response()
   def patch(path, %__MODULE__{} = client, opts) do
@@ -257,7 +273,11 @@ defmodule BambooHR.Client do
   to the underlying HTTP client; keys controlled by the client itself —
   `:method`, `:url`, `:headers`, `:receive_timeout` — cannot be overridden
   through this argument. `opts` may also include `api_version:` — see
-  "API versions" above.
+  "API versions" above — plus `content_type:` and `idempotency_key:`, which
+  add those two headers. They are named individually rather than accepting
+  arbitrary headers, so nothing can displace the `Authorization` header.
+  Either may be `nil`, which sends no header; any other non-string raises
+  `ArgumentError` rather than being dropped silently.
   """
   @spec delete(String.t(), t(), keyword()) :: response()
   def delete(path, %__MODULE__{} = client, opts \\ []) do
@@ -268,8 +288,13 @@ defmodule BambooHR.Client do
 
   defp request(method, path, client, opts) do
     {version, opts} = Keyword.pop(opts, :api_version, "v1")
+    {content_type, opts} = Keyword.pop(opts, :content_type)
+    {idempotency_key, opts} = Keyword.pop(opts, :idempotency_key)
     url = build_url(client, path, version)
-    headers = build_headers(client.auth, Keyword.get(opts, :raw_response, false))
+
+    headers =
+      build_headers(client.auth, Keyword.get(opts, :raw_response, false)) ++
+        optional_headers(content_type, idempotency_key)
 
     req_opts =
       Keyword.merge(opts,
@@ -315,6 +340,26 @@ defmodule BambooHR.Client do
 
   defp normalize_path("/" <> _ = path), do: path
   defp normalize_path(path), do: "/" <> path
+
+  # A silently dropped Idempotency-Key would let a retry create a second
+  # resource, which is the thing the option exists to prevent, so a value
+  # that is neither nil nor a string is a mistake worth reporting.
+  defp optional_headers(content_type, idempotency_key) do
+    for {name, opt, value} <- [
+          {"Content-Type", :content_type, content_type},
+          {"Idempotency-Key", :idempotency_key, idempotency_key}
+        ],
+        value != nil do
+      {name, validate_header!(opt, value)}
+    end
+  end
+
+  defp validate_header!(_opt, value) when is_binary(value), do: value
+
+  defp validate_header!(opt, value) do
+    raise ArgumentError,
+          "expected #{inspect(opt)} to be a string, got: #{inspect(value)}"
+  end
 
   defp build_headers(auth, raw_response) do
     accept = if raw_response, do: "*/*", else: "application/json"
