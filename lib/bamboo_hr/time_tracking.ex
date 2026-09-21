@@ -525,6 +525,11 @@ defmodule BambooHR.TimeTracking do
   afterwards, but they are left out of the response — read them back
   with `list_project_tasks/3` if you need their IDs.
 
+  The spec gives this endpoint one authentication method, OAuth with
+  the `time_tracking:project.write` scope. Every other project and task
+  endpoint here also takes an API key, so a client built with
+  `api_key:` may get a `403` from this call alone.
+
   ## Parameters
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`

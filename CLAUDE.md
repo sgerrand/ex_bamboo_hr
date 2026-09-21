@@ -174,7 +174,10 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   integer IDs and `page`/`pageSize` paging as the entry lists, so no
   separate module. `create_project/2` restores and updates a deleted
   project of the same name rather than erroring, returning that
-  project's old ID. `list_project_tasks/3` sends
+  project's old ID, and is the one endpoint in the group the spec gives
+  no `basic` security, only the OAuth `time_tracking:project.write`
+  scope — unverified against the real API, so the docstring warns
+  rather than blocking API-key clients. `list_project_tasks/3` sends
   `:statuses` as repeated `statuses[]` params and defaults to active
   tasks only, though a `deletedAt` predicate in `:filter` overrides
   that default. The legacy `POST /time_tracking/projects` is deprecated
