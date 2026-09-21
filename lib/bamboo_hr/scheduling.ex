@@ -25,15 +25,10 @@ defmodule BambooHR.Scheduling do
   alias BambooHR.Client
   alias BambooHR.Error
 
-  # Options `get_schedule_pdf/5` turns into query params; anything else
-  # the caller passes is forwarded to the HTTP client.
-  @pdf_option_keys [
-    :employee_ids,
-    :group_by,
-    :include_employees_without_shifts,
-    :include_holidays,
-    :include_time_off
-  ]
+  # Request options `get_schedule_pdf/5` passes on to the HTTP client.
+  # Anything else is a query param or, if unrecognised, ignored — Req
+  # raises on an unknown option, and public functions must not raise.
+  @forwarded_request_opts [:api_version, :retry, :retry_delay, :retry_log_level, :max_retries]
 
   @doc """
   Lists schedules.
@@ -162,27 +157,36 @@ defmodule BambooHR.Scheduling do
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `schedule_id` - The schedule's UUID
-    * `start_ymd` - First day to include, as `YYYY-MM-DD`
-    * `end_ymd` - Last day to include, as `YYYY-MM-DD`
+    * `start_ymd` - First day to include, as `YYYY-MM-DD` or a `Date`
+    * `end_ymd` - Last day to include, as `YYYY-MM-DD` or a `Date`
     * `opts` - Optional keyword list: `:group_by`, `:employee_ids` (a
       list, where `nil` means unassigned shifts),
       `:include_employees_without_shifts`, `:include_holidays`,
-      `:include_time_off`
+      `:include_time_off`. `:api_version`, `:retry`, `:retry_delay`,
+      `:retry_log_level` and `:max_retries` are passed to the HTTP
+      client; any other key is ignored
 
   ## Examples
 
       iex> BambooHR.Scheduling.get_schedule_pdf(client, "3fa8...", "2024-01-01", "2024-01-07")
       {:ok, %{body: <<37, 80, 68, 70, 45>>, headers: %{"content-type" => ["application/pdf"]}}}
   """
-  @spec get_schedule_pdf(Client.t(), String.t(), String.t(), String.t(), keyword()) ::
-          Client.response()
+  @spec get_schedule_pdf(
+          Client.t(),
+          String.t(),
+          String.t() | Date.t(),
+          String.t() | Date.t(),
+          keyword()
+        ) :: Client.response()
   def get_schedule_pdf(client, schedule_id, start_ymd, end_ymd, opts \\ [])
-      when is_binary(schedule_id) and is_binary(start_ymd) and is_binary(end_ymd) do
-    params = [{"startYmd", start_ymd}, {"endYmd", end_ymd}] ++ pdf_params(opts)
+      when is_binary(schedule_id) and (is_binary(start_ymd) or is_struct(start_ymd, Date)) and
+             (is_binary(end_ymd) or is_struct(end_ymd, Date)) do
+    params =
+      [{"startYmd", format_ymd(start_ymd)}, {"endYmd", format_ymd(end_ymd)}] ++ pdf_params(opts)
 
     request_opts =
       opts
-      |> Keyword.drop(@pdf_option_keys)
+      |> Keyword.take(@forwarded_request_opts)
       |> Keyword.merge(params: params, raw_response: true, expose_headers: true)
 
     Client.get("/scheduling/schedules/#{schedule_id}/pdf", client, request_opts)
@@ -360,7 +364,8 @@ defmodule BambooHR.Scheduling do
   the whole call. BambooHR answers `207` when only some of them
   published and `409` when none did. Both come back as an error, so a
   caller that matches `{:ok, _}` cannot mistake a partial run for a
-  clean one: `207` is `:partial_publish` and `409` is `:conflict`. Each
+  clean one: `207` is `:partial_publish` and `409` is `:conflict`. The
+  `207` is read from the response status, not guessed from the body. Each
   error's `:body` holds the JSON with both lists, so the shifts that did
   publish and the reason for each failure are still there.
 
@@ -385,28 +390,26 @@ defmodule BambooHR.Scheduling do
   @spec publish_shifts(Client.t(), list(String.t())) :: Client.response()
   def publish_shifts(client, shift_ids) when is_list(shift_ids) do
     "/scheduling/shifts/publish"
-    |> Client.post(client, json: %{"shiftIds" => shift_ids})
+    |> Client.post(client, json: %{"shiftIds" => shift_ids}, expose_status: true)
     |> flag_partial_publish()
   end
 
   # BambooHR answers 207 for a partial publish, which is a 2xx and so
   # would otherwise look like a clean run. The body holds both lists, so
   # it is kept, re-encoded, in the error.
-  defp flag_partial_publish({:ok, %{"failed" => [_ | _] = failed} = result}) do
-    {:error,
-     %Error{
-       reason: :partial_publish,
-       status: 207,
-       body: Jason.encode!(result),
-       message:
-         "#{length(failed)} of #{length(failed) + published_count(result)} shifts failed to publish"
-     }}
+  defp flag_partial_publish({:ok, %{status: 207, body: body}}) do
+    {:error, %Error{reason: :partial_publish, status: 207, body: Jason.encode!(body)}}
+  end
+
+  defp flag_partial_publish({:ok, %{status: _status, body: body}}), do: {:ok, body}
+
+  # A custom `BambooHR.HTTPClient` may ignore `:expose_status`, leaving
+  # the body as the whole payload. Fall back to what the body reports.
+  defp flag_partial_publish({:ok, %{"failed" => [_ | _]} = body}) do
+    {:error, %Error{reason: :partial_publish, status: 207, body: Jason.encode!(body)}}
   end
 
   defp flag_partial_publish(result), do: result
-
-  defp published_count(%{"published" => published}) when is_list(published), do: length(published)
-  defp published_count(_result), do: 0
 
   @doc """
   Lists shift assessments.
@@ -488,4 +491,7 @@ defmodule BambooHR.Scheduling do
     do: value |> NaiveDateTime.new!(~T[00:00:00]) |> format_value()
 
   defp format_value(value), do: value
+
+  defp format_ymd(%Date{} = value), do: Date.to_iso8601(value)
+  defp format_ymd(value), do: value
 end

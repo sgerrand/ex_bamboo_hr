@@ -84,7 +84,9 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   The opts keyword list passed to implementations is documented in the
   behaviour's `@moduledoc`, including `:expose_headers` (surface response
   headers alongside the body — needed when a header, not the body, carries
-  the useful data, e.g. a `Location` header) and `:raw_response` (skip
+  the useful data, e.g. a `Location` header), `:expose_status` (surface
+  the 2xx status — needed where 2xx statuses differ in meaning, e.g. a
+  207 partial publish) and `:raw_response` (skip
   JSON-decoding — needed for binary responses like file downloads).
   `BambooHR.HTTPClient.Req` is the default implementation; tests use
   Bypass (a real local HTTP server) rather than mocking the behaviour.
@@ -195,12 +197,18 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   does not exist yet, so treat shift IDs as opaque. The PDF endpoint is
   the only one that takes OAuth alone, not API keys, and it renders
   server-side, so it can outrun the default 15s timeout and then be
-  retried once per render, so it forwards unknown opts (like
-  `retry: false`) to `Client.get/3` rather than dropping them.
+  retried once per render, so it forwards a fixed list of request opts
+  (`:retry` and friends) to `Client.get/3`. The list is an allowlist
+  because Req raises on an unknown option, and a typo'd option name
+  must not raise out of a public function. It also takes a `Date` for
+  the window, not just a string.
   `publish_shifts/2` can half-succeed: BambooHR answers 207 when only
   some shifts published, and this client turns that into
   `{:error, %Error{reason: :partial_publish}}` so `{:ok, _}` always
-  means a clean run. The re-encoded body holds both lists. The PDF endpoint wants
+  means a clean run. The re-encoded body holds both lists. It reads the
+  status through `:expose_status`, so it reacts to a real 207 — but the
+  telemetry span has already closed as a success by then, so a partial
+  publish looks like `:ok` in metrics. The PDF endpoint wants
   repeated `employeeIds[]` params, not a comma-joined list — Plug parses
   the `[]` suffix back into a list, which is what the test asserts.
   Enum values are lowercase (`planned`, `published`; `instance`,
