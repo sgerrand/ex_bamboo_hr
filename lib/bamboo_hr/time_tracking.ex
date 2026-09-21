@@ -12,22 +12,37 @@ defmodule BambooHR.TimeTracking do
   `clock_in/3`, and `clock_out/3`.
 
   The newer `/time-tracking/*` endpoints (note the hyphen) are a REST
-  surface with one resource per record — clock entries, hour entries and
-  timesheets — plus page-based pagination and OData-style filtering. They
-  are the ones to reach for when you need to read, correct or delete a
-  single entry, or to page through a large range.
+  surface with one resource per record — clock entries, hour entries,
+  timesheets, projects and their tasks, configurations and employee
+  enrolments — plus page-based pagination and OData-style filtering.
+  They are the ones to reach for when you need to read, correct or
+  delete a single record, or to page through a large range.
 
   Neither family is deprecated. They address the same underlying records,
   so an entry created through one is visible through the other.
 
   ## Paging and filtering
 
-  `list_clock_entries/2`, `list_hour_entries/2` and `list_timesheets/2`
-  take `:filter`, `:sort`, `:page` and `:page_size`. `:filter` and
-  `:sort` are OData-style strings passed straight through, e.g.
-  `filter: "employeeId eq 123"`, `sort: "start desc"`. Page size defaults
-  to 50 and caps at 200. Clock and hour entries also need at least 10;
-  a smaller `:page_size` returns a `422` error.
+  Every list function takes `:filter`, `:page` and `:page_size`, and
+  `:filter` is an OData-style string passed straight through, e.g.
+  `filter: "employeeId eq 123"`.
+
+  Sorting is **not** spelled the same way everywhere, because BambooHR
+  does not spell it the same way:
+
+    * `list_clock_entries/2`, `list_hour_entries/2`, `list_timesheets/2`,
+      `list_projects/2` and `list_project_tasks/3` take `:sort`, an
+      OData-style string such as `sort: "start desc"`.
+    * `list_configurations/2` and `list_enrolled_employees/2` take
+      `:order_by` instead, plus `:select` for a sparse fieldset. A
+      `:sort` passed to these two is **ignored rather than rejected**, so
+      the result comes back in default order with no error.
+
+  Page size defaults vary by endpoint — 50 for clock and hour entries and
+  timesheets, 100 for projects, 25 for tasks, 20 for configurations and
+  enrolments — and each list's own docs give its limits. Clock and hour
+  entries also need a `:page_size` of at least 10; a smaller one returns
+  a `422` error.
   """
 
   alias BambooHR.Client
@@ -735,9 +750,12 @@ defmodule BambooHR.TimeTracking do
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `records` - List of maps, each with at least `"employeeId"`
-    * `opts` - Optional keyword list: `:atomic` (a boolean; a non-boolean
-      raises `ArgumentError` rather than quietly falling back to a
-      non-atomic batch), `:idempotency_key`
+    * `opts` - Optional keyword list: `:atomic` (a boolean), and
+      `:idempotency_key`. Omitting `:atomic`, or passing `nil`, means
+      "not given" and leaves BambooHR's non-atomic default in place —
+      note that `atomic: nil` therefore applies records individually.
+      Any other non-boolean raises `ArgumentError` rather than silently
+      doing the same thing.
 
   ## Examples
 

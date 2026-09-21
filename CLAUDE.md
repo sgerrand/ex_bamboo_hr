@@ -186,8 +186,10 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   their own params builder. `bulk_upsert_employee_enrollments/3` returns
   202 with only `requestId` and `message` — never per-record outcomes,
   and there is nothing to poll, so confirm via
-  `list_enrolled_employees/2`. It takes `:atomic` (boolean; a non-boolean
-  is dropped, since an empty `atomic=` is a 422) and `:idempotency_key`.
+  `list_enrolled_employees/2`. It takes `:atomic` (boolean) and
+  `:idempotency_key`. `atomic: nil` means "not given" and leaves the
+  non-atomic default; any other non-boolean raises. `nil` is dropped
+  rather than sent because an empty `atomic=` is itself a 422.
   Enrolling an employee who has no record needs `"enabled" => true` in
   the same body, otherwise it is a 404.
   Remaining uncovered time tracking areas: projects/tasks, imports,
