@@ -195,10 +195,12 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   does not exist yet, so treat shift IDs as opaque. The PDF endpoint is
   the only one that takes OAuth alone, not API keys, and it renders
   server-side, so it can outrun the default 15s timeout and then be
-  retried once per render. `publish_shifts/2` can
-  half-succeed: BambooHR answers 207 when only some shifts published,
-  which this client treats as success, so callers must read `"failed"`
-  in the body rather than trusting `{:ok, _}`. The PDF endpoint wants
+  retried once per render, so it forwards unknown opts (like
+  `retry: false`) to `Client.get/3` rather than dropping them.
+  `publish_shifts/2` can half-succeed: BambooHR answers 207 when only
+  some shifts published, and this client turns that into
+  `{:error, %Error{reason: :partial_publish}}` so `{:ok, _}` always
+  means a clean run. The re-encoded body holds both lists. The PDF endpoint wants
   repeated `employeeIds[]` params, not a comma-joined list — Plug parses
   the `[]` suffix back into a list, which is what the test asserts.
   Enum values are lowercase (`planned`, `published`; `instance`,
@@ -211,7 +213,9 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   which Req would otherwise render with a space in place of the `T` —
   same trap as `Breaks.format_param/1`. A zoneless value is read as
   UTC, since the spec wants an offset. `nil` in an ID list becomes the
-  literal `"null"`, which is how the spec spells the open-shift filter.
+  literal `"null"`, which is how the spec spells the open-shift filter,
+  while an empty list is dropped — BambooHR reads a present but empty
+  `ids` as a filter and ignores the others.
   The PDF endpoint also documents a `500` for a failed render, and a
   `GET` retries that, so `retry: false` is worth passing there.
   Bypass accepts any value, so check doc examples against the spec.
