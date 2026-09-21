@@ -522,14 +522,17 @@ defmodule BambooHR.TimeTracking do
   the response can carry an ID you have seen before.
 
   Tasks can be created alongside the project rather than added
-  afterwards.
+  afterwards, but they are left out of the response — read them back
+  with `list_project_tasks/3` if you need their IDs.
 
   ## Parameters
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `project_data` - Map with `"name"`, and optionally `"billable"`,
       `"includeInPayroll"`, `"allEmployeesAssigned"`, `"employeeIds"`,
-      `"tasks"`
+      `"tasks"`. `"employeeIds"` must hold numbers, not strings:
+      `BambooHR.Employee.list/2` returns IDs as strings, and passing
+      those straight through returns a `422`.
 
   ## Examples
 
@@ -564,6 +567,10 @@ defmodule BambooHR.TimeTracking do
 
   Only the fields given are changed. Setting `"archived"` hides the
   project without deleting it.
+
+  Setting `"hasTasks"` to `true` needs the project to have at least one
+  active task already. Without one, BambooHR returns a `422`, so create
+  the task first with `create_project_task/3`.
 
   ## Parameters
 
@@ -607,7 +614,10 @@ defmodule BambooHR.TimeTracking do
   @doc """
   Lists a project's tasks.
 
-  Only active tasks are returned unless `:statuses` says otherwise.
+  Only active tasks are returned unless `:statuses` says otherwise. A
+  `deletedAt` check in `:filter` overrides that, so
+  `filter: "deletedAt ne null"` returns deleted tasks even though
+  `:statuses` still defaults to `["active"]`.
 
   ## Parameters
 
