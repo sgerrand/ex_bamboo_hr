@@ -134,6 +134,35 @@ defmodule BambooHR.HTTPClient.ReqTest do
     end
   end
 
+  describe "request/1 expose_status" do
+    test "expose_status: true carries the 2xx status", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(207, Jason.encode!(%{"failed" => ["a"]}))
+      end)
+
+      assert {:ok, %{status: 207, body: %{"failed" => ["a"]}}} =
+               BambooHR.Client.post("/publish", config, expose_status: true)
+    end
+
+    test "expose_status and expose_headers compose", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/thing", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{"ok" => true}))
+      end)
+
+      assert {:ok, %{status: 200, body: %{"ok" => true}, headers: headers}} =
+               BambooHR.Client.get("/thing", config,
+                 expose_status: true,
+                 expose_headers: true
+               )
+
+      assert headers["content-type"] == ["application/json"]
+    end
+  end
+
   describe "request/1 raw_response and expose_headers" do
     test "raw_response: true skips JSON decoding", %{bypass: bypass, config: config} do
       binary_content = <<0xFF, 0xD8, 0xFF, 0xE0>>

@@ -28,6 +28,7 @@ defmodule BambooHR.HTTPClient.Req do
   @impl true
   def request(opts) do
     {expose_headers, opts} = Keyword.pop(opts, :expose_headers, false)
+    {expose_status, opts} = Keyword.pop(opts, :expose_status, false)
     {raw_response, opts} = Keyword.pop(opts, :raw_response, false)
 
     opts =
@@ -37,7 +38,8 @@ defmodule BambooHR.HTTPClient.Req do
 
     case Req.request(opts) do
       {:ok, %{status: status, body: body, headers: headers}} when status in 200..299 ->
-        decode_success(body, headers, expose_headers, raw_response)
+        extras = success_extras(headers, status, expose_headers, expose_status)
+        decode_success(body, extras, raw_response)
 
       {:ok, %{status: status, body: body, headers: headers}} ->
         {:error, BambooHR.Error.from_response(status, body, headers)}
@@ -47,19 +49,28 @@ defmodule BambooHR.HTTPClient.Req do
     end
   end
 
-  defp decode_success(body, headers, expose_headers, true) do
-    wrap_success(body, headers, expose_headers)
+  defp decode_success(body, extras, true) do
+    wrap_success(body, extras)
   end
 
-  defp decode_success(body, headers, expose_headers, false) do
+  defp decode_success(body, extras, false) do
     case decode_body(body) do
-      {:ok, decoded} -> wrap_success(decoded, headers, expose_headers)
-      {:error, exception} -> {:error, BambooHR.Error.from_decode_error(exception, body, headers)}
+      {:ok, decoded} ->
+        wrap_success(decoded, extras)
+
+      {:error, exception} ->
+        {:error, BambooHR.Error.from_decode_error(exception, body, extras[:headers] || %{})}
     end
   end
 
-  defp wrap_success(payload, headers, true), do: {:ok, %{body: payload, headers: headers}}
-  defp wrap_success(payload, _headers, false), do: {:ok, payload}
+  defp success_extras(headers, status, expose_headers, expose_status) do
+    extras = if expose_headers, do: %{headers: headers}, else: %{}
+
+    if expose_status, do: Map.put(extras, :status, status), else: extras
+  end
+
+  defp wrap_success(payload, extras) when map_size(extras) == 0, do: {:ok, payload}
+  defp wrap_success(payload, extras), do: {:ok, Map.put(extras, :body, payload)}
 
   @doc """
   Retry predicate passed to `Req`. Returns `true` to retry, `false` otherwise.
