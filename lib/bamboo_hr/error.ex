@@ -44,6 +44,8 @@ defmodule BambooHR.Error do
     * `:transport_error` - the request never completed (connection
       refused, timeout, DNS failure)
     * `:decode_error` - a 2xx response whose body was not valid JSON
+    * `:partial_publish` - a 2xx response that reports partial success,
+      which only `BambooHR.Scheduling.publish_shifts/2` returns
 
   This struct is also an exception, so `raise error` and
   `Exception.message/1` work on it. The client itself never raises.
@@ -65,6 +67,7 @@ defmodule BambooHR.Error do
           | :http_error
           | :transport_error
           | :decode_error
+          | :partial_publish
 
   @type t :: %__MODULE__{
           reason: reason(),

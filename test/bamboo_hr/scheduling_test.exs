@@ -440,6 +440,53 @@ defmodule BambooHR.SchedulingTest do
                BambooHR.Scheduling.list_shifts(config, employee_ids: [123, nil])
     end
 
+    test "accepts a Date for the PDF window", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn ->
+          assert conn.query_string == "startYmd=2024-01-01&endYmd=2024-01-07"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/pdf")
+          |> Plug.Conn.resp(200, "%PDF-")
+        end
+      )
+
+      assert {:ok, %{body: "%PDF-"}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 ~D[2024-01-01],
+                 ~D[2024-01-07]
+               )
+    end
+
+    test "ignores an unrecognised option rather than raising", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn ->
+          assert conn.query_string == "startYmd=2024-01-01&endYmd=2024-01-07"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/pdf")
+          |> Plug.Conn.resp(200, "%PDF-")
+        end
+      )
+
+      assert {:ok, %{body: "%PDF-"}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07",
+                 include_holiday: true
+               )
+    end
+
     test "forwards unknown options to the HTTP client", %{bypass: bypass, config: config} do
       # Bypass.expect_once fails the test on a second request, so this
       # only passes if `retry: false` reached Req.
