@@ -299,7 +299,7 @@ defmodule BambooHR.SchedulingTest do
                BambooHR.Scheduling.publish_shifts(config, [@shift_id])
     end
 
-    test "treats a partial publish as success, with the failures in the body", %{
+    test "returns an error when only some shifts published", %{
       bypass: bypass,
       config: config
     } do
@@ -324,8 +324,10 @@ defmodule BambooHR.SchedulingTest do
         end
       )
 
-      assert {:ok, ^response} =
+      assert {:error, %BambooHR.Error{reason: :partial_publish, status: 207, body: body}} =
                BambooHR.Scheduling.publish_shifts(config, [@shift_id, "2b77cd31"])
+
+      assert Jason.decode!(body) == response
     end
 
     test "returns an error when every shift conflicts", %{bypass: bypass, config: config} do
@@ -398,6 +400,27 @@ defmodule BambooHR.SchedulingTest do
                )
     end
 
+    test "omits an empty list rather than sending an empty value", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/shifts",
+        fn conn ->
+          assert conn.query_string == "scheduleIds=#{@schedule_id}"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} =
+               BambooHR.Scheduling.list_shifts(config, ids: [], schedule_ids: [@schedule_id])
+    end
+
     test "sends nil in a list as the open-shift filter", %{bypass: bypass, config: config} do
       Bypass.expect_once(
         bypass,
@@ -415,6 +438,26 @@ defmodule BambooHR.SchedulingTest do
 
       assert {:ok, %{"data" => []}} =
                BambooHR.Scheduling.list_shifts(config, employee_ids: [123, nil])
+    end
+
+    test "forwards unknown options to the HTTP client", %{bypass: bypass, config: config} do
+      # Bypass.expect_once fails the test on a second request, so this
+      # only passes if `retry: false` reached Req.
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn -> Plug.Conn.resp(conn, 500, "Failed to render PDF") end
+      )
+
+      assert {:error, %BambooHR.Error{status: 500}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07",
+                 retry: false
+               )
     end
 
     test "keeps a flag that was explicitly set to false", %{bypass: bypass, config: config} do

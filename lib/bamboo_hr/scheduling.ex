@@ -10,7 +10,8 @@ defmodule BambooHR.Scheduling do
 
   Schedule IDs are UUID strings, not integers. A shift ID is usually a
   UUID too, but a recurring shift that has not been created yet has a
-  composite ID (`"<shiftId>_<recurrenceId>"`), which `list_shifts/2`
+  composite ID (`"<recurringShiftDefinitionId>_<recurrenceId>"`), which
+  `list_shifts/2`
   returns and `publish_shifts/2` and `delete_shift/3` accept. Treat a
   shift ID as an opaque string rather than validating it as a UUID.
 
@@ -22,6 +23,17 @@ defmodule BambooHR.Scheduling do
   """
 
   alias BambooHR.Client
+  alias BambooHR.Error
+
+  # Options `get_schedule_pdf/5` turns into query params; anything else
+  # the caller passes is forwarded to the HTTP client.
+  @pdf_option_keys [
+    :employee_ids,
+    :group_by,
+    :include_employees_without_shifts,
+    :include_holidays,
+    :include_time_off
+  ]
 
   @doc """
   Lists schedules.
@@ -168,11 +180,12 @@ defmodule BambooHR.Scheduling do
       when is_binary(schedule_id) and is_binary(start_ymd) and is_binary(end_ymd) do
     params = [{"startYmd", start_ymd}, {"endYmd", end_ymd}] ++ pdf_params(opts)
 
-    Client.get("/scheduling/schedules/#{schedule_id}/pdf", client,
-      params: params,
-      raw_response: true,
-      expose_headers: true
-    )
+    request_opts =
+      opts
+      |> Keyword.drop(@pdf_option_keys)
+      |> Keyword.merge(params: params, raw_response: true, expose_headers: true)
+
+    Client.get("/scheduling/schedules/#{schedule_id}/pdf", client, request_opts)
   end
 
   @doc """
@@ -344,11 +357,12 @@ defmodule BambooHR.Scheduling do
   Publishes planned shifts, making them visible to employees.
 
   Shifts that clash with something else are skipped rather than failing
-  the whole call, and come back in the response as failures — so check
-  the result even on success. BambooHR answers `207` when only some
-  shifts published, which this client treats as success, and `409` when
-  none of them did, which is an error. The `409` body has the same shape,
-  with a reason per shift, and is kept undecoded in the error's `:body`.
+  the whole call. BambooHR answers `207` when only some of them
+  published and `409` when none did. Both come back as an error, so a
+  caller that matches `{:ok, _}` cannot mistake a partial run for a
+  clean one: `207` is `:partial_publish` and `409` is `:conflict`. Each
+  error's `:body` holds the JSON with both lists, so the shifts that did
+  publish and the reason for each failure are still there.
 
   ## Parameters
 
@@ -357,17 +371,42 @@ defmodule BambooHR.Scheduling do
 
   ## Examples
 
+      iex> BambooHR.Scheduling.publish_shifts(client, ["9c14..."])
+      {:ok, %{"published" => [%{"id" => "9c14...", "status" => "published"}], "failed" => []}}
+
       iex> BambooHR.Scheduling.publish_shifts(client, ["9c14...", "2b77..."])
-      {:ok,
-       %{
-         "published" => [%{"id" => "9c14...", "status" => "published"}],
-         "failed" => [%{"shiftId" => "2b77...", "reason" => "Employee is already assigned to an overlapping shift."}]
+      {:error,
+       %BambooHR.Error{
+         reason: :partial_publish,
+         status: 207,
+         body: ~s({"published":[{"id":"9c14..."}],"failed":[{"shiftId":"2b77..."}]})
        }}
   """
   @spec publish_shifts(Client.t(), list(String.t())) :: Client.response()
   def publish_shifts(client, shift_ids) when is_list(shift_ids) do
-    Client.post("/scheduling/shifts/publish", client, json: %{"shiftIds" => shift_ids})
+    "/scheduling/shifts/publish"
+    |> Client.post(client, json: %{"shiftIds" => shift_ids})
+    |> flag_partial_publish()
   end
+
+  # BambooHR answers 207 for a partial publish, which is a 2xx and so
+  # would otherwise look like a clean run. The body holds both lists, so
+  # it is kept, re-encoded, in the error.
+  defp flag_partial_publish({:ok, %{"failed" => [_ | _] = failed} = result}) do
+    {:error,
+     %Error{
+       reason: :partial_publish,
+       status: 207,
+       body: Jason.encode!(result),
+       message:
+         "#{length(failed)} of #{length(failed) + published_count(result)} shifts failed to publish"
+     }}
+  end
+
+  defp flag_partial_publish(result), do: result
+
+  defp published_count(%{"published" => published}) when is_list(published), do: length(published)
+  defp published_count(_result), do: 0
 
   @doc """
   Lists shift assessments.
@@ -422,10 +461,11 @@ defmodule BambooHR.Scheduling do
       )
   end
 
-  # `false` is a meaningful value for the PDF flags, so only a missing
-  # option is dropped.
+  # `false` is a meaningful value for the PDF flags, so it is kept. An
+  # empty list is dropped: BambooHR reads a present but empty `ids` as a
+  # filter and ignores every other one.
   defp build_params(opts, mapping) do
-    for {key, param} <- mapping, (value = opts[key]) != nil, do: {param, join(value)}
+    for {key, param} <- mapping, (value = opts[key]) != nil, value != [], do: {param, join(value)}
   end
 
   defp join(value) when is_list(value), do: Enum.map_join(value, ",", &format_value/1)
