@@ -240,6 +240,10 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   which provides `bypass` and `config` (a `Client.t()` pointing at the local
   Bypass port) in the test context.
 - Tests run `async: true`.
+- To test a path that only a custom `BambooHR.HTTPClient` reaches (one
+  that ignores `:expose_headers` or `:expose_status`), define a small
+  fake module in the test. `request/1` runs in the test's own process,
+  so the fake can read its canned response from `Process.get/1`.
 - Telemetry handlers are global, so a test's handler also sees events
   from other async tests. Attach with `&__MODULE__.forward_telemetry/4`
   and `{self(), ref}` in `client_test.exs`: it forwards only events fired

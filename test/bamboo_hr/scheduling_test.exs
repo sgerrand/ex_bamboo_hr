@@ -335,11 +335,56 @@ defmodule BambooHR.SchedulingTest do
         bypass,
         "POST",
         "/api/gateway.php/test_company/v1/scheduling/shifts/publish",
-        fn conn -> Plug.Conn.resp(conn, 409, "") end
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(409, Jason.encode!(response_409()))
+        end
       )
 
-      assert {:error, %BambooHR.Error{reason: :conflict}} =
+      assert {:error, %BambooHR.Error{reason: :conflict, status: 409, body: body}} =
                BambooHR.Scheduling.publish_shifts(config, [@shift_id])
+
+      assert Jason.decode!(body) == response_409()
+    end
+
+    defmodule IgnoresExposeStatus do
+      @behaviour BambooHR.HTTPClient
+
+      # Returns the bare body, as a custom client that does not know about
+      # :expose_status would. The test sets the body it wants in the
+      # process dictionary.
+      @impl true
+      def request(_opts), do: {:ok, Process.get(:publish_body)}
+    end
+
+    test "flags a partial publish from the body when the client ignores expose_status" do
+      body = %{"published" => [], "failed" => [%{"shiftId" => @shift_id, "reason" => "x"}]}
+      Process.put(:publish_body, body)
+
+      assert {:error, %BambooHR.Error{reason: :partial_publish, status: 207, body: encoded}} =
+               BambooHR.Scheduling.publish_shifts(ignoring_client(), [@shift_id])
+
+      assert Jason.decode!(encoded) == body
+    end
+
+    test "passes a clean publish through when the client ignores expose_status" do
+      body = %{"published" => [%{"id" => @shift_id}], "failed" => []}
+      Process.put(:publish_body, body)
+
+      assert {:ok, ^body} = BambooHR.Scheduling.publish_shifts(ignoring_client(), [@shift_id])
+    end
+
+    defp ignoring_client do
+      BambooHR.Client.new(
+        company_domain: "test_company",
+        api_key: "test_key",
+        http_client: IgnoresExposeStatus
+      )
+    end
+
+    defp response_409 do
+      %{"published" => [], "failed" => [%{"shiftId" => @shift_id, "reason" => "Overlaps."}]}
     end
   end
 
@@ -397,6 +442,65 @@ defmodule BambooHR.SchedulingTest do
                  start: ~U[2024-01-01 00:00:00Z],
                  end: ~N[2024-01-07 23:59:59],
                  schedule_ids: [@schedule_id]
+               )
+    end
+
+    test "reads a Date as midnight UTC and keeps a DateTime's offset", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/shifts",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params["start"] == "2024-01-01T00:00:00Z"
+          assert conn.query_params["end"] == "2024-01-07T17:00:00-05:00"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      end_at =
+        DateTime.new!(~D[2024-01-07], ~T[17:00:00], "Etc/UTC")
+        |> Map.merge(%{utc_offset: -18_000, zone_abbr: "EST", time_zone: "America/New_York"})
+
+      assert {:ok, %{"data" => []}} =
+               BambooHR.Scheduling.list_shifts(config,
+                 start: ~D[2024-01-01],
+                 end: end_at,
+                 schedule_ids: [@schedule_id]
+               )
+    end
+
+    test "sends nil in the PDF's repeated employee IDs as the open-shift filter", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params["employeeIds"] == ["123", "null"]
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/pdf")
+          |> Plug.Conn.resp(200, "%PDF-")
+        end
+      )
+
+      assert {:ok, %{body: "%PDF-"}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07",
+                 employee_ids: [123, nil]
                )
     end
 
