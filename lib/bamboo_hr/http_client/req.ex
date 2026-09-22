@@ -39,7 +39,7 @@ defmodule BambooHR.HTTPClient.Req do
     case Req.request(opts) do
       {:ok, %{status: status, body: body, headers: headers}} when status in 200..299 ->
         extras = success_extras(headers, status, expose_headers, expose_status)
-        decode_success(body, extras, raw_response)
+        decode_success(body, headers, extras, raw_response)
 
       {:ok, %{status: status, body: body, headers: headers}} ->
         {:error, BambooHR.Error.from_response(status, body, headers)}
@@ -49,17 +49,19 @@ defmodule BambooHR.HTTPClient.Req do
     end
   end
 
-  defp decode_success(body, extras, true) do
+  defp decode_success(body, _headers, extras, true) do
     wrap_success(body, extras)
   end
 
-  defp decode_success(body, extras, false) do
+  # `headers` is passed on its own, not read from `extras`: a decode error
+  # needs the request ID even when the caller did not ask for headers.
+  defp decode_success(body, headers, extras, false) do
     case decode_body(body) do
       {:ok, decoded} ->
         wrap_success(decoded, extras)
 
       {:error, exception} ->
-        {:error, BambooHR.Error.from_decode_error(exception, body, extras[:headers] || %{})}
+        {:error, BambooHR.Error.from_decode_error(exception, body, headers)}
     end
   end
 
