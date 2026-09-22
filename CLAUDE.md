@@ -90,6 +90,8 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   the 2xx status — needed where 2xx statuses differ in meaning, e.g. a
   207 partial publish) and `:raw_response` (skip
   JSON-decoding — needed for binary responses like file downloads).
+  A decode error always gets the real response headers, whatever the
+  `expose_*` options say, so it keeps the `X-Request-ID`.
   `BambooHR.HTTPClient.Req` is the default implementation; tests use
   Bypass (a real local HTTP server) rather than mocking the behaviour.
 - `BambooHR.Company`, `BambooHR.Datasets`, `BambooHR.Employee`,
@@ -222,7 +224,8 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `format_value/1` converts a `DateTime`, `NaiveDateTime` or `Date`,
   which Req would otherwise render with a space in place of the `T` —
   same trap as `Breaks.format_param/1`. A zoneless value is read as
-  UTC, since the spec wants an offset. `nil` in an ID list becomes the
+  UTC, since the spec wants an offset. A `Date` as `:end` becomes
+  `23:59:59` that day, not midnight, or the last day would be left out. `nil` in an ID list becomes the
   literal `"null"`, which is how the spec spells the open-shift filter,
   while an empty list is dropped — BambooHR reads a present but empty
   `ids` as a filter and ignores the others.
