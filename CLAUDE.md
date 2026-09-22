@@ -192,8 +192,16 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   rather than sent because an empty `atomic=` is itself a 422.
   Enrolling an employee who has no record needs `"enabled" => true` in
   the same body, otherwise it is a 404.
-  Remaining uncovered time tracking areas: projects/tasks, imports,
-  kiosks, time clocks, and shift differentials.
+  Imports are here too: upload a CSV (`create_import/4`, multipart), fix
+  rows through `update_import_row/4` (merge patch), then
+  `execute_import/2`, which commits every row in one transaction — so a
+  retry after a 5xx is safe. A 422 from execute names the offending rows
+  in `errorRowIds`. `delete_import/2` is idempotent and does not undo a
+  `COMPLETE` import; the records its rows created stay. Row edits are
+  unrestricted while `DRAFT` but limited to `hoursWorked` once
+  `COMPLETE`.
+  Remaining uncovered time tracking areas: projects/tasks, kiosks, time
+  clocks, and shift differentials.
   `BambooHR.Breaks` covers meal and rest breaks — break policies, the
   breaks on them, employee assignment, per-employee views, and
   compliance assessments. Kept out of `TimeTracking` despite the shared

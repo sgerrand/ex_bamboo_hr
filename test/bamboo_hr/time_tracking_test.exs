@@ -956,4 +956,231 @@ defmodule BambooHR.TimeTrackingTest do
                )
     end
   end
+
+  describe "imports" do
+    test "lists imports by status", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/imports",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params == %{"status" => "DRAFT"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [%{"id" => 4}]}))
+        end
+      )
+
+      assert {:ok, %{"data" => [%{"id" => 4}]}} =
+               BambooHR.TimeTracking.list_imports(config, status: "DRAFT")
+    end
+
+    test "uploads a CSV with a column mapping", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/imports",
+        fn conn ->
+          [content_type] = Plug.Conn.get_req_header(conn, "content-type")
+          assert content_type =~ "multipart/form-data"
+
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert body =~ ~s(filename="hours.csv")
+          assert body =~ "employeeNumber,dateWorked"
+          assert body =~ ~s({"dateWorked":1,"employeeNumber":0})
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(201, Jason.encode!(%{"id" => 4, "status" => "DRAFT"}))
+        end
+      )
+
+      assert {:ok, %{"id" => 4, "status" => "DRAFT"}} =
+               BambooHR.TimeTracking.create_import(
+                 config,
+                 "hours.csv",
+                 "employeeNumber,dateWorked\n123,2024-01-15\n",
+                 column_mapping: %{"employeeNumber" => 0, "dateWorked" => 1}
+               )
+    end
+
+    test "uploads a CSV without a column mapping", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/imports",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          refute body =~ "columnMapping"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(201, Jason.encode!(%{"id" => 4}))
+        end
+      )
+
+      assert {:ok, %{"id" => 4}} =
+               BambooHR.TimeTracking.create_import(config, "hours.csv", "a,b\n1,2\n")
+    end
+
+    test "surfaces a file that is too large", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/imports",
+        fn conn -> Plug.Conn.resp(conn, 413, "") end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :client_error, status: 413}} =
+               BambooHR.TimeTracking.create_import(config, "hours.csv", "a,b\n1,2\n")
+    end
+
+    test "retrieves an import", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/imports/4",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 4, "status" => "DRAFT"}))
+        end
+      )
+
+      assert {:ok, %{"id" => 4}} = BambooHR.TimeTracking.get_import(config, 4)
+    end
+
+    test "deletes an import", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "DELETE",
+        "/api/gateway.php/test_company/v1/time-tracking/imports/4",
+        fn conn -> Plug.Conn.resp(conn, 204, "") end
+      )
+
+      assert {:ok, nil} = BambooHR.TimeTracking.delete_import(config, 4)
+    end
+
+    test "surfaces a delete during a running execute", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "DELETE",
+        "/api/gateway.php/test_company/v1/time-tracking/imports/4",
+        fn conn -> Plug.Conn.resp(conn, 409, "") end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :conflict}} =
+               BambooHR.TimeTracking.delete_import(config, 4)
+    end
+
+    test "executes an import", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/imports/4/execute",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 4, "status" => "COMPLETE"}))
+        end
+      )
+
+      assert {:ok, %{"status" => "COMPLETE"}} = BambooHR.TimeTracking.execute_import(config, 4)
+    end
+
+    test "surfaces rows that still fail validation", %{bypass: bypass, config: config} do
+      body = Jason.encode!(%{"code" => "IMPORT_HAS_ERRORS", "errorRowIds" => [9]})
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/imports/4/execute",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(422, body)
+        end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :unprocessable_entity, body: ^body}} =
+               BambooHR.TimeTracking.execute_import(config, 4)
+    end
+
+    test "lists rows with errors only", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/imports/4/rows",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params == %{"errorsOnly" => "true", "pageSize" => "50"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [%{"id" => 9}]}))
+        end
+      )
+
+      assert {:ok, %{"data" => [%{"id" => 9}]}} =
+               BambooHR.TimeTracking.list_import_rows(config, 4, errors_only: true, page_size: 50)
+    end
+
+    test "retrieves a row", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/imports/4/rows/9",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 9, "importId" => 4}))
+        end
+      )
+
+      assert {:ok, %{"id" => 9}} = BambooHR.TimeTracking.get_import_row(config, 4, 9)
+    end
+
+    test "corrects a row as a merge patch", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/imports/4/rows/9",
+        fn conn ->
+          assert Plug.Conn.get_req_header(conn, "content-type") == [
+                   "application/merge-patch+json"
+                 ]
+
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"hoursWorked" => 7.5}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(
+            200,
+            Jason.encode!(%{"id" => 9, "hoursWorked" => 7.5, "errors" => []})
+          )
+        end
+      )
+
+      assert {:ok, %{"hoursWorked" => 7.5}} =
+               BambooHR.TimeTracking.update_import_row(config, 4, 9, %{"hoursWorked" => 7.5})
+    end
+
+    test "surfaces a field that cannot be edited after completion", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/imports/4/rows/9",
+        fn conn -> Plug.Conn.resp(conn, 422, "") end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :unprocessable_entity}} =
+               BambooHR.TimeTracking.update_import_row(config, 4, 9, %{"payRate" => 20})
+    end
+  end
 end
