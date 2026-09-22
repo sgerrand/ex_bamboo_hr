@@ -389,8 +389,10 @@ defmodule BambooHR.Scheduling do
   """
   @spec publish_shifts(Client.t(), list(String.t())) :: Client.response()
   def publish_shifts(client, shift_ids) when is_list(shift_ids) do
-    "/scheduling/shifts/publish"
-    |> Client.post(client, json: %{"shiftIds" => shift_ids}, expose_status: true)
+    Client.post("/scheduling/shifts/publish", client,
+      json: %{"shiftIds" => shift_ids},
+      expose_status: true
+    )
     |> flag_partial_publish()
   end
 
