@@ -476,6 +476,30 @@ defmodule BambooHR.SchedulingTest do
                )
     end
 
+    test "reads a Date as :end as the end of that day", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/shifts",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params["start"] == "2024-01-01T00:00:00Z"
+          assert conn.query_params["end"] == "2024-01-07T23:59:59Z"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} =
+               BambooHR.Scheduling.list_shifts(config,
+                 start: ~D[2024-01-01],
+                 end: ~D[2024-01-07],
+                 schedule_ids: [@schedule_id]
+               )
+    end
+
     test "sends nil in the PDF's repeated employee IDs as the open-shift filter", %{
       bypass: bypass,
       config: config

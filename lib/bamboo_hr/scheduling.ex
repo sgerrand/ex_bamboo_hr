@@ -225,7 +225,9 @@ defmodule BambooHR.Scheduling do
     * `opts` - Keyword list: `:ids`, `:start`, `:end`, `:employee_ids`,
       `:schedule_ids`, `:statuses`, `:page`, `:page_size`. List values
       are joined with commas. `:start` and `:end` are ISO-8601
-      date-times; a `Date` or `NaiveDateTime` is read as UTC. Pass
+      date-times; a `Date` or `NaiveDateTime` is read as UTC. A `Date`
+      as `:start` means the start of that day, and as `:end` the end of
+      it (`23:59:59`), so the last day is included. Pass
       `nil` in `:employee_ids` to include unassigned (open) shifts.
       `:statuses` takes lowercase values: `"planned"`, `"published"`,
       `"cancelled"`, `"deleted"`.
@@ -439,7 +441,9 @@ defmodule BambooHR.Scheduling do
   end
 
   defp shift_params(opts) do
-    build_params(opts,
+    opts
+    |> end_of_day_for(:end)
+    |> build_params(
       ids: "ids",
       start: "start",
       end: "end",
@@ -449,6 +453,16 @@ defmodule BambooHR.Scheduling do
       page: "page",
       page_size: "pageSize"
     )
+  end
+
+  # A `Date` as the end of the window means the whole of that day, not its
+  # first second. The end of the day, rather than midnight after it, keeps
+  # a full calendar month inside BambooHR's one-month limit.
+  defp end_of_day_for(opts, key) do
+    case Keyword.fetch(opts, key) do
+      {:ok, %Date{} = date} -> Keyword.put(opts, key, NaiveDateTime.new!(date, ~T[23:59:59]))
+      _ -> opts
+    end
   end
 
   # The PDF endpoint takes employeeIds[] as a repeated parameter rather
