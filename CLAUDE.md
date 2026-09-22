@@ -25,7 +25,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   builds `{METHOD, "/<api_version>/path"}` keys. Interpolations and spec
   `{param}` names both become `{}`. If a call passes the path as a function
   parameter (like `Files.upload/6`), the script reads the literal from the
-  callers in the same file. If it can't work out a path, it exits 2.
+  callers in the same file. If it can't work out a path, it exits 2 —
+  so don't pipe the path in (`"/x" |> Client.post(client, ...)`); pass
+  it as the first argument, even when piping the result onward.
 - It exits 1 when the client calls an endpoint that is missing from the spec
   or deprecated in it. Uncovered spec endpoints are listed for information
   only. To keep calling an endpoint the spec doesn't list, add it with a
