@@ -13,8 +13,9 @@ defmodule BambooHR.TimeTracking do
 
   The newer `/time-tracking/*` endpoints (note the hyphen) are a REST
   surface with one resource per record — clock entries, hour entries,
-  timesheets, projects and their tasks, configurations and employee
-  enrolments — plus page-based pagination and OData-style filtering.
+  timesheets, projects and their tasks, configurations, employee
+  enrolments and CSV imports — plus page-based pagination and
+  OData-style filtering.
   They are the ones to reach for when you need to read, correct or
   delete a single record, or to page through a large range.
 
@@ -37,6 +38,9 @@ defmodule BambooHR.TimeTracking do
       `:order_by` instead, plus `:select` for a sparse fieldset. A
       `:sort` passed to these two is **ignored rather than rejected**, so
       the result comes back in default order with no error.
+    * `list_imports/2` and `list_import_rows/3` sort neither way: imports
+      always come back newest first and rows in file order. They take
+      `:status` and `:errors_only` respectively for narrowing.
 
   Page size defaults vary by endpoint — 50 for clock and hour entries and
   timesheets, 100 for projects, 25 for tasks, 20 for configurations and
@@ -775,6 +779,236 @@ defmodule BambooHR.TimeTracking do
       client,
       [json: records, params: params] ++ idempotency(opts)
     )
+  end
+
+  @doc """
+  Lists time tracking imports, newest first.
+
+  Deleted imports are never returned.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `opts` - Optional keyword list: `:status` (`"DRAFT"` or
+      `"COMPLETE"`; omit for both), `:page`, `:page_size` (defaults to 20)
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.list_imports(client, status: "DRAFT")
+      {:ok, %{
+        "data" => [%{"id" => 4, "status" => "DRAFT", "rowCount" => 12, "errorRowCount" => 1}],
+        "meta" => %{"page" => 1, "pageSize" => 20, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_imports(Client.t(), keyword()) :: Client.response()
+  def list_imports(client, opts \\ []) do
+    params =
+      for {key, param} <- [status: "status", page: "page", page_size: "pageSize"],
+          value = opts[key] do
+        {param, value}
+      end
+
+    Client.get("/time-tracking/imports", client, params: params)
+  end
+
+  @doc """
+  Creates an import from a CSV of hours.
+
+  The file is parsed and every row validated and auto-corrected, then the
+  import is returned in `"DRAFT"` so the rows can be reviewed — nothing
+  is written to time tracking until `execute_import/2`.
+
+  The CSV must have a `.csv` name, be UTF-8 without a byte order mark,
+  carry a header row of at least four columns plus at least one data row,
+  and be no larger than 20 MB. BambooHR rejects the rest with `415`,
+  `422` and `413` respectively.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `file_name` - Name of the CSV, which must end in `.csv`
+    * `file_content` - The CSV itself, as a binary
+    * `opts` - Optional keyword list:
+      * `:column_mapping` - Map of BambooHR field name to zero-indexed
+        CSV column, e.g. `%{"employeeNumber" => 0, "dateWorked" => 1,
+        "rateType" => 3, "hoursWorked" => 4}`. Those four fields are
+        required when it is given. Left out, BambooHR works the mapping
+        out from the header row.
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.create_import(client, "hours.csv", csv_binary)
+      {:ok, %{"id" => 4, "status" => "DRAFT", "rowCount" => 12, "errorRowCount" => 1}}
+  """
+  @spec create_import(Client.t(), String.t(), binary(), keyword()) :: Client.response()
+  def create_import(client, file_name, file_content, opts \\ [])
+      when is_binary(file_name) and is_binary(file_content) do
+    form =
+      [file: {file_content, filename: file_name}] ++
+        case opts[:column_mapping] do
+          nil -> []
+          mapping -> [columnMapping: Jason.encode!(mapping)]
+        end
+
+    Client.post("/time-tracking/imports", client, form_multipart: form)
+  end
+
+  @doc """
+  Retrieves an import, with its resolved column mapping and row counts.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `import_id` - The import's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.get_import(client, 4)
+      {:ok, %{"id" => 4, "status" => "DRAFT", "rowCount" => 12, "errorRowCount" => 1}}
+  """
+  @spec get_import(Client.t(), integer()) :: Client.response()
+  def get_import(client, import_id) when is_integer(import_id) do
+    Client.get("/time-tracking/imports/#{import_id}", client)
+  end
+
+  @doc """
+  Deletes an import and its rows.
+
+  Deletion is terminal — a deleted import cannot be restored or executed
+  — and idempotent, so `{:ok, nil}` does **not** prove the import
+  existed. Deleting a `"COMPLETE"` import does **not** undo it: the time
+  tracking records its rows created stay in place. An import with an
+  execute still running returns a `409` error.
+
+  On success, returns `nil` (no response body).
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `import_id` - The import's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.delete_import(client, 4)
+      {:ok, nil}
+  """
+  @spec delete_import(Client.t(), integer()) :: Client.response()
+  def delete_import(client, import_id) when is_integer(import_id) do
+    Client.delete("/time-tracking/imports/#{import_id}", client)
+  end
+
+  @doc """
+  Executes a draft import, committing every row as a time tracking record.
+
+  The work runs synchronously in a single transaction: either every row
+  is committed and the import moves to `"COMPLETE"`, or none is and it
+  stays in `"DRAFT"`. Retrying after a `5xx` is therefore safe.
+
+  Every row has to be free of validation errors first. If any still fail,
+  the call returns a `422` error whose body carries
+  `"code" => "IMPORT_HAS_ERRORS"` and the offending rows in
+  `"errorRowIds"` — fix them with `update_import_row/4` and try again. An
+  import that has already run returns a `409` error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `import_id` - The import's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.execute_import(client, 4)
+      {:ok, %{"id" => 4, "status" => "COMPLETE", "completedAt" => "2024-01-15T17:00:00Z"}}
+  """
+  @spec execute_import(Client.t(), integer()) :: Client.response()
+  def execute_import(client, import_id) when is_integer(import_id) do
+    Client.post("/time-tracking/imports/#{import_id}/execute", client, json: %{})
+  end
+
+  @doc """
+  Lists an import's rows, in the order they appear in the file.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `import_id` - The import's ID
+    * `opts` - Optional keyword list: `:errors_only` (a boolean),
+      `:page`, `:page_size` (defaults to 20)
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.list_import_rows(client, 4, errors_only: true)
+      {:ok, %{
+        "data" => [%{"id" => 9, "rowNumber" => 3, "errors" => [%{"field" => "payRate"}]}],
+        "meta" => %{"page" => 1, "pageSize" => 20, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_import_rows(Client.t(), integer(), keyword()) :: Client.response()
+  def list_import_rows(client, import_id, opts \\ []) when is_integer(import_id) do
+    params =
+      for {key, param} <- [errors_only: "errorsOnly", page: "page", page_size: "pageSize"],
+          value = opts[key] do
+        {param, value}
+      end
+
+    Client.get("/time-tracking/imports/#{import_id}/rows", client, params: params)
+  end
+
+  @doc """
+  Retrieves one row of an import.
+
+  Includes anything on it that failed validation, in `"errors"`, and
+  anything the import changed for you, in `"corrections"`.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `import_id` - The import's ID
+    * `row_id` - The row's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.get_import_row(client, 4, 9)
+      {:ok, %{"id" => 9, "importId" => 4, "rowNumber" => 3, "errors" => [], "corrections" => []}}
+  """
+  @spec get_import_row(Client.t(), integer(), integer()) :: Client.response()
+  def get_import_row(client, import_id, row_id)
+      when is_integer(import_id) and is_integer(row_id) do
+    Client.get("/time-tracking/imports/#{import_id}/rows/#{row_id}", client)
+  end
+
+  @doc """
+  Corrects one row of an import.
+
+  Uses JSON Merge Patch (RFC 7396), so only the fields you pass are
+  applied. The row is re-validated afterwards, so the response carries
+  its refreshed `"errors"` and `"corrections"`.
+
+  While the import is `"DRAFT"` any data field may be corrected. Once it
+  is `"COMPLETE"` only `"hoursWorked"` may be sent, and the new value is
+  carried through to the time tracking record the row created; anything
+  else returns a `422` error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `import_id` - The import's ID
+    * `row_id` - The row's ID
+    * `changes` - Map of fields to change: `"employeeNumber"`,
+      `"dateWorked"`, `"hoursWorked"`, `"rateType"`, `"payRate"`,
+      `"payCode"`, `"projectName"`, `"taskName"`,
+      `"shiftDifferentialName"`, `"holidayName"`,
+      `"qualifiedOvertimeHours"`
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.update_import_row(client, 4, 9, %{"hoursWorked" => 7.5})
+      {:ok, %{"id" => 9, "hoursWorked" => 7.5, "errors" => []}}
+  """
+  @spec update_import_row(Client.t(), integer(), integer(), map()) :: Client.response()
+  def update_import_row(client, import_id, row_id, changes)
+      when is_integer(import_id) and is_integer(row_id) and is_map(changes) do
+    merge_patch("/time-tracking/imports/#{import_id}/rows/#{row_id}", client, changes)
   end
 
   # These endpoints take JSON Merge Patch, and the employee enrolment one
