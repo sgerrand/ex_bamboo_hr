@@ -134,6 +134,23 @@ defmodule BambooHR.HTTPClient.ReqTest do
     end
   end
 
+  describe "request/1 decode errors" do
+    test "keeps the request ID when a 2xx body is not valid JSON", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/thing", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.put_resp_header("x-request-id", "req-123")
+        |> Plug.Conn.resp(200, "not json")
+      end)
+
+      assert {:error, %BambooHR.Error{reason: :decode_error, request_id: "req-123"}} =
+               BambooHR.Client.get("/thing", config)
+    end
+  end
+
   describe "request/1 expose_status" do
     test "expose_status: true carries the 2xx status", %{bypass: bypass, config: config} do
       Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
