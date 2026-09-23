@@ -44,6 +44,9 @@ defmodule BambooHR.Error do
     * `:transport_error` - the request never completed (connection
       refused, timeout, DNS failure)
     * `:decode_error` - a 2xx response whose body was not valid JSON
+    * `:invalid_option` - a request option the HTTP library rejected.
+      `Req` validates some options only as it handles the response, so
+      the request may well have been sent
     * `:partial_publish` - a 2xx response that reports partial success,
       which only `BambooHR.Scheduling.publish_shifts/2` returns
 
@@ -67,6 +70,7 @@ defmodule BambooHR.Error do
           | :http_error
           | :transport_error
           | :decode_error
+          | :invalid_option
           | :partial_publish
 
   @type t :: %__MODULE__{
@@ -109,6 +113,21 @@ defmodule BambooHR.Error do
       body: body,
       message: header(headers, @message_headers),
       request_id: header(headers, [@request_id_header])
+    }
+  end
+
+  @doc """
+  Builds an error from an exception raised while preparing a request.
+
+  `Req` raises on an option value it does not accept, and this client
+  never raises from a public function.
+  """
+  @spec from_invalid_option(Exception.t()) :: t()
+  def from_invalid_option(exception) do
+    %__MODULE__{
+      reason: :invalid_option,
+      message: Exception.message(exception),
+      exception: exception
     }
   end
 

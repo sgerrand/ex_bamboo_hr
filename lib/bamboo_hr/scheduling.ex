@@ -22,6 +22,8 @@ defmodule BambooHR.Scheduling do
   through.
   """
 
+  require Logger
+
   alias BambooHR.Client
   alias BambooHR.Error
 
@@ -189,7 +191,7 @@ defmodule BambooHR.Scheduling do
       |> Keyword.take(@forwarded_request_opts)
       |> Keyword.merge(params: params, raw_response: true, expose_headers: true)
 
-    Client.get("/scheduling/schedules/#{schedule_id}/pdf", client, request_opts)
+    get_without_raising("/scheduling/schedules/#{schedule_id}/pdf", client, request_opts)
   end
 
   @doc """
@@ -227,7 +229,9 @@ defmodule BambooHR.Scheduling do
       are joined with commas. `:start` and `:end` are ISO-8601
       date-times; a `Date` or `NaiveDateTime` is read as UTC. A `Date`
       as `:start` means the start of that day, and as `:end` the end of
-      it (`23:59:59`), so the last day is included. Pass
+      it (`23:59:59`) in UTC, so the last day is included. For a
+      schedule in another zone that UTC end-of-day falls earlier in the
+      local day, so pass a zoned `DateTime` to cover the local one. Pass
       `nil` in `:employee_ids` to include unassigned (open) shifts.
       `:statuses` takes lowercase values: `"planned"`, `"published"`,
       `"cancelled"`, `"deleted"`.
@@ -410,8 +414,17 @@ defmodule BambooHR.Scheduling do
 
   defp flag_partial_publish({:ok, %{status: _status, body: body}}), do: {:ok, body}
 
-  # A custom `BambooHR.HTTPClient` may ignore `:expose_status`, leaving
-  # the body as the whole payload. Fall back to what the body reports.
+  # A custom `BambooHR.HTTPClient` may ignore `:expose_status`, with or
+  # without honouring `:expose_headers`. Fall back to what the body
+  # reports, and return the bare body either way.
+  defp flag_partial_publish({:ok, %{body: %{"failed" => [_ | _]} = body} = payload}) do
+    headers = Map.get(payload, :headers, %{})
+
+    {:error, Error.from_partial_success(:partial_publish, 207, Jason.encode!(body), headers)}
+  end
+
+  defp flag_partial_publish({:ok, %{body: body}}), do: {:ok, body}
+
   defp flag_partial_publish({:ok, %{"failed" => [_ | _]} = body}) do
     {:error, Error.from_partial_success(:partial_publish, 207, Jason.encode!(body))}
   end
@@ -475,19 +488,48 @@ defmodule BambooHR.Scheduling do
       for id <- List.wrap(opts[:employee_ids]), do: {"employeeIds[]", format_value(id)}
 
     employee_ids ++
-      build_params(opts,
-        group_by: "groupBy",
-        include_employees_without_shifts: "includeEmployeesWithoutShifts",
-        include_holidays: "includeHolidays",
-        include_time_off: "includeTimeOff"
+      build_params(
+        opts,
+        [
+          group_by: "groupBy",
+          include_employees_without_shifts: "includeEmployeesWithoutShifts",
+          include_holidays: "includeHolidays",
+          include_time_off: "includeTimeOff"
+        ],
+        [:employee_ids | @forwarded_request_opts]
       )
   end
 
   # `false` is a meaningful value for the PDF flags, so it is kept. An
   # empty list is dropped: BambooHR reads a present but empty `ids` as a
   # filter and ignores every other one.
-  defp build_params(opts, mapping) do
+  # A forwarded option is passed on as given, and `Req` raises on a value
+  # it does not accept (`retry: true`, say) — sometimes only once the
+  # response is in hand, so the request may already have been sent.
+  # Public functions must not raise, so that becomes an error instead.
+  defp get_without_raising(path, client, opts) do
+    Client.get(path, client, opts)
+  rescue
+    exception -> {:error, Error.from_invalid_option(exception)}
+  end
+
+  defp build_params(opts, mapping, also_known \\ []) do
+    warn_unknown_opts(opts, Keyword.keys(mapping) ++ also_known)
+
     for {key, param} <- mapping, (value = opts[key]) != nil, value != [], do: {param, join(value)}
+  end
+
+  # An option this module does not know is dropped, which hides a typo
+  # like `include_holiday` for `include_holidays`. Public functions must
+  # not raise, so say something instead.
+  defp warn_unknown_opts(opts, known) do
+    case Keyword.keys(opts) -- known do
+      [] ->
+        :ok
+
+      unknown ->
+        Logger.warning("BambooHR.Scheduling: ignoring unknown options #{inspect(unknown)}")
+    end
   end
 
   defp join(value) when is_list(value), do: Enum.map_join(value, ",", &format_value/1)
