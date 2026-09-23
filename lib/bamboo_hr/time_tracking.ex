@@ -12,10 +12,11 @@ defmodule BambooHR.TimeTracking do
   `clock_in/3`, and `clock_out/3`.
 
   The newer `/time-tracking/*` endpoints (note the hyphen) are a REST
-  surface with one resource per record — clock entries, hour entries and
-  timesheets — plus page-based pagination and OData-style filtering. They
-  are the ones to reach for when you need to read, correct or delete a
-  single entry, or to page through a large range.
+  surface with one resource per record — clock entries, hour entries,
+  timesheets, projects and project tasks — plus page-based pagination
+  and OData-style filtering. They are the ones to reach for when you
+  need to read, correct or delete a single record, or to page through a
+  large range.
 
   Neither family is deprecated. They address the same underlying records,
   so an entry created through one is visible through the other.
@@ -28,6 +29,10 @@ defmodule BambooHR.TimeTracking do
   `filter: "employeeId eq 123"`, `sort: "start desc"`. Page size defaults
   to 50 and caps at 200. Clock and hour entries also need at least 10;
   a smaller `:page_size` returns a `422` error.
+
+  `list_projects/2` and `list_project_tasks/3` take the same options but
+  page differently: the default is 100 for projects and 25 for tasks,
+  and both cap at 500.
   """
 
   alias BambooHR.Client
@@ -519,7 +524,11 @@ defmodule BambooHR.TimeTracking do
 
   If a **deleted** project already has this name, BambooHR restores that
   project and applies the values given instead of creating a new one, so
-  the response can carry an ID you have seen before.
+  the response can carry an ID you have seen before. An **active**
+  project with the name is a `409` instead
+  (`%BambooHR.Error{reason: :conflict}`). Names are compared without
+  regard to case or surrounding spaces, so `"Website Rebuild "` clashes
+  with `"website rebuild"`.
 
   Tasks can be created alongside the project rather than added
   afterwards, but they are left out of the response — read them back
@@ -576,6 +585,10 @@ defmodule BambooHR.TimeTracking do
   Setting `"hasTasks"` to `true` needs the project to have at least one
   active task already. Without one, BambooHR returns a `422`, so create
   the task first with `create_project_task/3`.
+
+  `"employeeIds"` replaces the whole assignment list rather than adding
+  to it, so pass everyone who should stay assigned, and `[]` to unassign
+  everyone. Read the current list with `get_project/2` first.
 
   ## Parameters
 
