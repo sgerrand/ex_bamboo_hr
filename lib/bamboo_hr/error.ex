@@ -113,6 +113,23 @@ defmodule BambooHR.Error do
   end
 
   @doc """
+  Builds an error from a 2xx response that reports partial success.
+
+  `reason` says which kind of partial success it was — BambooHR has no
+  single shape for these, so the caller names it.
+  """
+  @spec from_partial_success(reason(), non_neg_integer(), binary() | nil, map()) :: t()
+  def from_partial_success(reason, status, body, headers \\ %{}) do
+    %__MODULE__{
+      reason: reason,
+      status: status,
+      body: body,
+      message: header(headers, @message_headers),
+      request_id: header(headers, [@request_id_header])
+    }
+  end
+
+  @doc """
   Builds an error from a request that never produced a response.
   """
   @spec from_exception(Exception.t()) :: t()

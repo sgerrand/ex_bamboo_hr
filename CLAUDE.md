@@ -202,7 +202,8 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   the only one that takes OAuth alone, not API keys, and it renders
   server-side, so it can outrun the default 15s timeout and then be
   retried once per render, so it forwards a fixed list of request opts
-  (`:retry` and friends) to `Client.get/3`. The list is an allowlist
+  (`:retry` and friends, but not `:api_version`, which raises on an
+  unknown value) to `Client.get/3`. The list is an allowlist
   because Req raises on an unknown option, and a typo'd option name
   must not raise out of a public function. It also takes a `Date` for
   the window, not just a string.
@@ -210,7 +211,8 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   some shifts published, and this client turns that into
   `{:error, %Error{reason: :partial_publish}}` so `{:ok, _}` always
   means a clean run. The re-encoded body holds both lists. It reads the
-  status through `:expose_status`, so it reacts to a real 207 — but the
+  status through `:expose_status` and `:expose_headers`, so it reacts to
+  a real 207 and keeps the `X-Request-ID` — but the
   telemetry span has already closed as a success by then, so a partial
   publish looks like `:ok` in metrics. The PDF endpoint wants
   repeated `employeeIds[]` params, not a comma-joined list — Plug parses
@@ -264,8 +266,9 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
 - Handle errors with pattern matching; never raise from public API functions.
 - Every failure is `{:error, %BambooHR.Error{}}` — see `lib/bamboo_hr/error.ex`.
   `BambooHR.HTTPClient.Req` builds it with `from_response/3` (non-2xx),
-  `from_exception/1` (transport), or `from_decode_error/3` (bad JSON in a
-  2xx). Callers match on `:reason`, not the status code. The struct is a
+  `from_exception/1` (transport), `from_decode_error/3` (bad JSON in a
+  2xx), or `from_partial_success/4` (a 2xx reporting partial success,
+  e.g. a 207 publish). Callers match on `:reason`, not the status code. The struct is a
   `defexception`, so `Exception.message/1` works and callers may raise it,
   but the client never does. It also picks up BambooHR's diagnostic
   headers: `x-bamboohr-error-message` / `X-BambooHR-Message` into

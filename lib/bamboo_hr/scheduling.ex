@@ -28,7 +28,7 @@ defmodule BambooHR.Scheduling do
   # Request options `get_schedule_pdf/5` passes on to the HTTP client.
   # Anything else is a query param or, if unrecognised, ignored — Req
   # raises on an unknown option, and public functions must not raise.
-  @forwarded_request_opts [:api_version, :retry, :retry_delay, :retry_log_level, :max_retries]
+  @forwarded_request_opts [:retry, :retry_delay, :retry_log_level, :max_retries]
 
   @doc """
   Lists schedules.
@@ -162,9 +162,9 @@ defmodule BambooHR.Scheduling do
     * `opts` - Optional keyword list: `:group_by`, `:employee_ids` (a
       list, where `nil` means unassigned shifts),
       `:include_employees_without_shifts`, `:include_holidays`,
-      `:include_time_off`. `:api_version`, `:retry`, `:retry_delay`,
-      `:retry_log_level` and `:max_retries` are passed to the HTTP
-      client; any other key is ignored
+      `:include_time_off`. `:retry`, `:retry_delay`, `:retry_log_level`
+      and `:max_retries` are passed to the HTTP client; any other key is
+      ignored
 
   ## Examples
 
@@ -393,7 +393,8 @@ defmodule BambooHR.Scheduling do
   def publish_shifts(client, shift_ids) when is_list(shift_ids) do
     Client.post("/scheduling/shifts/publish", client,
       json: %{"shiftIds" => shift_ids},
-      expose_status: true
+      expose_status: true,
+      expose_headers: true
     )
     |> flag_partial_publish()
   end
@@ -401,8 +402,10 @@ defmodule BambooHR.Scheduling do
   # BambooHR answers 207 for a partial publish, which is a 2xx and so
   # would otherwise look like a clean run. The body holds both lists, so
   # it is kept, re-encoded, in the error.
-  defp flag_partial_publish({:ok, %{status: 207, body: body}}) do
-    {:error, %Error{reason: :partial_publish, status: 207, body: Jason.encode!(body)}}
+  defp flag_partial_publish({:ok, %{status: 207, body: body} = payload}) do
+    headers = Map.get(payload, :headers, %{})
+
+    {:error, Error.from_partial_success(:partial_publish, 207, Jason.encode!(body), headers)}
   end
 
   defp flag_partial_publish({:ok, %{status: _status, body: body}}), do: {:ok, body}
@@ -410,7 +413,7 @@ defmodule BambooHR.Scheduling do
   # A custom `BambooHR.HTTPClient` may ignore `:expose_status`, leaving
   # the body as the whole payload. Fall back to what the body reports.
   defp flag_partial_publish({:ok, %{"failed" => [_ | _]} = body}) do
-    {:error, %Error{reason: :partial_publish, status: 207, body: Jason.encode!(body)}}
+    {:error, Error.from_partial_success(:partial_publish, 207, Jason.encode!(body))}
   end
 
   defp flag_partial_publish(result), do: result

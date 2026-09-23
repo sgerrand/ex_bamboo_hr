@@ -320,12 +320,18 @@ defmodule BambooHR.SchedulingTest do
         fn conn ->
           conn
           |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.put_resp_header("x-request-id", "req-207")
           |> Plug.Conn.resp(207, Jason.encode!(response))
         end
       )
 
-      assert {:error, %BambooHR.Error{reason: :partial_publish, status: 207, body: body}} =
-               BambooHR.Scheduling.publish_shifts(config, [@shift_id, "2b77cd31"])
+      assert {:error,
+              %BambooHR.Error{
+                reason: :partial_publish,
+                status: 207,
+                body: body,
+                request_id: "req-207"
+              }} = BambooHR.Scheduling.publish_shifts(config, [@shift_id, "2b77cd31"])
 
       assert Jason.decode!(body) == response
     end
@@ -612,6 +618,30 @@ defmodule BambooHR.SchedulingTest do
                  "2024-01-01",
                  "2024-01-07",
                  include_holiday: true
+               )
+    end
+
+    test "does not let an api_version option through", %{bypass: bypass, config: config} do
+      # An unknown :api_version raises in Client, so forwarding it would
+      # let a public function raise. The v1 path proves it never arrived.
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/pdf")
+          |> Plug.Conn.resp(200, "%PDF-")
+        end
+      )
+
+      assert {:ok, %{body: "%PDF-"}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07",
+                 api_version: "v2"
                )
     end
 
