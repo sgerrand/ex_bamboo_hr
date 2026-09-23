@@ -1183,4 +1183,176 @@ defmodule BambooHR.TimeTrackingTest do
                BambooHR.TimeTracking.update_import_row(config, 4, 9, %{"payRate" => 20})
     end
   end
+
+  describe "kiosks" do
+    @kiosk_id "f1d2c3b4"
+
+    test "lists kiosks", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/kiosks",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params == %{"orderBy" => "name desc"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [%{"id" => @kiosk_id}]}))
+        end
+      )
+
+      assert {:ok, %{"data" => [%{"id" => @kiosk_id}]}} =
+               BambooHR.TimeTracking.list_kiosks(config, order_by: "name desc")
+    end
+
+    test "retrieves a kiosk", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/kiosks/#{@kiosk_id}",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => @kiosk_id, "name" => "Warehouse door"}))
+        end
+      )
+
+      assert {:ok, %{"name" => "Warehouse door"}} =
+               BambooHR.TimeTracking.get_kiosk(config, @kiosk_id)
+    end
+
+    test "renames a kiosk as a merge patch", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/kiosks/#{@kiosk_id}",
+        fn conn ->
+          assert Plug.Conn.get_req_header(conn, "content-type") == [
+                   "application/merge-patch+json"
+                 ]
+
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"name" => "Loading bay"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => @kiosk_id, "name" => "Loading bay"}))
+        end
+      )
+
+      assert {:ok, %{"name" => "Loading bay"}} =
+               BambooHR.TimeTracking.update_kiosk(config, @kiosk_id, %{"name" => "Loading bay"})
+    end
+
+    test "surfaces a name already in use", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/kiosks/#{@kiosk_id}",
+        fn conn -> Plug.Conn.resp(conn, 409, "") end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :conflict}} =
+               BambooHR.TimeTracking.update_kiosk(config, @kiosk_id, %{"name" => "Front desk"})
+    end
+
+    test "deletes a kiosk", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "DELETE",
+        "/api/gateway.php/test_company/v1/time-tracking/kiosks/#{@kiosk_id}",
+        fn conn -> Plug.Conn.resp(conn, 204, "") end
+      )
+
+      assert {:ok, nil} = BambooHR.TimeTracking.delete_kiosk(config, @kiosk_id)
+    end
+  end
+
+  describe "time clocks" do
+    @time_clock_id "7a3e91cc"
+
+    test "lists time clocks", %{bypass: bypass, config: config} do
+      clock = %{"id" => @time_clock_id, "name" => "Front desk", "online" => true}
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/time-clocks",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [clock]}))
+        end
+      )
+
+      assert {:ok, %{"data" => [%{"online" => true}]}} =
+               BambooHR.TimeTracking.list_time_clocks(config)
+    end
+
+    test "retrieves a time clock with unknown health flags", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/time-clocks/#{@time_clock_id}",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => @time_clock_id, "online" => nil}))
+        end
+      )
+
+      # nil means "status unavailable", not "offline".
+      assert {:ok, %{"online" => nil}} =
+               BambooHR.TimeTracking.get_time_clock(config, @time_clock_id)
+    end
+
+    test "updates a time clock as a merge patch", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/time-clocks/#{@time_clock_id}",
+        fn conn ->
+          assert Plug.Conn.get_req_header(conn, "content-type") == [
+                   "application/merge-patch+json"
+                 ]
+
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"timezone" => "America/New_York"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => @time_clock_id}))
+        end
+      )
+
+      assert {:ok, %{"id" => @time_clock_id}} =
+               BambooHR.TimeTracking.update_time_clock(config, @time_clock_id, %{
+                 "timezone" => "America/New_York"
+               })
+    end
+
+    test "does not retry a write when the clock partner is unreachable", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/time-clocks/#{@time_clock_id}",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("retry-after", "30")
+          |> Plug.Conn.resp(503, "")
+        end
+      )
+
+      # expect_once proves the PATCH was sent exactly once: writes are the
+      # caller's to retry, after the Retry-After interval.
+      assert {:error, %BambooHR.Error{reason: :server_error, status: 503}} =
+               BambooHR.TimeTracking.update_time_clock(config, @time_clock_id, %{
+                 "name" => "Reception"
+               })
+    end
+  end
 end

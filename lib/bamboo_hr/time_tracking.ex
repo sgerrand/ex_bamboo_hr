@@ -14,8 +14,8 @@ defmodule BambooHR.TimeTracking do
   The newer `/time-tracking/*` endpoints (note the hyphen) are a REST
   surface with one resource per record — clock entries, hour entries,
   timesheets, projects and their tasks, configurations, employee
-  enrolments and CSV imports — plus page-based pagination and
-  OData-style filtering.
+  enrolments, CSV imports, kiosks and time clocks — plus page-based
+  pagination and OData-style filtering.
   They are the ones to reach for when you need to read, correct or
   delete a single record, or to page through a large range.
 
@@ -34,10 +34,11 @@ defmodule BambooHR.TimeTracking do
     * `list_clock_entries/2`, `list_hour_entries/2`, `list_timesheets/2`,
       `list_projects/2` and `list_project_tasks/3` take `:sort`, an
       OData-style string such as `sort: "start desc"`.
-    * `list_configurations/2` and `list_enrolled_employees/2` take
-      `:order_by` instead, plus `:select` for a sparse fieldset. A
-      `:sort` passed to these two is **ignored rather than rejected**, so
-      the result comes back in default order with no error.
+    * `list_configurations/2`, `list_enrolled_employees/2`,
+      `list_kiosks/2` and `list_time_clocks/2` take `:order_by` instead,
+      plus `:select` for a sparse fieldset. A `:sort` passed to these is
+      **ignored rather than rejected**, so the result comes back in
+      default order with no error.
     * `list_imports/2` and `list_import_rows/3` sort neither way: imports
       always come back newest first and rows in file order. They take
       `:status` and `:errors_only` respectively for narrowing.
@@ -535,7 +536,7 @@ defmodule BambooHR.TimeTracking do
   """
   @spec list_configurations(Client.t(), keyword()) :: Client.response()
   def list_configurations(client, opts \\ []) do
-    Client.get("/time-tracking/configurations", client, params: configuration_params(opts))
+    Client.get("/time-tracking/configurations", client, params: odata_list_params(opts))
   end
 
   @doc """
@@ -675,7 +676,7 @@ defmodule BambooHR.TimeTracking do
   """
   @spec list_enrolled_employees(Client.t(), keyword()) :: Client.response()
   def list_enrolled_employees(client, opts \\ []) do
-    Client.get("/time-tracking/employees", client, params: configuration_params(opts))
+    Client.get("/time-tracking/employees", client, params: odata_list_params(opts))
   end
 
   @doc """
@@ -1011,6 +1012,181 @@ defmodule BambooHR.TimeTracking do
     merge_patch("/time-tracking/imports/#{import_id}/rows/#{row_id}", client, changes)
   end
 
+  @doc """
+  Lists time tracking kiosks.
+
+  Deleted kiosks are never returned. Without an `:order_by` the results
+  come back by name ascending, case-insensitively.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `opts` - Optional keyword list: `:filter`, `:order_by`, `:select`,
+      `:page`, `:page_size` (defaults to 20, caps at 100)
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.list_kiosks(client)
+      {:ok, %{
+        "data" => [%{"id" => "f1d2...", "name" => "Warehouse door", "lastUsed" => "2024-01-15"}],
+        "meta" => %{"page" => 1, "pageSize" => 20, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_kiosks(Client.t(), keyword()) :: Client.response()
+  def list_kiosks(client, opts \\ []) do
+    Client.get("/time-tracking/kiosks", client, params: odata_list_params(opts))
+  end
+
+  @doc """
+  Retrieves a kiosk.
+
+  A deleted kiosk returns a `404` error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `kiosk_id` - The kiosk's UUID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.get_kiosk(client, "f1d2...")
+      {:ok, %{"id" => "f1d2...", "name" => "Warehouse door"}}
+  """
+  @spec get_kiosk(Client.t(), String.t()) :: Client.response()
+  def get_kiosk(client, kiosk_id) when is_binary(kiosk_id) do
+    Client.get("/time-tracking/kiosks/#{kiosk_id}", client)
+  end
+
+  @doc """
+  Renames a kiosk.
+
+  `"name"` is the only thing that can be changed, and it has to be
+  between 1 and 255 characters. Another active kiosk already using the
+  name returns a `409` error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `kiosk_id` - The kiosk's UUID
+    * `changes` - Map with `"name"`
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.update_kiosk(client, "f1d2...", %{"name" => "Loading bay"})
+      {:ok, %{"id" => "f1d2...", "name" => "Loading bay"}}
+  """
+  @spec update_kiosk(Client.t(), String.t(), map()) :: Client.response()
+  def update_kiosk(client, kiosk_id, changes) when is_binary(kiosk_id) and is_map(changes) do
+    merge_patch("/time-tracking/kiosks/#{kiosk_id}", client, changes)
+  end
+
+  @doc """
+  Deletes a kiosk.
+
+  Deletion is idempotent, so `{:ok, nil}` does **not** prove the kiosk
+  existed — a missing or already-deleted kiosk returns `204` just the
+  same. On success, returns `nil` (no response body).
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `kiosk_id` - The kiosk's UUID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.delete_kiosk(client, "f1d2...")
+      {:ok, nil}
+  """
+  @spec delete_kiosk(Client.t(), String.t()) :: Client.response()
+  def delete_kiosk(client, kiosk_id) when is_binary(kiosk_id) do
+    Client.delete("/time-tracking/kiosks/#{kiosk_id}", client)
+  end
+
+  @doc """
+  Lists the company's physical time clocks.
+
+  Each entry carries the device's health flags — `"online"`,
+  `"configOnline"`, `"dataOnline"`, `"firmwareOnline"` — which are `nil`
+  while the device's status is unavailable. Reads are served from a
+  cached copy of the partner's list, and a company with no clocks
+  connected gets an empty list rather than an error.
+
+  When the partner is unreachable, BambooHR answers `503` with a
+  `Retry-After` header. This client retries a `503` on a `GET` for you,
+  honouring that header.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `opts` - Optional keyword list: `:filter`, `:order_by`, `:select`,
+      `:page`, `:page_size` (defaults to 20). Filtering and sorting
+      happen in memory over the cached list.
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.list_time_clocks(client)
+      {:ok, %{
+        "data" => [%{"id" => "7a3e...", "name" => "Front desk", "online" => true}],
+        "meta" => %{"page" => 1, "pageSize" => 20, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_time_clocks(Client.t(), keyword()) :: Client.response()
+  def list_time_clocks(client, opts \\ []) do
+    Client.get("/time-tracking/time-clocks", client, params: odata_list_params(opts))
+  end
+
+  @doc """
+  Retrieves a time clock.
+
+  Health flags are `nil` while the device's status is unavailable, which
+  is not the same as the device being offline. A company with no clocks
+  connected returns a `404` error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `time_clock_id` - The time clock's UUID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.get_time_clock(client, "7a3e...")
+      {:ok, %{"id" => "7a3e...", "name" => "Front desk", "serialNumber" => "GT-1234"}}
+  """
+  @spec get_time_clock(Client.t(), String.t()) :: Client.response()
+  def get_time_clock(client, time_clock_id) when is_binary(time_clock_id) do
+    Client.get("/time-tracking/time-clocks/#{time_clock_id}", client)
+  end
+
+  @doc """
+  Updates a time clock's name or timezone.
+
+  Only `"name"` and `"timezone"` can be changed, and at least one of them
+  has to be sent. The name must be 1 to 255 characters and the timezone
+  a known IANA name.
+
+  Unlike a read, a write is never served from the cached copy: it goes
+  straight through to the clock partner. When that partner is
+  unreachable the call returns a `503` error with a `Retry-After` header,
+  and **this client does not retry writes** — reissue it yourself once
+  that interval has passed.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `time_clock_id` - The time clock's UUID
+    * `changes` - Map with `"name"` and/or `"timezone"`
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.update_time_clock(client, "7a3e...", %{"name" => "Reception"})
+      {:ok, %{"id" => "7a3e...", "name" => "Reception"}}
+  """
+  @spec update_time_clock(Client.t(), String.t(), map()) :: Client.response()
+  def update_time_clock(client, time_clock_id, changes)
+      when is_binary(time_clock_id) and is_map(changes) do
+    merge_patch("/time-tracking/time-clocks/#{time_clock_id}", client, changes)
+  end
+
   # These endpoints take JSON Merge Patch, and the employee enrolment one
   # rejects anything else with a 415, so the body is encoded here rather
   # than through Req's :json option, which would set application/json.
@@ -1045,7 +1221,7 @@ defmodule BambooHR.TimeTracking do
     for {:idempotency_key, key} <- opts, do: {:idempotency_key, key}
   end
 
-  defp configuration_params(opts) do
+  defp odata_list_params(opts) do
     for {key, param} <- [
           filter: "filter",
           order_by: "orderBy",

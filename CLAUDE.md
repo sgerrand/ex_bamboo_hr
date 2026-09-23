@@ -200,8 +200,15 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `COMPLETE` import; the records its rows created stay. Row edits are
   unrestricted while `DRAFT` but limited to `hoursWorked` once
   `COMPLETE`.
-  Remaining uncovered time tracking areas: projects/tasks, kiosks, time
-  clocks, and shift differentials.
+  Kiosks and time clocks are here as well, both UUID-keyed and both
+  patched with merge patch. Kiosk delete is idempotent; only its name is
+  mutable, and a name clash is a 409. Time clock reads come from a cached
+  copy of the clock partner's list, but writes never do: an unreachable
+  partner is a 503 with `Retry-After`, and since this client only retries
+  GETs, a failed write is the caller's to reissue. Health flags come back
+  `nil` when status is unavailable, which is not the same as offline.
+  Remaining uncovered time tracking areas: projects/tasks and shift
+  differentials.
   `BambooHR.Breaks` covers meal and rest breaks — break policies, the
   breaks on them, employee assignment, per-employee views, and
   compliance assessments. Kept out of `TimeTracking` despite the shared
