@@ -381,6 +381,38 @@ defmodule BambooHR.SchedulingTest do
       assert {:ok, ^body} = BambooHR.Scheduling.publish_shifts(ignoring_client(), [@shift_id])
     end
 
+    defmodule ExposesHeadersOnly do
+      @behaviour BambooHR.HTTPClient
+
+      @impl true
+      def request(_opts), do: {:ok, %{body: Process.get(:publish_body), headers: %{}}}
+    end
+
+    test "flags a partial publish when the client exposes headers but not the status" do
+      body = %{"published" => [], "failed" => [%{"shiftId" => @shift_id, "reason" => "x"}]}
+      Process.put(:publish_body, body)
+
+      assert {:error, %BambooHR.Error{reason: :partial_publish, status: 207, body: encoded}} =
+               BambooHR.Scheduling.publish_shifts(headers_only_client(), [@shift_id])
+
+      assert Jason.decode!(encoded) == body
+    end
+
+    test "unwraps a clean publish when the client exposes headers but not the status" do
+      body = %{"published" => [%{"id" => @shift_id}], "failed" => []}
+      Process.put(:publish_body, body)
+
+      assert {:ok, ^body} = BambooHR.Scheduling.publish_shifts(headers_only_client(), [@shift_id])
+    end
+
+    defp headers_only_client do
+      BambooHR.Client.new(
+        company_domain: "test_company",
+        api_key: "test_key",
+        http_client: ExposesHeadersOnly
+      )
+    end
+
     defp ignoring_client do
       BambooHR.Client.new(
         company_domain: "test_company",
@@ -597,6 +629,35 @@ defmodule BambooHR.SchedulingTest do
                )
     end
 
+    test "returns an error when Req rejects a forwarded option value", %{
+      bypass: bypass,
+      config: config
+    } do
+      # Req validates :retry while handling the response, so the request
+      # is sent before it raises.
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/pdf")
+          |> Plug.Conn.resp(200, "%PDF-")
+        end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :invalid_option, message: message}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07",
+                 retry: true
+               )
+
+      assert message =~ "expected :retry"
+    end
+
     test "ignores an unrecognised option rather than raising", %{bypass: bypass, config: config} do
       Bypass.expect_once(
         bypass,
@@ -611,14 +672,19 @@ defmodule BambooHR.SchedulingTest do
         end
       )
 
-      assert {:ok, %{body: "%PDF-"}} =
-               BambooHR.Scheduling.get_schedule_pdf(
-                 config,
-                 @schedule_id,
-                 "2024-01-01",
-                 "2024-01-07",
-                 include_holiday: true
-               )
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:ok, %{body: "%PDF-"}} =
+                   BambooHR.Scheduling.get_schedule_pdf(
+                     config,
+                     @schedule_id,
+                     "2024-01-01",
+                     "2024-01-07",
+                     include_holiday: true
+                   )
+        end)
+
+      assert log =~ "ignoring unknown options [:include_holiday]"
     end
 
     test "does not let an api_version option through", %{bypass: bypass, config: config} do
