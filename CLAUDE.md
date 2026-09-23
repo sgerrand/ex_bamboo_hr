@@ -205,8 +205,13 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   (`:retry` and friends, but not `:api_version`, which raises on an
   unknown value) to `Client.get/3`. The list is an allowlist
   because Req raises on an unknown option, and a typo'd option name
-  must not raise out of a public function. It also takes a `Date` for
-  the window, not just a string.
+  must not raise out of a public function. A forwarded *value* Req
+  rejects (`retry: true`) still raises, so the call is wrapped and comes
+  back as `:invalid_option` — Req validates some options only while
+  handling the response, so the request may already have been sent.
+  An option this module does not recognise is dropped with a
+  `Logger.warning`, since a silent drop hides a typo. It also takes a
+  `Date` for the window, not just a string.
   `publish_shifts/2` can half-succeed: BambooHR answers 207 when only
   some shifts published, and this client turns that into
   `{:error, %Error{reason: :partial_publish}}` so `{:ok, _}` always
@@ -227,8 +232,10 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   which Req would otherwise render with a space in place of the `T` —
   same trap as `Breaks.format_param/1`. A zoneless value is read as
   UTC, since the spec wants an offset. A `Date` as `:end` becomes
-  `23:59:59` that day, not midnight, or the last day would be left out. `nil` in an ID list becomes the
-  literal `"null"`, which is how the spec spells the open-shift filter,
+  `23:59:59` UTC that day, not midnight, or the last day would be left
+  out — for a schedule in another zone that is still early in the local
+  day, so a caller who needs the local day passes a zoned `DateTime`.
+  `nil` in an ID list becomes the literal `"null"`, which is how the spec spells the open-shift filter,
   while an empty list is dropped — BambooHR reads a present but empty
   `ids` as a filter and ignores the others.
   The PDF endpoint also documents a `500` for a failed render, and a
@@ -268,7 +275,9 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `BambooHR.HTTPClient.Req` builds it with `from_response/3` (non-2xx),
   `from_exception/1` (transport), `from_decode_error/3` (bad JSON in a
   2xx), or `from_partial_success/4` (a 2xx reporting partial success,
-  e.g. a 207 publish). Callers match on `:reason`, not the status code. The struct is a
+  e.g. a 207 publish). `BambooHR.Scheduling` also builds one with
+  `from_invalid_option/1`, for an option value Req rejected by raising.
+  Callers match on `:reason`, not the status code. The struct is a
   `defexception`, so `Exception.message/1` works and callers may raise it,
   but the client never does. It also picks up BambooHR's diagnostic
   headers: `x-bamboohr-error-message` / `X-BambooHR-Message` into
