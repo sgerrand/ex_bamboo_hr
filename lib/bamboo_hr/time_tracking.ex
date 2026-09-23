@@ -14,8 +14,8 @@ defmodule BambooHR.TimeTracking do
   The newer `/time-tracking/*` endpoints (note the hyphen) are a REST
   surface with one resource per record — clock entries, hour entries,
   timesheets, projects and their tasks, configurations, employee
-  enrolments, CSV imports, kiosks and time clocks — plus page-based
-  pagination and OData-style filtering.
+  enrolments, CSV imports, kiosks, time clocks and shift differentials —
+  plus page-based pagination and OData-style filtering.
   They are the ones to reach for when you need to read, correct or
   delete a single record, or to page through a large range.
 
@@ -32,8 +32,9 @@ defmodule BambooHR.TimeTracking do
   does not spell it the same way:
 
     * `list_clock_entries/2`, `list_hour_entries/2`, `list_timesheets/2`,
-      `list_projects/2` and `list_project_tasks/3` take `:sort`, an
-      OData-style string such as `sort: "start desc"`.
+      `list_projects/2`, `list_project_tasks/3` and
+      `list_shift_differentials/2` take `:sort`, an OData-style string
+      such as `sort: "start desc"`.
     * `list_configurations/2`, `list_enrolled_employees/2`,
       `list_kiosks/2` and `list_time_clocks/2` take `:order_by` instead,
       plus `:select` for a sparse fieldset. A `:sort` passed to these is
@@ -1185,6 +1186,147 @@ defmodule BambooHR.TimeTracking do
   def update_time_clock(client, time_clock_id, changes)
       when is_binary(time_clock_id) and is_map(changes) do
     merge_patch("/time-tracking/time-clocks/#{time_clock_id}", client, changes)
+  end
+
+  @doc """
+  Lists shift differentials.
+
+  Archived ones are left out unless you ask for them with
+  `filter: "archived eq true"`. Deleted ones are never returned.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `opts` - Optional keyword list: `:filter`, `:sort`, `:page`,
+      `:page_size` (defaults to 20, caps at 100)
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.list_shift_differentials(client)
+      {:ok, %{
+        "data" => [%{"id" => 6, "name" => "Night shift", "rate" => "1.50", "rateType" => "AMOUNT"}],
+        "meta" => %{"page" => 1, "pageSize" => 20, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_shift_differentials(Client.t(), keyword()) :: Client.response()
+  def list_shift_differentials(client, opts \\ []) do
+    Client.get("/time-tracking/shift-differentials", client, params: list_params(opts))
+  end
+
+  @doc """
+  Creates a shift differential.
+
+  `"rate"` is a **string**, not a number: a non-negative decimal with at
+  most two places, e.g. `"1.50"`. `"rateType"` is `"AMOUNT"` or
+  `"PERCENT"`.
+
+  `"times"` needs at least one window, each with `"startDay"`,
+  `"endDay"`, `"start"` and `"end"` — the days being `"MONDAY"` through
+  `"SUNDAY"`, which lets a window run across midnight.
+
+  Assignment is either everyone or a list: `"employeeIds"` takes
+  precedence, and `"allowAllEmployees"` is ignored whenever it is given.
+
+  A name another shift differential already holds returns a `409` error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `differential_data` - Map with `"name"`, `"rate"`, `"rateType"` and
+      `"times"`, and optionally `"allowAllEmployees"` or `"employeeIds"`
+
+  ## Examples
+
+      iex> differential_data = %{
+      ...>   "name" => "Night shift",
+      ...>   "rate" => "1.50",
+      ...>   "rateType" => "AMOUNT",
+      ...>   "times" => [
+      ...>     %{"startDay" => "MONDAY", "endDay" => "TUESDAY", "start" => "22:00", "end" => "06:00"}
+      ...>   ],
+      ...>   "allowAllEmployees" => true
+      ...> }
+      iex> BambooHR.TimeTracking.create_shift_differential(client, differential_data)
+      {:ok, %{"id" => 6, "name" => "Night shift", "rate" => "1.50"}}
+  """
+  @spec create_shift_differential(Client.t(), map()) :: Client.response()
+  def create_shift_differential(client, differential_data) when is_map(differential_data) do
+    Client.post("/time-tracking/shift-differentials", client, json: differential_data)
+  end
+
+  @doc """
+  Retrieves a shift differential.
+
+  An archived one comes back normally; a deleted one returns a `404`
+  error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `differential_id` - The shift differential's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.get_shift_differential(client, 6)
+      {:ok, %{"id" => 6, "name" => "Night shift", "archivedAt" => nil}}
+  """
+  @spec get_shift_differential(Client.t(), integer()) :: Client.response()
+  def get_shift_differential(client, differential_id) when is_integer(differential_id) do
+    Client.get("/time-tracking/shift-differentials/#{differential_id}", client)
+  end
+
+  @doc """
+  Updates a shift differential.
+
+  Only the fields given are changed, but `"times"` is **replaced
+  wholesale** rather than merged — send every window you want to keep,
+  not just the new one. Sending no fields at all is a `422` error, and a
+  name another differential already holds is a `409`.
+
+  Archiving is done here too, with `"archived" => true`, and undone with
+  `false`. An archived differential stops appearing in
+  `list_shift_differentials/2` unless you filter for it.
+
+  Unlike most PATCH endpoints in this module, this one takes plain
+  JSON rather than JSON Merge Patch.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `differential_id` - The shift differential's ID
+    * `changes` - Map of fields to change: `"name"`, `"rate"`,
+      `"rateType"`, `"allowAllEmployees"`, `"employeeIds"`, `"times"`,
+      `"archived"`
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.update_shift_differential(client, 6, %{"archived" => true})
+      {:ok, %{"id" => 6, "archivedAt" => "2024-01-15T17:00:00Z"}}
+  """
+  @spec update_shift_differential(Client.t(), integer(), map()) :: Client.response()
+  def update_shift_differential(client, differential_id, changes)
+      when is_integer(differential_id) and is_map(changes) do
+    Client.patch("/time-tracking/shift-differentials/#{differential_id}", client, json: changes)
+  end
+
+  @doc """
+  Deletes a shift differential.
+
+  On success, returns `nil` (no response body).
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `differential_id` - The shift differential's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeTracking.delete_shift_differential(client, 6)
+      {:ok, nil}
+  """
+  @spec delete_shift_differential(Client.t(), integer()) :: Client.response()
+  def delete_shift_differential(client, differential_id) when is_integer(differential_id) do
+    Client.delete("/time-tracking/shift-differentials/#{differential_id}", client)
   end
 
   # These endpoints take JSON Merge Patch, and the employee enrolment one

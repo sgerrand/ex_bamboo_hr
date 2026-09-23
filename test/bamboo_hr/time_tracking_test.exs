@@ -1355,4 +1355,155 @@ defmodule BambooHR.TimeTrackingTest do
                })
     end
   end
+
+  describe "shift differentials" do
+    test "lists shift differentials", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/shift-differentials",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params == %{"filter" => "archived eq true", "sort" => "name asc"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [%{"id" => 6}]}))
+        end
+      )
+
+      assert {:ok, %{"data" => [%{"id" => 6}]}} =
+               BambooHR.TimeTracking.list_shift_differentials(config,
+                 filter: "archived eq true",
+                 sort: "name asc"
+               )
+    end
+
+    test "creates a shift differential", %{bypass: bypass, config: config} do
+      differential_data = %{
+        "name" => "Night shift",
+        "rate" => "1.50",
+        "rateType" => "AMOUNT",
+        "times" => [
+          %{"startDay" => "MONDAY", "endDay" => "TUESDAY", "start" => "22:00", "end" => "06:00"}
+        ],
+        "allowAllEmployees" => true
+      }
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/shift-differentials",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          decoded = Jason.decode!(body)
+          assert decoded == differential_data
+          # The rate is a decimal string, not a number.
+          assert is_binary(decoded["rate"])
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(201, Jason.encode!(%{"id" => 6, "rate" => "1.50"}))
+        end
+      )
+
+      assert {:ok, %{"id" => 6, "rate" => "1.50"}} =
+               BambooHR.TimeTracking.create_shift_differential(config, differential_data)
+    end
+
+    test "surfaces a duplicate name", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/shift-differentials",
+        fn conn -> Plug.Conn.resp(conn, 409, "") end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :conflict}} =
+               BambooHR.TimeTracking.create_shift_differential(config, %{"name" => "Night shift"})
+    end
+
+    test "retrieves a shift differential", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/shift-differentials/6",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 6, "archivedAt" => nil}))
+        end
+      )
+
+      assert {:ok, %{"id" => 6}} = BambooHR.TimeTracking.get_shift_differential(config, 6)
+    end
+
+    test "archives with a plain JSON patch", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/shift-differentials/6",
+        fn conn ->
+          # This endpoint takes application/json, not merge patch.
+          assert Plug.Conn.get_req_header(conn, "content-type") == ["application/json"]
+
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"archived" => true}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 6, "archivedAt" => "2024-01-15"}))
+        end
+      )
+
+      assert {:ok, %{"archivedAt" => "2024-01-15"}} =
+               BambooHR.TimeTracking.update_shift_differential(config, 6, %{"archived" => true})
+    end
+
+    test "replaces every time window on update", %{bypass: bypass, config: config} do
+      times = [
+        %{"startDay" => "FRIDAY", "endDay" => "SATURDAY", "start" => "20:00", "end" => "04:00"}
+      ]
+
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/shift-differentials/6",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"times" => times}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 6, "times" => times}))
+        end
+      )
+
+      assert {:ok, %{"times" => ^times}} =
+               BambooHR.TimeTracking.update_shift_differential(config, 6, %{"times" => times})
+    end
+
+    test "surfaces an update with no fields", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-tracking/shift-differentials/6",
+        fn conn -> Plug.Conn.resp(conn, 422, "") end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :unprocessable_entity}} =
+               BambooHR.TimeTracking.update_shift_differential(config, 6, %{})
+    end
+
+    test "deletes a shift differential", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "DELETE",
+        "/api/gateway.php/test_company/v1/time-tracking/shift-differentials/6",
+        fn conn -> Plug.Conn.resp(conn, 204, "") end
+      )
+
+      assert {:ok, nil} = BambooHR.TimeTracking.delete_shift_differential(config, 6)
+    end
+  end
 end

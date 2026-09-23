@@ -207,8 +207,17 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   partner is a 503 with `Retry-After`, and since this client only retries
   GETs, a failed write is the caller's to reissue. Health flags come back
   `nil` when status is unavailable, which is not the same as offline.
-  Remaining uncovered time tracking areas: projects/tasks and shift
-  differentials.
+  Shift differentials round out the newer family: list, create, get,
+  update, delete. Archiving is a field on the update (`"archived"`), not
+  a separate endpoint, and archived rows are hidden from the list unless
+  you filter for them. `"times"` is replaced wholesale on update, not
+  merged. `"rate"` is a decimal string, not a number. This PATCH takes
+  plain JSON, unlike the merge-patch ones elsewhere in the module.
+  Remaining uncovered time tracking endpoints: projects/tasks (in the
+  projects branch), plus three older bulk ones —
+  `/time_tracking/clock_entries/delete`,
+  `/time_tracking/hour_entries/delete` and
+  `/time_tracking/hour_entries/store`. None are deprecated.
   `BambooHR.Breaks` covers meal and rest breaks — break policies, the
   breaks on them, employee assignment, per-employee views, and
   compliance assessments. Kept out of `TimeTracking` despite the shared
