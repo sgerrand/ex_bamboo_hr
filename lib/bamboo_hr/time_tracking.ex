@@ -30,9 +30,12 @@ defmodule BambooHR.TimeTracking do
   to 50 and caps at 200. Clock and hour entries also need at least 10;
   a smaller `:page_size` returns a `422` error.
 
-  `list_projects/2` and `list_project_tasks/3` take the same options but
-  page differently: the default is 100 for projects and 25 for tasks,
-  and both cap at 500.
+  `list_projects/2` and `list_project_tasks/3` take the same four
+  options but page differently: the default is 100 for projects and 25
+  for tasks, and both cap at 500. `list_project_tasks/3` takes one more,
+  `:statuses`. `list_projects/2` does not, and an option it does not
+  know is dropped rather than rejected, so `statuses: ["deleted"]` there
+  is silently ignored.
   """
 
   alias BambooHR.Client

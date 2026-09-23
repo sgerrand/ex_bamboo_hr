@@ -240,9 +240,13 @@ clock_out_data = %{
 }
 {:ok, _} = BambooHR.TimeTracking.clock_out(config, 123, clock_out_data)
 
-# Create a project, then a task on it
+# Create a project, then a task on it. This one endpoint takes OAuth
+# only, so it needs a bearer-token config rather than the API key one.
+oauth_config =
+  BambooHR.Client.new(company_domain: "your_company", auth: {:bearer, "your_access_token"})
+
 {:ok, project} =
-  BambooHR.TimeTracking.create_project(config, %{
+  BambooHR.TimeTracking.create_project(oauth_config, %{
     "name" => "Website rebuild",
     "billable" => true,
     "employeeIds" => [123]
