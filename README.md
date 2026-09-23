@@ -239,6 +239,23 @@ clock_out_data = %{
   "timezone" => "America/New_York"
 }
 {:ok, _} = BambooHR.TimeTracking.clock_out(config, 123, clock_out_data)
+
+# Create a project, then a task on it
+{:ok, project} =
+  BambooHR.TimeTracking.create_project(config, %{
+    "name" => "Website rebuild",
+    "billable" => true,
+    "employeeIds" => [123]
+  })
+
+{:ok, task} =
+  BambooHR.TimeTracking.create_project_task(config, project["id"], %{"name" => "Design"})
+
+# List a project's tasks, deleted ones included
+{:ok, page} =
+  BambooHR.TimeTracking.list_project_tasks(config, project["id"],
+    statuses: ["active", "deleted"]
+  )
 ```
 
 ## Development
