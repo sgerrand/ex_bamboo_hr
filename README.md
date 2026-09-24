@@ -253,11 +253,11 @@ oauth_config =
     "employeeIds" => [123]
   })
 
-{:ok, task} =
+{:ok, _task} =
   BambooHR.TimeTracking.create_project_task(config, project["id"], %{"name" => "Design"})
 
 # List a project's tasks, deleted ones included
-{:ok, page} =
+{:ok, _page} =
   BambooHR.TimeTracking.list_project_tasks(config, project["id"],
     statuses: ["active", "deleted"]
   )
