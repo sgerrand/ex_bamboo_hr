@@ -33,9 +33,12 @@ defmodule BambooHR.TimeTracking do
   `list_projects/2` and `list_project_tasks/3` take the same four
   options but page differently: the default is 100 for projects and 25
   for tasks, and both cap at 500. `list_project_tasks/3` takes one more,
-  `:statuses`. `list_projects/2` does not, and an option it does not
-  know is dropped rather than rejected, so `statuses: ["deleted"]` there
-  is silently ignored.
+  `:statuses`.
+
+  Every list function raises `ArgumentError` on an option it does not
+  know, so a typo like `pagesize:`, or `statuses:` passed to
+  `list_projects/2`, fails before any request rather than quietly
+  returning the default page.
   """
 
   alias BambooHR.Client
@@ -583,7 +586,8 @@ defmodule BambooHR.TimeTracking do
   Updates a time tracking project.
 
   Only the fields given are changed, and at least one must be given: an
-  empty map is a `422`, not a no-op. Setting `"archived"` hides the
+  empty map raises `FunctionClauseError` before any request, since
+  BambooHR would reject it with a `422`. Setting `"archived"` hides the
   project without deleting it.
 
   Setting `"hasTasks"` to `true` needs the project to have at least one
@@ -609,7 +613,7 @@ defmodule BambooHR.TimeTracking do
   """
   @spec update_project(Client.t(), integer(), map()) :: Client.response()
   def update_project(client, project_id, changes)
-      when is_integer(project_id) and is_map(changes) do
+      when is_integer(project_id) and is_map(changes) and map_size(changes) > 0 do
     Client.patch("/time-tracking/projects/#{project_id}", client, json: changes)
   end
 
@@ -659,11 +663,10 @@ defmodule BambooHR.TimeTracking do
   """
   @spec list_project_tasks(Client.t(), integer(), keyword()) :: Client.response()
   def list_project_tasks(client, project_id, opts \\ []) when is_integer(project_id) do
+    params = list_params(opts, [:statuses])
     statuses = for status <- List.wrap(opts[:statuses]), do: {"statuses[]", status}
 
-    Client.get("/time-tracking/projects/#{project_id}/tasks", client,
-      params: statuses ++ list_params(opts)
-    )
+    Client.get("/time-tracking/projects/#{project_id}/tasks", client, params: statuses ++ params)
   end
 
   @doc """
@@ -707,7 +710,9 @@ defmodule BambooHR.TimeTracking do
   @doc """
   Updates a task.
 
-  Only the fields given are changed, and at least one must be given.
+  Only the fields given are changed, and at least one must be given: an
+  empty map raises `FunctionClauseError` before any request, since
+  BambooHR would reject it with a `422`.
 
   ## Parameters
 
@@ -721,7 +726,8 @@ defmodule BambooHR.TimeTracking do
       {:ok, %{"id" => 7, "billable" => false}}
   """
   @spec update_task(Client.t(), integer(), map()) :: Client.response()
-  def update_task(client, task_id, changes) when is_integer(task_id) and is_map(changes) do
+  def update_task(client, task_id, changes)
+      when is_integer(task_id) and is_map(changes) and map_size(changes) > 0 do
     Client.patch("/time-tracking/tasks/#{task_id}", client, json: changes)
   end
 
@@ -745,8 +751,14 @@ defmodule BambooHR.TimeTracking do
     Client.delete("/time-tracking/tasks/#{task_id}", client)
   end
 
-  defp list_params(opts) do
-    for {key, param} <- [filter: "filter", sort: "sort", page: "page", page_size: "pageSize"],
+  @list_params [filter: "filter", sort: "sort", page: "page", page_size: "pageSize"]
+
+  # Raises on an unknown key: dropping it would return the default page
+  # with nothing to show the option was ignored.
+  defp list_params(opts, extra_keys \\ []) do
+    opts = Keyword.validate!(opts, Keyword.keys(@list_params) ++ extra_keys)
+
+    for {key, param} <- @list_params,
         value = opts[key] do
       {param, value}
     end
