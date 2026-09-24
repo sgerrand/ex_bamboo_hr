@@ -794,6 +794,71 @@ defmodule BambooHR.TimeTrackingTest do
                )
     end
 
+    test "accepts a single status as a string", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/projects/3/tasks",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params == %{"statuses" => ["deleted"]}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} =
+               BambooHR.TimeTracking.list_project_tasks(config, 3, statuses: "deleted")
+    end
+
+    test "keeps statuses alongside filter and sort", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/projects/3/tasks",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+
+          assert conn.query_params == %{
+                   "statuses" => ["active", "deleted"],
+                   "filter" => "billable eq true",
+                   "sort" => "name"
+                 }
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} =
+               BambooHR.TimeTracking.list_project_tasks(config, 3,
+                 statuses: ["active", "deleted"],
+                 filter: "billable eq true",
+                 sort: "name"
+               )
+    end
+
+    test "sends no status for an empty list", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/projects/3/tasks",
+        fn conn ->
+          assert conn.query_string == ""
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} =
+               BambooHR.TimeTracking.list_project_tasks(config, 3, statuses: [])
+    end
+
     test "raises on an unknown option before any request", %{config: config} do
       assert_raise ArgumentError, ~r/unknown keys \[:pagesize\]/, fn ->
         BambooHR.TimeTracking.list_project_tasks(config, 3, pagesize: 50)
@@ -857,6 +922,18 @@ defmodule BambooHR.TimeTrackingTest do
       assert_raise FunctionClauseError, fn ->
         BambooHR.TimeTracking.update_task(config, 7, Map.new([]))
       end
+    end
+
+    test "surfaces a duplicate task name", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-tracking/projects/3/tasks",
+        fn conn -> Plug.Conn.resp(conn, 409, "") end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :conflict}} =
+               BambooHR.TimeTracking.create_project_task(config, 3, %{"name" => "Design"})
     end
 
     test "deletes a task", %{bypass: bypass, config: config} do

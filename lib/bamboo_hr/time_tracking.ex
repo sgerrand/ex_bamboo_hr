@@ -552,7 +552,11 @@ defmodule BambooHR.TimeTracking do
       `"includeInPayroll"`, `"allEmployeesAssigned"`, `"employeeIds"`,
       `"tasks"`. `"employeeIds"` must hold numbers, not strings:
       `BambooHR.Employee.list/2` returns IDs as strings, and passing
-      those straight through returns a `422`.
+      those straight through returns a `422`. `"employeeIds"` and
+      `"tasks"` must each have at least one item when given; leave a
+      key out rather than sending `[]`, which is a `422` here (unlike
+      `update_project/3`). `"allEmployeesAssigned"` is ignored when
+      `"employeeIds"` is also given.
 
   ## Examples
 
@@ -589,6 +593,9 @@ defmodule BambooHR.TimeTracking do
   empty map raises `FunctionClauseError` before any request, since
   BambooHR would reject it with a `422`. Setting `"archived"` hides the
   project without deleting it.
+
+  Renaming to a name another active project already has is a `409`
+  (`%BambooHR.Error{reason: :conflict}`).
 
   Setting `"hasTasks"` to `true` needs the project to have at least one
   active task already. Without one, BambooHR returns a `422`, so create
@@ -650,8 +657,11 @@ defmodule BambooHR.TimeTracking do
     * `client` - Client configuration created with `BambooHR.Client.new/1`
     * `project_id` - The project's ID
     * `opts` - Optional keyword list: `:statuses` (a list of `"active"`
-      and `"deleted"`, defaulting to `["active"]`), `:filter`, `:sort`,
-      `:page`, `:page_size` (defaults to 25, caps at 500)
+      and `"deleted"`, or a single one as a string, defaulting to
+      `["active"]`), `:filter`, `:sort`, `:page`, `:page_size`
+      (defaults to 25, caps at 500). `statuses: []` or `nil` sends no
+      status at all, so the `["active"]` default applies rather than
+      "no status filter".
 
   ## Examples
 
@@ -671,6 +681,9 @@ defmodule BambooHR.TimeTracking do
 
   @doc """
   Creates a task on a project.
+
+  A name already used by another task on the same project is a `409`
+  (`%BambooHR.Error{reason: :conflict}`).
 
   ## Parameters
 
@@ -712,7 +725,9 @@ defmodule BambooHR.TimeTracking do
 
   Only the fields given are changed, and at least one must be given: an
   empty map raises `FunctionClauseError` before any request, since
-  BambooHR would reject it with a `422`.
+  BambooHR would reject it with a `422`. Renaming to a name another task
+  on the same project already has is a `409`
+  (`%BambooHR.Error{reason: :conflict}`).
 
   ## Parameters
 
