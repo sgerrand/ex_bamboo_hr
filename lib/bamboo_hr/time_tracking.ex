@@ -582,7 +582,8 @@ defmodule BambooHR.TimeTracking do
   @doc """
   Updates a time tracking project.
 
-  Only the fields given are changed. Setting `"archived"` hides the
+  Only the fields given are changed, and at least one must be given: an
+  empty map is a `422`, not a no-op. Setting `"archived"` hides the
   project without deleting it.
 
   Setting `"hasTasks"` to `true` needs the project to have at least one
