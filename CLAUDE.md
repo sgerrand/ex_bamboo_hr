@@ -174,7 +174,7 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   integer IDs and `page`/`pageSize` paging as the entry lists, so no
   separate module. `create_project/2` restores and updates a deleted
   project of the same name rather than erroring, returning that
-  project's old ID; an active project of that name is a 409 instead,
+  project's old ID; any other project of that name is a 409 instead,
   compared without regard to case or surrounding spaces. It is also the
   one endpoint in the group the spec gives
   no `basic` security, only the OAuth `time_tracking:project.write`

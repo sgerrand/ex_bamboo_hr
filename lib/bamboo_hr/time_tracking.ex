@@ -33,9 +33,11 @@ defmodule BambooHR.TimeTracking do
   `list_projects/2` and `list_project_tasks/3` take the same four
   options but page differently: the default is 100 for projects and 25
   for tasks, and both cap at 500. `list_project_tasks/3` takes one more,
-  `:statuses`. `list_projects/2` does not, and an option it does not
-  know is dropped rather than rejected, so `statuses: ["deleted"]` there
-  is silently ignored.
+  `:statuses`.
+
+  Every list function here drops an option it does not know rather than
+  rejecting it, so a typo like `pagesize:`, or `statuses:` passed to
+  `list_projects/2`, is silently ignored.
   """
 
   alias BambooHR.Client
@@ -527,8 +529,8 @@ defmodule BambooHR.TimeTracking do
 
   If a **deleted** project already has this name, BambooHR restores that
   project and applies the values given instead of creating a new one, so
-  the response can carry an ID you have seen before. An **active**
-  project with the name is a `409` instead
+  the response can carry an ID you have seen before. Any other project
+  with the name is a `409` instead
   (`%BambooHR.Error{reason: :conflict}`). Names are compared without
   regard to case or surrounding spaces, so `"Website Rebuild "` clashes
   with `"website rebuild"`.
@@ -587,10 +589,10 @@ defmodule BambooHR.TimeTracking do
   Updates a time tracking project.
 
   Only the fields given are changed, and at least one must be given: an
-  empty map is a `422`, not a no-op. Setting `"archived"` hides the
-  project without deleting it.
+  empty map is sent as is and comes back as a `422`. Setting
+  `"archived"` hides the project without deleting it.
 
-  Renaming to a name another active project already has is a `409`
+  Renaming to a name another project already has is a `409`
   (`%BambooHR.Error{reason: :conflict}`).
 
   Setting `"hasTasks"` to `true` needs the project to have at least one
