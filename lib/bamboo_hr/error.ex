@@ -44,11 +44,9 @@ defmodule BambooHR.Error do
     * `:transport_error` - the request never completed (connection
       refused, timeout, DNS failure)
     * `:decode_error` - a 2xx response whose body was not valid JSON
-    * `:invalid_option` - a request option the HTTP library rejected.
-      `Req` validates some options only as it handles the response, so
-      the request may well have been sent
-    * `:partial_publish` - a 2xx response that reports partial success,
-      which only `BambooHR.Scheduling.publish_shifts/2` returns
+    * `:partial_publish` - a `207` from
+      `BambooHR.Scheduling.publish_shifts/2`: some shifts published and
+      some did not. `:body` holds both lists, as BambooHR sent them
 
   This struct is also an exception, so `raise error` and
   `Exception.message/1` work on it. The client itself never raises.
@@ -70,7 +68,6 @@ defmodule BambooHR.Error do
           | :http_error
           | :transport_error
           | :decode_error
-          | :invalid_option
           | :partial_publish
 
   @type t :: %__MODULE__{
@@ -117,25 +114,11 @@ defmodule BambooHR.Error do
   end
 
   @doc """
-  Builds an error from an exception raised while preparing a request.
-
-  `Req` raises on an option value it does not accept, and this client
-  never raises from a public function.
-  """
-  @spec from_invalid_option(Exception.t()) :: t()
-  def from_invalid_option(exception) do
-    %__MODULE__{
-      reason: :invalid_option,
-      message: Exception.message(exception),
-      exception: exception
-    }
-  end
-
-  @doc """
   Builds an error from a 2xx response that reports partial success.
 
-  `reason` says which kind of partial success it was — BambooHR has no
-  single shape for these, so the caller names it.
+  A 2xx like this is not a clean success, so the caller asks for it to
+  be treated as an error (see the `:partial_success` option in
+  `BambooHR.HTTPClient`) and names the `reason`.
   """
   @spec from_partial_success(reason(), non_neg_integer(), binary() | nil, map()) :: t()
   def from_partial_success(reason, status, body, headers \\ %{}) do
@@ -158,12 +141,14 @@ defmodule BambooHR.Error do
 
   @doc """
   Builds an error from a 2xx response whose body was not valid JSON.
+
+  `status` is the 2xx status that came back; it defaults to `200`.
   """
-  @spec from_decode_error(Exception.t(), binary(), map()) :: t()
-  def from_decode_error(exception, body, headers \\ %{}) do
+  @spec from_decode_error(Exception.t(), binary(), map(), non_neg_integer()) :: t()
+  def from_decode_error(exception, body, headers \\ %{}, status \\ 200) do
     %__MODULE__{
       reason: :decode_error,
-      status: 200,
+      status: status,
       body: body,
       exception: exception,
       request_id: header(headers, [@request_id_header])

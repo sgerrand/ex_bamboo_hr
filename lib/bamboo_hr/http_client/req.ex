@@ -28,8 +28,8 @@ defmodule BambooHR.HTTPClient.Req do
   @impl true
   def request(opts) do
     {expose_headers, opts} = Keyword.pop(opts, :expose_headers, false)
-    {expose_status, opts} = Keyword.pop(opts, :expose_status, false)
     {raw_response, opts} = Keyword.pop(opts, :raw_response, false)
+    {partial_success, opts} = Keyword.pop(opts, :partial_success, %{})
 
     opts =
       opts
@@ -37,9 +37,13 @@ defmodule BambooHR.HTTPClient.Req do
       |> Keyword.put_new(:retry, &__MODULE__.retry?/2)
 
     case Req.request(opts) do
+      {:ok, %{status: status, body: body, headers: headers}}
+      when is_map_key(partial_success, status) ->
+        reason = Map.fetch!(partial_success, status)
+        {:error, BambooHR.Error.from_partial_success(reason, status, body, headers)}
+
       {:ok, %{status: status, body: body, headers: headers}} when status in 200..299 ->
-        extras = success_extras(headers, status, expose_headers, expose_status)
-        decode_success(body, headers, extras, raw_response)
+        decode_success(body, status, headers, expose_headers, raw_response)
 
       {:ok, %{status: status, body: body, headers: headers}} ->
         {:error, BambooHR.Error.from_response(status, body, headers)}
@@ -49,30 +53,22 @@ defmodule BambooHR.HTTPClient.Req do
     end
   end
 
-  defp decode_success(body, _headers, extras, true) do
-    wrap_success(body, extras)
+  defp decode_success(body, _status, headers, expose_headers, true) do
+    wrap_success(body, headers, expose_headers)
   end
 
-  # `headers` is passed on its own, not read from `extras`: a decode error
-  # needs the request ID even when the caller did not ask for headers.
-  defp decode_success(body, headers, extras, false) do
+  defp decode_success(body, status, headers, expose_headers, false) do
     case decode_body(body) do
       {:ok, decoded} ->
-        wrap_success(decoded, extras)
+        wrap_success(decoded, headers, expose_headers)
 
       {:error, exception} ->
-        {:error, BambooHR.Error.from_decode_error(exception, body, headers)}
+        {:error, BambooHR.Error.from_decode_error(exception, body, headers, status)}
     end
   end
 
-  defp success_extras(headers, status, expose_headers, expose_status) do
-    extras = if expose_headers, do: %{headers: headers}, else: %{}
-
-    if expose_status, do: Map.put(extras, :status, status), else: extras
-  end
-
-  defp wrap_success(payload, extras) when map_size(extras) == 0, do: {:ok, payload}
-  defp wrap_success(payload, extras), do: {:ok, Map.put(extras, :body, payload)}
+  defp wrap_success(payload, headers, true), do: {:ok, %{body: payload, headers: headers}}
+  defp wrap_success(payload, _headers, false), do: {:ok, payload}
 
   @doc """
   Retry predicate passed to `Req`. Returns `true` to retry, `false` otherwise.

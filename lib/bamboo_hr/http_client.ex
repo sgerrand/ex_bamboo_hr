@@ -30,18 +30,18 @@ defmodule BambooHR.HTTPClient do
       Useful for endpoints that return no body and communicate their
       result through a header instead — e.g. `POST /employees`, whose
       `Location` header is the only way to identify the created employee.
-    * `:expose_status` — when `true`, the `:ok` payload for a 2xx response
-      carries the response status: `%{body: body, status: status}`, or the
-      same map with `headers` too when combined with `:expose_headers`.
-      Defaults to `false`. Needed where 2xx statuses mean different
-      things — e.g. `POST /scheduling/shifts/publish`, which answers
+    * `:partial_success` — a map of 2xx status to `BambooHR.Error`
+      reason, e.g. `%{207 => :partial_publish}`. A response with one of
+      those statuses comes back as `{:error, error}`, built with
+      `BambooHR.Error.from_partial_success/4` from the raw body and
+      headers. Defaults to `%{}`. Needed where a 2xx is not a clean
+      success — e.g. `POST /scheduling/shifts/publish`, which answers
       `207` when only some shifts published.
     * `:raw_response` — when `true`, a 2xx response body is returned as-is
       instead of being JSON-decoded. Defaults to `false`. Required for
       binary downloads (e.g. file content), which are not JSON. Composes
-      with `:expose_headers` and `:expose_status` to also get the response
-      headers (e.g. to read `Content-Type` / `Content-Disposition` for a
-      downloaded file) or the status.
+      with `:expose_headers` to also get the response headers (e.g. to
+      read `Content-Type` / `Content-Disposition` for a downloaded file).
   """
 
   @callback request(keyword()) :: {:ok, term()} | {:error, BambooHR.Error.t()}
