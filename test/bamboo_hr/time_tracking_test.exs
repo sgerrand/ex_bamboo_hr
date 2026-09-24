@@ -861,6 +861,24 @@ defmodule BambooHR.TimeTrackingTest do
                BambooHR.TimeTracking.list_project_tasks(config, 3, statuses: [])
     end
 
+    test "sends no status for nil", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/projects/3/tasks",
+        fn conn ->
+          assert conn.query_string == ""
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} =
+               BambooHR.TimeTracking.list_project_tasks(config, 3, statuses: nil)
+    end
+
     test "creates a task", %{bypass: bypass, config: config} do
       Bypass.expect_once(
         bypass,
