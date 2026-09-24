@@ -190,8 +190,12 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   (`Keyword.validate!/2` in `list_params/2`) rather than dropping it,
   and the project and task updates refuse an empty map with a guard,
   since BambooHR always answers both with the default page or a 422.
-  Remaining uncovered time tracking areas: configurations, employees,
-  imports, kiosks, time clocks, shift differentials, and scheduling.
+  Remaining uncovered time tracking endpoints: configurations, employee
+  enrolments, imports, kiosks, time clocks and shift differentials,
+  plus three older bulk ones — `/time_tracking/clock_entries/delete`,
+  `/time_tracking/hour_entries/delete` and
+  `/time_tracking/hour_entries/store`. None are deprecated. Scheduling
+  is its own `/scheduling/` tree in the spec, not time tracking.
   `BambooHR.Breaks` covers meal and rest breaks — break policies, the
   breaks on them, employee assignment, per-employee views, and
   compliance assessments. Kept out of `TimeTracking` despite the shared
