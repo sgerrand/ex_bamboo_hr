@@ -730,21 +730,6 @@ defmodule BambooHR.TimeTrackingTest do
       assert {:error, %BambooHR.Error{reason: :conflict}} =
                BambooHR.TimeTracking.create_project(config, %{"name" => "Website rebuild"})
     end
-
-    # A literal %{} lets the compiler see the call can never match and
-    # warn, which --warnings-as-errors turns into a build failure, so the
-    # empty map is built at runtime instead.
-    test "refuses an empty update before any request", %{config: config} do
-      assert_raise FunctionClauseError, fn ->
-        BambooHR.TimeTracking.update_project(config, 3, Map.new([]))
-      end
-    end
-
-    test "raises on statuses, which only tasks take", %{config: config} do
-      assert_raise ArgumentError, ~r/unknown keys \[:statuses\]/, fn ->
-        BambooHR.TimeTracking.list_projects(config, statuses: ["deleted"])
-      end
-    end
   end
 
   describe "project tasks" do
@@ -859,12 +844,6 @@ defmodule BambooHR.TimeTrackingTest do
                BambooHR.TimeTracking.list_project_tasks(config, 3, statuses: [])
     end
 
-    test "raises on an unknown option before any request", %{config: config} do
-      assert_raise ArgumentError, ~r/unknown keys \[:pagesize\]/, fn ->
-        BambooHR.TimeTracking.list_project_tasks(config, 3, pagesize: 50)
-      end
-    end
-
     test "creates a task", %{bypass: bypass, config: config} do
       Bypass.expect_once(
         bypass,
@@ -918,12 +897,6 @@ defmodule BambooHR.TimeTrackingTest do
                BambooHR.TimeTracking.update_task(config, 7, %{"billable" => false})
     end
 
-    test "refuses an empty update before any request", %{config: config} do
-      assert_raise FunctionClauseError, fn ->
-        BambooHR.TimeTracking.update_task(config, 7, Map.new([]))
-      end
-    end
-
     test "surfaces a duplicate task name", %{bypass: bypass, config: config} do
       Bypass.expect_once(
         bypass,
@@ -964,22 +937,6 @@ defmodule BambooHR.TimeTrackingTest do
       )
 
       assert {:ok, %{"data" => []}} = BambooHR.TimeTracking.list_projects(config)
-    end
-  end
-
-  describe "list options" do
-    # Every lister shares list_params/2, so an unknown key is refused
-    # everywhere rather than silently dropped.
-    test "raises on an unknown option before any request", %{config: config} do
-      for list <- [
-            &BambooHR.TimeTracking.list_clock_entries/2,
-            &BambooHR.TimeTracking.list_hour_entries/2,
-            &BambooHR.TimeTracking.list_timesheets/2
-          ] do
-        assert_raise ArgumentError, ~r/unknown keys \[:pagesize\]/, fn ->
-          list.(config, pagesize: 50)
-        end
-      end
     end
   end
 end

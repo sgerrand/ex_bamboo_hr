@@ -186,10 +186,6 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   replacement, not an addition. The legacy `POST /time_tracking/projects`
   is deprecated upstream and skipped.
   Paginated responses report `totalItems` and `totalPages`, not `total`.
-  List functions raise `ArgumentError` on an unknown option
-  (`Keyword.validate!/2` in `list_params/2`) rather than dropping it,
-  and the project and task updates refuse an empty map with a guard,
-  since BambooHR always answers both with the default page or a 422.
   Remaining uncovered time tracking endpoints: configurations, employee
   enrolments, imports, kiosks, time clocks and shift differentials,
   plus three older bulk ones — `/time_tracking/clock_entries/delete`,
@@ -236,12 +232,7 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
 - `BambooHR.Client` has `doctest BambooHR.Client` enabled in
   `client_test.exs`; the doctests in `Client.new/1` are real and will run in
   CI — keep struct field order in sync with `defstruct` or they'll fail.
-- Handle errors with pattern matching; never raise from public API functions
-  for anything BambooHR or the network does. A caller's own mistake is
-  different: a bad argument fails a guard or raises `ArgumentError`
-  before any request (see `Client.new/1`'s auth and `api_version:`
-  checks, `OAuth.refresh_token/1`, and unknown time tracking list
-  options).
+- Handle errors with pattern matching; never raise from public API functions.
 - Every failure is `{:error, %BambooHR.Error{}}` — see `lib/bamboo_hr/error.ex`.
   `BambooHR.HTTPClient.Req` builds it with `from_response/3` (non-2xx),
   `from_exception/1` (transport), or `from_decode_error/3` (bad JSON in a
