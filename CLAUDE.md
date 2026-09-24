@@ -86,12 +86,15 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   The opts keyword list passed to implementations is documented in the
   behaviour's `@moduledoc`, including `:expose_headers` (surface response
   headers alongside the body — needed when a header, not the body, carries
-  the useful data, e.g. a `Location` header), `:expose_status` (surface
-  the 2xx status — needed where 2xx statuses differ in meaning, e.g. a
-  207 partial publish) and `:raw_response` (skip
+  the useful data, e.g. a `Location` header), `:partial_success` (a map
+  of 2xx status to error reason, for a 2xx that is not a clean success,
+  e.g. `%{207 => :partial_publish}`) and `:raw_response` (skip
   JSON-decoding — needed for binary responses like file downloads).
-  A decode error always gets the real response headers, whatever the
-  `expose_*` options say, so it keeps the `X-Request-ID`.
+  A decode error always gets the real response headers and status,
+  whatever `:expose_headers` says, so it keeps the `X-Request-ID`.
+  `:partial_success` is handled in `HTTPClient.Req`, not in the resource
+  module, so the telemetry span records it as an error and the error
+  keeps the raw body.
   `BambooHR.HTTPClient.Req` is the default implementation; tests use
   Bypass (a real local HTTP server) rather than mocking the behaviour.
 - `BambooHR.Company`, `BambooHR.Datasets`, `BambooHR.Employee`,
@@ -195,51 +198,47 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   Bypass does not check the spec's patterns, so a test can pass with a
   value the real API rejects.
   `BambooHR.Scheduling` covers schedules, shifts, shift assessments, and
-  the schedule PDF export (`:raw_response` + `:expose_headers`, like
-  `Files` downloads). Schedule IDs are UUID strings; a shift ID can also
-  be a composite `<shiftId>_<recurrenceId>` for a recurring shift that
-  does not exist yet, so treat shift IDs as opaque. The PDF endpoint is
-  the only one that takes OAuth alone, not API keys, and it renders
-  server-side, so it can outrun the default 15s timeout and then be
-  retried once per render, so it forwards a fixed list of request opts
-  (`:retry` and friends, but not `:api_version`, which raises on an
-  unknown value) to `Client.get/3`. The list is an allowlist
-  because Req raises on an unknown option, and a typo'd option name
-  must not raise out of a public function. A forwarded *value* Req
-  rejects (`retry: true`) still raises, so the call is wrapped and comes
-  back as `:invalid_option` — Req validates some options only while
-  handling the response, so the request may already have been sent.
-  An option this module does not recognise is dropped with a
-  `Logger.warning`, since a silent drop hides a typo. It also takes a
-  `Date` for the window, not just a string.
+  the schedule PDF export. The PDF uses `:raw_response` and
+  `:expose_headers`, like `Files` downloads.
+  Schedule IDs are UUID strings. A shift ID can also be
+  `<recurringShiftDefinitionId>_<recurrenceId>`, for a repeat that does
+  not exist yet, so treat shift IDs as plain strings.
+  The PDF endpoint takes OAuth only, not API keys. No other scheduling
+  endpoint is like that. BambooHR renders the PDF on request, so a big
+  schedule can take longer than the 15s default timeout. A failed render
+  returns `500`. A `GET` retries both, and each retry renders again.
+  So `get_schedule_pdf/5` passes `retry: false` on to the HTTP client.
+  It passes on no other request option: Req raises on a value it does
+  not accept, and it only checks `:retry` after the response is in.
+  Any other `:retry` value, or any unknown option, is dropped with a
+  `Logger.warning`, so a typo is easy to find.
+  The PDF wants repeated `employeeIds[]` params, not a comma-joined
+  list. Plug parses the `[]` suffix back into a list, which is what the
+  test checks. The PDF window takes a `Date` as well as a string.
   `publish_shifts/2` can half-succeed: BambooHR answers 207 when only
-  some shifts published, and this client turns that into
-  `{:error, %Error{reason: :partial_publish}}` so `{:ok, _}` always
-  means a clean run. The re-encoded body holds both lists. It reads the
-  status through `:expose_status` and `:expose_headers`, so it reacts to
-  a real 207 and keeps the `X-Request-ID` — but the
-  telemetry span has already closed as a success by then, so a partial
-  publish looks like `:ok` in metrics. The PDF endpoint wants
-  repeated `employeeIds[]` params, not a comma-joined list — Plug parses
-  the `[]` suffix back into a list, which is what the test asserts.
+  some shifts published. It passes `partial_success: %{207 =>
+  :partial_publish}`, so a 207 comes back as an error, and `{:ok, _}`
+  always means every shift published. The error's `:body` is the raw
+  JSON, with both lists. A custom `HTTPClient` that ignores the option
+  returns `{:ok, body}` instead, with the failures still in `"failed"`.
   Enum values are lowercase (`planned`, `published`; `instance`,
-  `future`, `all` for `recurrenceEditOption`), `color` is 6 hex digits
-  with no `#`, and a publish failure is keyed `shiftId`, not `id`.
+  `future`, `all` for `recurrenceEditOption`). `color` is 6 hex digits
+  with no `#`. A publish failure is keyed `shiftId`, not `id`.
   `update_shift/3` needs `recurrenceEditOption` when the shift already
-  repeats. Shift `start`/`end` are UTC, with `timezone` a separate
-  display field. `build_params/2` keeps an explicit `false`, and
-  `format_value/1` converts a `DateTime`, `NaiveDateTime` or `Date`,
-  which Req would otherwise render with a space in place of the `T` —
-  same trap as `Breaks.format_param/1`. A zoneless value is read as
-  UTC, since the spec wants an offset. A `Date` as `:end` becomes
-  `23:59:59` UTC that day, not midnight, or the last day would be left
-  out — for a schedule in another zone that is still early in the local
-  day, so a caller who needs the local day passes a zoned `DateTime`.
-  `nil` in an ID list becomes the literal `"null"`, which is how the spec spells the open-shift filter,
-  while an empty list is dropped — BambooHR reads a present but empty
-  `ids` as a filter and ignores the others.
-  The PDF endpoint also documents a `500` for a failed render, and a
-  `GET` retries that, so `retry: false` is worth passing there.
+  repeats.
+  Shift `start` and `end` are UTC; `timezone` is a separate field for
+  display. `format_value/1` turns a `DateTime`, `NaiveDateTime` or
+  `Date` into an ISO-8601 date-time in whole seconds. Without it, Req
+  would put a space where the `T` goes — the same trap as
+  `Breaks.format_param/1`. A value with no zone is read as UTC, because
+  the spec wants an offset. A `Date` as `:end` becomes `23:59:59` UTC
+  that day, so the last day is included. In another zone, `23:59:59`
+  UTC falls earlier in the local day. A caller who needs the whole local
+  day passes a zoned `DateTime`.
+  `build_params/3` keeps an explicit `false`. It drops an empty list,
+  because BambooHR reads a present but empty `ids` as a filter and
+  ignores all the others. `nil` in an ID list becomes the string
+  `"null"`, which is how the spec asks for unassigned shifts.
   Bypass accepts any value, so check doc examples against the spec.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
@@ -255,7 +254,7 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   Bypass port) in the test context.
 - Tests run `async: true`.
 - To test a path that only a custom `BambooHR.HTTPClient` reaches (one
-  that ignores `:expose_headers` or `:expose_status`), define a small
+  that ignores `:expose_headers` or `:partial_success`), define a small
   fake module in the test. `request/1` runs in the test's own process,
   so the fake can read its canned response from `Process.get/1`.
 - Telemetry handlers are global, so a test's handler also sees events
@@ -273,11 +272,9 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
 - Handle errors with pattern matching; never raise from public API functions.
 - Every failure is `{:error, %BambooHR.Error{}}` — see `lib/bamboo_hr/error.ex`.
   `BambooHR.HTTPClient.Req` builds it with `from_response/3` (non-2xx),
-  `from_exception/1` (transport), `from_decode_error/3` (bad JSON in a
-  2xx), or `from_partial_success/4` (a 2xx reporting partial success,
-  e.g. a 207 publish). `BambooHR.Scheduling` also builds one with
-  `from_invalid_option/1`, for an option value Req rejected by raising.
-  Callers match on `:reason`, not the status code. The struct is a
+  `from_exception/1` (transport), `from_decode_error/4` (bad JSON in a
+  2xx), or `from_partial_success/4` (a 2xx listed in `:partial_success`,
+  e.g. a 207 publish). Callers match on `:reason`, not the status code. The struct is a
   `defexception`, so `Exception.message/1` works and callers may raise it,
   but the client never does. It also picks up BambooHR's diagnostic
   headers: `x-bamboohr-error-message` / `X-BambooHR-Message` into

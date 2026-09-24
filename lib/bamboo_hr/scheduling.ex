@@ -25,12 +25,6 @@ defmodule BambooHR.Scheduling do
   require Logger
 
   alias BambooHR.Client
-  alias BambooHR.Error
-
-  # Request options `get_schedule_pdf/5` passes on to the HTTP client.
-  # Anything else is a query param or, if unrecognised, ignored — Req
-  # raises on an unknown option, and public functions must not raise.
-  @forwarded_request_opts [:retry, :retry_delay, :retry_log_level, :max_retries]
 
   @doc """
   Lists schedules.
@@ -164,9 +158,8 @@ defmodule BambooHR.Scheduling do
     * `opts` - Optional keyword list: `:group_by`, `:employee_ids` (a
       list, where `nil` means unassigned shifts),
       `:include_employees_without_shifts`, `:include_holidays`,
-      `:include_time_off`. `:retry`, `:retry_delay`, `:retry_log_level`
-      and `:max_retries` are passed to the HTTP client; any other key is
-      ignored
+      `:include_time_off`, and `retry: false` to turn off retries. Any
+      other key, or any other `:retry` value, is ignored with a warning
 
   ## Examples
 
@@ -186,12 +179,11 @@ defmodule BambooHR.Scheduling do
     params =
       [{"startYmd", format_ymd(start_ymd)}, {"endYmd", format_ymd(end_ymd)}] ++ pdf_params(opts)
 
-    request_opts =
-      opts
-      |> Keyword.take(@forwarded_request_opts)
-      |> Keyword.merge(params: params, raw_response: true, expose_headers: true)
-
-    get_without_raising("/scheduling/schedules/#{schedule_id}/pdf", client, request_opts)
+    Client.get(
+      "/scheduling/schedules/#{schedule_id}/pdf",
+      client,
+      [params: params, raw_response: true, expose_headers: true] ++ retry_opt(opts)
+    )
   end
 
   @doc """
@@ -370,10 +362,14 @@ defmodule BambooHR.Scheduling do
   the whole call. BambooHR answers `207` when only some of them
   published and `409` when none did. Both come back as an error, so a
   caller that matches `{:ok, _}` cannot mistake a partial run for a
-  clean one: `207` is `:partial_publish` and `409` is `:conflict`. The
-  `207` is read from the response status, not guessed from the body. Each
-  error's `:body` holds the JSON with both lists, so the shifts that did
-  publish and the reason for each failure are still there.
+  clean one: `207` is `:partial_publish` and `409` is `:conflict`. Each
+  error's `:body` holds the JSON with both lists, as BambooHR sent it, so
+  the shifts that did publish and the reason for each failure are still
+  there.
+
+  A custom `BambooHR.HTTPClient` has to honour the `:partial_success`
+  option for a `207` to come back as an error. One that ignores it
+  returns `{:ok, result}`, with the failures still in `"failed"`.
 
   ## Parameters
 
@@ -395,41 +391,12 @@ defmodule BambooHR.Scheduling do
   """
   @spec publish_shifts(Client.t(), list(String.t())) :: Client.response()
   def publish_shifts(client, shift_ids) when is_list(shift_ids) do
+    # A 207 is a 2xx, so without this it would look like a clean run.
     Client.post("/scheduling/shifts/publish", client,
       json: %{"shiftIds" => shift_ids},
-      expose_status: true,
-      expose_headers: true
+      partial_success: %{207 => :partial_publish}
     )
-    |> flag_partial_publish()
   end
-
-  # BambooHR answers 207 for a partial publish, which is a 2xx and so
-  # would otherwise look like a clean run. The body holds both lists, so
-  # it is kept, re-encoded, in the error.
-  defp flag_partial_publish({:ok, %{status: 207, body: body} = payload}) do
-    headers = Map.get(payload, :headers, %{})
-
-    {:error, Error.from_partial_success(:partial_publish, 207, Jason.encode!(body), headers)}
-  end
-
-  defp flag_partial_publish({:ok, %{status: _status, body: body}}), do: {:ok, body}
-
-  # A custom `BambooHR.HTTPClient` may ignore `:expose_status`, with or
-  # without honouring `:expose_headers`. Fall back to what the body
-  # reports, and return the bare body either way.
-  defp flag_partial_publish({:ok, %{body: %{"failed" => [_ | _]} = body} = payload}) do
-    headers = Map.get(payload, :headers, %{})
-
-    {:error, Error.from_partial_success(:partial_publish, 207, Jason.encode!(body), headers)}
-  end
-
-  defp flag_partial_publish({:ok, %{body: body}}), do: {:ok, body}
-
-  defp flag_partial_publish({:ok, %{"failed" => [_ | _]} = body}) do
-    {:error, Error.from_partial_success(:partial_publish, 207, Jason.encode!(body))}
-  end
-
-  defp flag_partial_publish(result), do: result
 
   @doc """
   Lists shift assessments.
@@ -496,23 +463,34 @@ defmodule BambooHR.Scheduling do
           include_holidays: "includeHolidays",
           include_time_off: "includeTimeOff"
         ],
-        [:employee_ids | @forwarded_request_opts]
+        [:employee_ids, :retry]
       )
+  end
+
+  # The only request option passed on is `retry: false`, which turns off
+  # retries for a slow render. Any other value is dropped with a warning,
+  # because Req raises on a value it does not accept, and it only checks
+  # `:retry` once the response is in — after the PDF has been rendered.
+  defp retry_opt(opts) do
+    case Keyword.fetch(opts, :retry) do
+      {:ok, false} ->
+        [retry: false]
+
+      {:ok, other} ->
+        Logger.warning(
+          "BambooHR.Scheduling: ignoring retry: #{inspect(other)}, only false is supported"
+        )
+
+        []
+
+      :error ->
+        []
+    end
   end
 
   # `false` is a meaningful value for the PDF flags, so it is kept. An
   # empty list is dropped: BambooHR reads a present but empty `ids` as a
   # filter and ignores every other one.
-  # A forwarded option is passed on as given, and `Req` raises on a value
-  # it does not accept (`retry: true`, say) — sometimes only once the
-  # response is in hand, so the request may already have been sent.
-  # Public functions must not raise, so that becomes an error instead.
-  defp get_without_raising(path, client, opts) do
-    Client.get(path, client, opts)
-  rescue
-    exception -> {:error, Error.from_invalid_option(exception)}
-  end
-
   defp build_params(opts, mapping, also_known \\ []) do
     warn_unknown_opts(opts, Keyword.keys(mapping) ++ also_known)
 
@@ -543,10 +521,13 @@ defmodule BambooHR.Scheduling do
   # offset. Req renders a DateTime or NaiveDateTime with a space in place
   # of the `T`, and a Date or NaiveDateTime carries no offset at all, so
   # the zoneless forms are read as UTC.
-  defp format_value(%DateTime{} = value), do: DateTime.to_iso8601(value)
+  # Whole seconds only, as in `Breaks.format_param/1`: `utc_now/0` carries
+  # microseconds, and the spec does not say BambooHR accepts them.
+  defp format_value(%DateTime{} = value),
+    do: value |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
   defp format_value(%NaiveDateTime{} = value),
-    do: value |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
+    do: value |> DateTime.from_naive!("Etc/UTC") |> format_value()
 
   defp format_value(%Date{} = value),
     do: value |> NaiveDateTime.new!(~T[00:00:00]) |> format_value()

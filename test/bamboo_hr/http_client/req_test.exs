@@ -151,32 +151,56 @@ defmodule BambooHR.HTTPClient.ReqTest do
     end
   end
 
-  describe "request/1 expose_status" do
-    test "expose_status: true carries the 2xx status", %{bypass: bypass, config: config} do
+  describe "request/1 partial_success" do
+    test "turns a listed 2xx status into an error with the raw body", %{
+      bypass: bypass,
+      config: config
+    } do
+      raw = ~s({"published":[],"failed":["a"]})
+
       Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
         conn
         |> Plug.Conn.put_resp_header("content-type", "application/json")
-        |> Plug.Conn.resp(207, Jason.encode!(%{"failed" => ["a"]}))
+        |> Plug.Conn.put_resp_header("x-request-id", "req-207")
+        |> Plug.Conn.resp(207, raw)
       end)
 
-      assert {:ok, %{status: 207, body: %{"failed" => ["a"]}}} =
-               BambooHR.Client.post("/publish", config, expose_status: true)
+      assert {:error,
+              %BambooHR.Error{
+                reason: :partial_publish,
+                status: 207,
+                body: ^raw,
+                request_id: "req-207"
+              }} =
+               BambooHR.Client.post("/publish", config,
+                 partial_success: %{207 => :partial_publish}
+               )
     end
 
-    test "expose_status and expose_headers compose", %{bypass: bypass, config: config} do
-      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/thing", fn conn ->
+    test "leaves a 2xx status that is not listed as success", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
         conn
         |> Plug.Conn.put_resp_header("content-type", "application/json")
-        |> Plug.Conn.resp(200, Jason.encode!(%{"ok" => true}))
+        |> Plug.Conn.resp(200, Jason.encode!(%{"failed" => []}))
       end)
 
-      assert {:ok, %{status: 200, body: %{"ok" => true}, headers: headers}} =
-               BambooHR.Client.get("/thing", config,
-                 expose_status: true,
-                 expose_headers: true
+      assert {:ok, %{"failed" => []}} =
+               BambooHR.Client.post("/publish", config,
+                 partial_success: %{207 => :partial_publish}
                )
+    end
+  end
 
-      assert headers["content-type"] == ["application/json"]
+  describe "request/1 decode errors with a non-200 status" do
+    test "keeps the real 2xx status", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/thing", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(201, "not json")
+      end)
+
+      assert {:error, %BambooHR.Error{reason: :decode_error, status: 201}} =
+               BambooHR.Client.post("/thing", config, json: %{})
     end
   end
 
