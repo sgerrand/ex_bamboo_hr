@@ -77,8 +77,7 @@ defmodule BambooHR.Client do
   upstream returns an empty 2xx body. Passing `raw_response: true` skips JSON
   decoding (needed for binary responses like file downloads), and passing
   `expose_headers: true` wraps the payload as `%{body: body, headers:
-  headers}`, and `expose_status: true` adds the response status to that
-  map — see `BambooHR.HTTPClient`.
+  headers}` — see `BambooHR.HTTPClient`.
 
   The `:error` payload is always a `BambooHR.Error` struct, whether the
   request came back non-2xx, never reached BambooHR, or returned a body
