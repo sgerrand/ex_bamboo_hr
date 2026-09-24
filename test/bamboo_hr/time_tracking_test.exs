@@ -654,6 +654,23 @@ defmodule BambooHR.TimeTrackingTest do
                BambooHR.TimeTracking.list_projects(config, filter: "billable eq true")
     end
 
+    test "sends no query params without options", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-tracking/projects",
+        fn conn ->
+          assert conn.query_string == ""
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} = BambooHR.TimeTracking.list_projects(config)
+    end
+
     test "creates a project", %{bypass: bypass, config: config} do
       Bypass.expect_once(
         bypass,
@@ -733,7 +750,7 @@ defmodule BambooHR.TimeTrackingTest do
   end
 
   describe "project tasks" do
-    test "lists tasks, defaulting to active only", %{bypass: bypass, config: config} do
+    test "sends no statuses by default", %{bypass: bypass, config: config} do
       Bypass.expect_once(
         bypass,
         "GET",
@@ -918,25 +935,6 @@ defmodule BambooHR.TimeTrackingTest do
       )
 
       assert {:ok, nil} = BambooHR.TimeTracking.delete_task(config, 7)
-    end
-  end
-
-  describe "listing projects without options" do
-    test "omits query params", %{bypass: bypass, config: config} do
-      Bypass.expect_once(
-        bypass,
-        "GET",
-        "/api/gateway.php/test_company/v1/time-tracking/projects",
-        fn conn ->
-          assert conn.query_string == ""
-
-          conn
-          |> Plug.Conn.put_resp_header("content-type", "application/json")
-          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
-        end
-      )
-
-      assert {:ok, %{"data" => []}} = BambooHR.TimeTracking.list_projects(config)
     end
   end
 end
