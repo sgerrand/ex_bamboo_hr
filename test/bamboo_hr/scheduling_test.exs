@@ -566,6 +566,27 @@ defmodule BambooHR.SchedulingTest do
                BambooHR.Scheduling.list_shifts(config, ids: [], schedule_ids: [@schedule_id])
     end
 
+    test "treats a bare nil for employee_ids as no filter", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/shifts",
+        fn conn ->
+          assert conn.query_string == "scheduleIds=#{@schedule_id}"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} =
+               BambooHR.Scheduling.list_shifts(config,
+                 employee_ids: nil,
+                 schedule_ids: [@schedule_id]
+               )
+    end
+
     test "sends nil in a list as the open-shift filter", %{bypass: bypass, config: config} do
       Bypass.expect_once(
         bypass,

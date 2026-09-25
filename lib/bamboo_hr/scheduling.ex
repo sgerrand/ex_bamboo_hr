@@ -156,7 +156,8 @@ defmodule BambooHR.Scheduling do
     * `start_ymd` - First day to include, as `YYYY-MM-DD` or a `Date`
     * `end_ymd` - Last day to include, as `YYYY-MM-DD` or a `Date`
     * `opts` - Optional keyword list: `:group_by`, `:employee_ids` (a
-      list, where `nil` means unassigned shifts),
+      list; put `nil` in it, e.g. `[123, nil]`, to include unassigned
+      shifts — a bare `nil` means no filter),
       `:include_employees_without_shifts`, `:include_holidays`,
       `:include_time_off`, and `retry: false` to turn off retries. Any
       other key, or any other `:retry` value, is ignored with a warning
@@ -221,12 +222,14 @@ defmodule BambooHR.Scheduling do
       are joined with commas. `:start` and `:end` are ISO-8601
       date-times; a `Date` or `NaiveDateTime` is read as UTC. A `Date`
       as `:start` means the start of that day, and as `:end` the end of
-      it (`23:59:59`) in UTC, so the last day is included. For a
-      schedule in another zone that UTC end-of-day falls earlier in the
-      local day, so pass a zoned `DateTime` to cover the local one. Pass
-      `nil` in `:employee_ids` to include unassigned (open) shifts.
+      it (`23:59:59`) in UTC, so the last day is included. In another
+      zone, `23:59:59` UTC falls earlier in the local day, so pass a
+      zoned `DateTime` to cover the whole local day. Pass
+      `nil` in the `:employee_ids` list, e.g. `[123, nil]`, to include
+      unassigned (open) shifts; a bare `nil` means no filter.
       `:statuses` takes lowercase values: `"planned"`, `"published"`,
-      `"cancelled"`, `"deleted"`.
+      `"cancelled"`, `"deleted"`. Without it, BambooHR returns only
+      planned and published shifts.
 
   ## Examples
 
@@ -311,7 +314,12 @@ defmodule BambooHR.Scheduling do
     * `shift_id` - The shift's UUID
     * `changes` - Map of the fields to change: `"name"`, `"color"`,
       `"capacity"`, `"start"`, `"end"`, `"timezone"`, `"employeeIds"`,
-      and the `"recurrence*"` fields
+      and the `"recurrence*"` fields. Two more are about the update
+      itself. `"updatedAt"` is the value you last read for the shift: if
+      someone has changed it since, BambooHR rejects the update and you
+      get a `:conflict` error, so you don't overwrite their change. Leave
+      it out to skip the check. `"unpublishedChanges"` only takes `nil`,
+      which throws away changes waiting to be published
 
   ## Examples
 
@@ -368,13 +376,15 @@ defmodule BambooHR.Scheduling do
   there.
 
   A custom `BambooHR.HTTPClient` has to honour the `:partial_success`
-  option for a `207` to come back as an error. One that ignores it
-  returns `{:ok, result}`, with the failures still in `"failed"`.
+  option for a `207` to come back as an error. One that drops the
+  option, as the behaviour asks for options it does not know, returns
+  `{:ok, result}`, with the failures still in `"failed"`.
 
   ## Parameters
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
-    * `shift_ids` - List of shift UUIDs to publish
+    * `shift_ids` - List of shift IDs to publish: UUIDs, or the composite
+      IDs `list_shifts/2` returns for repeats that do not exist yet
 
   ## Examples
 
