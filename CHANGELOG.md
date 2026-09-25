@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file. See [Keep a
 CHANGELOG](http://keepachangelog.com/) for how to update this file. This project
 adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.0.0](https://github.com/sgerrand/ex_bamboo_hr/compare/v0.6.0...v1.0.0) (2026-09-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* the Client struct's :api_key field is replaced by :auth, holding {:api_key, key} or {:bearer, token}. Passing api_key: to new/1 is unchanged. Code reading client.api_key must read client.auth.
+* the :error payload is a %BambooHR.Error{} struct. Matching on %{status: status} or %{status: status, body: body} keeps working, since the struct has those keys. Code matching %Jason.DecodeError{} or %Req.TransportError{} directly must now match %BambooHR.Error{reason: :decode_error} or %BambooHR.Error{reason: :transport_error}, reading the original exception from :exception.
+* remove Company.get_eins/1
+* Company.get_eins/1 is removed.
+
+### Added
+
+* **breaks:** add the meal and rest break endpoints ([#114](https://github.com/sgerrand/ex_bamboo_hr/issues/114)) ([a5c7913](https://github.com/sgerrand/ex_bamboo_hr/commit/a5c7913b836420effe8bbdbf8b816a7c7a67d17f))
+* **employee:** add the changed employee IDs endpoint ([#109](https://github.com/sgerrand/ex_bamboo_hr/issues/109)) ([16b8332](https://github.com/sgerrand/ex_bamboo_hr/commit/16b8332860199bafa9173c135ec30bf053774846))
+* **employee:** add the cursor-paginated employee list endpoint ([#107](https://github.com/sgerrand/ex_bamboo_hr/issues/107)) ([d262068](https://github.com/sgerrand/ex_bamboo_hr/commit/d262068eb35e4985bba444aa5ddb03fc4f6c235b))
+* remove Company.get_eins/1 ([5f642fd](https://github.com/sgerrand/ex_bamboo_hr/commit/5f642fde3be0098ff229f8cff2cafe0fa3e77f77))
+* replace deprecated endpoints with their current versions ([5f642fd](https://github.com/sgerrand/ex_bamboo_hr/commit/5f642fde3be0098ff229f8cff2cafe0fa3e77f77))
+* return a BambooHR.Error struct from every failure ([#111](https://github.com/sgerrand/ex_bamboo_hr/issues/111)) ([d0843a9](https://github.com/sgerrand/ex_bamboo_hr/commit/d0843a93ddd1a99d60bffede7ed0bc2c67e5e95f))
+* support OAuth 2.0 bearer tokens ([#112](https://github.com/sgerrand/ex_bamboo_hr/issues/112)) ([a93fbd4](https://github.com/sgerrand/ex_bamboo_hr/commit/a93fbd4b65b43e86eea77686a8378ed60d8f3f99))
+* **time-tracking:** add the project and task endpoints ([#116](https://github.com/sgerrand/ex_bamboo_hr/issues/116)) ([e8f2d22](https://github.com/sgerrand/ex_bamboo_hr/commit/e8f2d223d0b519f7270afeff94b6cdbf17ebd006))
+* **time-tracking:** add the REST clock, hour and timesheet endpoints ([#113](https://github.com/sgerrand/ex_bamboo_hr/issues/113)) ([0fdc5f6](https://github.com/sgerrand/ex_bamboo_hr/commit/0fdc5f6130629a5959105ac80d82f6889b6e7883))
+* **webhooks:** add the webhooks endpoints ([#108](https://github.com/sgerrand/ex_bamboo_hr/issues/108)) ([ac21823](https://github.com/sgerrand/ex_bamboo_hr/commit/ac21823b501b8a4f1dd64db42b6a4a6aecbc272b))
+* **webhooks:** add verify_signature/4 for incoming deliveries ([#110](https://github.com/sgerrand/ex_bamboo_hr/issues/110)) ([2c32de4](https://github.com/sgerrand/ex_bamboo_hr/commit/2c32de4bee8aa0b1c1b9d49cd87ad152bd5a2fd1))
+
 ## [0.6.0](https://github.com/sgerrand/ex_bamboo_hr/compare/v0.5.0...v0.6.0) (2026-09-16)
 
 
