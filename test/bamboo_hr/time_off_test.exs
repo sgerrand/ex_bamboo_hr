@@ -987,4 +987,170 @@ defmodule BambooHR.TimeOffTest do
       assert {:ok, nil} = BambooHR.TimeOff.delete_category(config, 4)
     end
   end
+
+  describe "policy assignments" do
+    test "lists an employee's assignments", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/employees/123/time-off/policies",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params == %{"pageSize" => "10"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [%{"id" => 88}]}))
+        end
+      )
+
+      assert {:ok, %{"data" => [%{"id" => 88}]}} =
+               BambooHR.TimeOff.list_policy_assignments(config, 123, page_size: 10)
+    end
+
+    test "lists with no options", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/employees/123/time-off/policies",
+        fn conn ->
+          assert conn.query_string == ""
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} = BambooHR.TimeOff.list_policy_assignments(config, 123)
+    end
+
+    test "assigns a policy and returns what it superseded", %{bypass: bypass, config: config} do
+      response = %{
+        "id" => 91,
+        "supersededAssignments" => [
+          %{"id" => 88, "endDate" => "2024-12-31", "status" => "ACTIVE"}
+        ]
+      }
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/employees/123/time-off/policies",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"policyId" => 12, "effectiveDate" => "2025-01-01"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(201, Jason.encode!(response))
+        end
+      )
+
+      assert {:ok, ^response} =
+               BambooHR.TimeOff.assign_policy(config, 123, %{
+                 "policyId" => 12,
+                 "effectiveDate" => "2025-01-01"
+               })
+    end
+
+    test "does not retry a 500 on assign, since the write may have happened", %{
+      bypass: bypass,
+      config: config
+    } do
+      # expect_once proves a single attempt. A retry would hit a 409 and
+      # hide the fact that the assignment was written.
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/employees/123/time-off/policies",
+        fn conn ->
+          Plug.Conn.resp(conn, 500, "")
+        end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :server_error}} =
+               BambooHR.TimeOff.assign_policy(config, 123, %{
+                 "policyId" => 12,
+                 "effectiveDate" => "2025-01-01"
+               })
+    end
+
+    test "surfaces assigning the same policy and date twice", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/employees/123/time-off/policies",
+        fn conn -> Plug.Conn.resp(conn, 409, "") end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :conflict}} =
+               BambooHR.TimeOff.assign_policy(config, 123, %{
+                 "policyId" => 12,
+                 "effectiveDate" => "2025-01-01"
+               })
+    end
+
+    test "returns a new id when an assignment changes", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/employees/123/time-off/policies/88",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"effectiveDate" => "2024-02-01"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 92, "effectiveDate" => "2024-02-01"}))
+        end
+      )
+
+      assert {:ok, %{"id" => 92}} =
+               BambooHR.TimeOff.update_policy_assignment(config, 123, 88, %{
+                 "effectiveDate" => "2024-02-01"
+               })
+    end
+
+    test "surfaces a superseded assignment id", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/employees/123/time-off/policies/88",
+        fn conn ->
+          Plug.Conn.resp(conn, 422, "")
+        end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :unprocessable_entity}} =
+               BambooHR.TimeOff.update_policy_assignment(config, 123, 88, %{"policyId" => 13})
+    end
+
+    test "unassigns a policy", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "DELETE",
+        "/api/gateway.php/test_company/v1/employees/123/time-off/policies/88",
+        fn conn ->
+          Plug.Conn.resp(conn, 204, "")
+        end
+      )
+
+      assert {:ok, nil} = BambooHR.TimeOff.unassign_policy(config, 123, 88)
+    end
+
+    test "only an unknown employee fails an unassign", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "DELETE",
+        "/api/gateway.php/test_company/v1/employees/123/time-off/policies/88",
+        fn conn ->
+          Plug.Conn.resp(conn, 404, "")
+        end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :not_found}} =
+               BambooHR.TimeOff.unassign_policy(config, 123, 88)
+    end
+  end
 end

@@ -135,8 +135,21 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   schedule rather than merging. Category names are unique across
   disabled and deleted categories too. There is no list-categories
   endpoint in this family; `Metadata.get_time_off_types/2` covers that.
-  Still uncovered in this area: per-employee policy assignments
-  (`/employees/{id}/time-off/policies`).
+  Per-employee policy assignments (`/employees/{id}/time-off/policies`,
+  hyphenated — distinct from the v1.1 underscore endpoint the older
+  `get_employee_policies/2` uses) are `list_policy_assignments/3`,
+  `assign_policy/3`, `update_policy_assignment/4` and
+  `unassign_policy/3`. Named `unassign`, not `delete`, because nothing
+  is deleted: the assignment is end-dated and reappears under a new id.
+  Update also returns a new id. Assign and update silently end or
+  archive other assignments in the category to keep one in force, and
+  archived ones appear only in that response's `supersededAssignments`.
+  A 500 from assign or update usually means the write succeeded but
+  could not be read back; retrying gives 409/422, so check the list
+  instead. The Req retry policy already refuses to retry a POST or PATCH
+  on 500, and a test pins that for `assign_policy/3`. Unassign returns
+  204 even for an assignment id belonging to another employee.
+  Time Off has no uncovered endpoints in the spec after this.
   `BambooHR.Employee` covers single-employee reads and writes, the
   directory, the cursor-paginated `GET /employees` list, and
   `get_changed/3` (`GET /employees/changed`) for sync jobs — feed its
