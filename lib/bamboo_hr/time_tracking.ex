@@ -542,7 +542,8 @@ defmodule BambooHR.TimeTracking do
   The spec gives this endpoint one authentication method, OAuth with
   the `time_tracking:project.write` scope. Every other project and task
   endpoint here also takes an API key, so a client built with
-  `api_key:` may get a `403` from this call alone.
+  `api_key:` may get an auth error from this call alone: `:unauthorized`
+  (`401`) or `:forbidden` (`403`), since the spec lists both.
 
   ## Parameters
 
@@ -590,7 +591,9 @@ defmodule BambooHR.TimeTracking do
 
   Only the fields given are changed, and at least one must be given: an
   empty map is sent as is and comes back as a `422`. Setting
-  `"archived"` hides the project without deleting it.
+  `"archived"` archives the project without deleting it. The spec gives
+  `list_projects/2` no default archived filter, so pass
+  `filter: "archived eq false"` to leave archived projects out.
 
   Renaming to a name another project already has is a `409`
   (`%BambooHR.Error{reason: :conflict}`).

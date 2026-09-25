@@ -241,8 +241,8 @@ clock_out_data = %{
 {:ok, _} = BambooHR.TimeTracking.clock_out(config, 123, clock_out_data)
 
 # Create a project, then a task on it. BambooHR's spec lists OAuth as
-# the only way in for this one endpoint, so an API key may get a 403;
-# a bearer-token config avoids that.
+# the only way in for this one endpoint, so an API key may get a 401 or
+# 403. Use a bearer token that has the time_tracking:project.write scope.
 oauth_config =
   BambooHR.Client.new(company_domain: "your_company", auth: {:bearer, "your_access_token"})
 
