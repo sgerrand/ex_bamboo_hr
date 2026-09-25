@@ -750,8 +750,8 @@ defmodule BambooHR.TimeTrackingTest do
   end
 
   describe "project tasks" do
-    test "sends no statuses by default", %{bypass: bypass, config: config} do
-      Bypass.expect_once(
+    test "sends no statuses when none are given", %{bypass: bypass, config: config} do
+      Bypass.expect(
         bypass,
         "GET",
         "/api/gateway.php/test_company/v1/time-tracking/projects/3/tasks",
@@ -764,8 +764,10 @@ defmodule BambooHR.TimeTrackingTest do
         end
       )
 
-      assert {:ok, %{"data" => [%{"id" => 7}]}} =
-               BambooHR.TimeTracking.list_project_tasks(config, 3)
+      for opts <- [[], [statuses: []], [statuses: nil]] do
+        assert {:ok, %{"data" => [%{"id" => 7}]}} =
+                 BambooHR.TimeTracking.list_project_tasks(config, 3, opts)
+      end
     end
 
     test "sends statuses as repeated params", %{bypass: bypass, config: config} do
@@ -841,42 +843,6 @@ defmodule BambooHR.TimeTrackingTest do
                  filter: "billable eq true",
                  sort: "name"
                )
-    end
-
-    test "sends no status for an empty list", %{bypass: bypass, config: config} do
-      Bypass.expect_once(
-        bypass,
-        "GET",
-        "/api/gateway.php/test_company/v1/time-tracking/projects/3/tasks",
-        fn conn ->
-          assert conn.query_string == ""
-
-          conn
-          |> Plug.Conn.put_resp_header("content-type", "application/json")
-          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
-        end
-      )
-
-      assert {:ok, %{"data" => []}} =
-               BambooHR.TimeTracking.list_project_tasks(config, 3, statuses: [])
-    end
-
-    test "sends no status for nil", %{bypass: bypass, config: config} do
-      Bypass.expect_once(
-        bypass,
-        "GET",
-        "/api/gateway.php/test_company/v1/time-tracking/projects/3/tasks",
-        fn conn ->
-          assert conn.query_string == ""
-
-          conn
-          |> Plug.Conn.put_resp_header("content-type", "application/json")
-          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
-        end
-      )
-
-      assert {:ok, %{"data" => []}} =
-               BambooHR.TimeTracking.list_project_tasks(config, 3, statuses: nil)
     end
 
     test "creates a task", %{bypass: bypass, config: config} do
