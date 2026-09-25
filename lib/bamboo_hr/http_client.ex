@@ -34,7 +34,8 @@ defmodule BambooHR.HTTPClient do
       Useful for endpoints that return no body and communicate their
       result through a header instead — e.g. `POST /employees`, whose
       `Location` header is the only way to identify the created employee.
-    * `:partial_success` — a map of 2xx status to `BambooHR.Error`
+    * `:partial_success` — a map (or a list of `{status, reason}` pairs)
+      of 2xx status to `BambooHR.Error`
       reason, e.g. `%{207 => :partial_publish}`. A response with one of
       those statuses comes back as `{:error, error}`, built with
       `BambooHR.Error.from_partial_success/4` from the raw body and

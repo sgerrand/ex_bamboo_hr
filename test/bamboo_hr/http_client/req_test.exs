@@ -191,7 +191,7 @@ defmodule BambooHR.HTTPClient.ReqTest do
                )
     end
 
-    test "accepts partial_success as a keyword list", %{bypass: bypass, config: config} do
+    test "accepts partial_success as a list of pairs", %{bypass: bypass, config: config} do
       Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
         Plug.Conn.resp(conn, 207, "{}")
       end)
@@ -200,6 +200,16 @@ defmodule BambooHR.HTTPClient.ReqTest do
                BambooHR.Client.post("/publish", config,
                  partial_success: [{207, :partial_publish}]
                )
+    end
+
+    test "treats partial_success: nil as none", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(207, "{}")
+      end)
+
+      assert {:ok, %{}} = BambooHR.Client.post("/publish", config, partial_success: nil)
     end
 
     test "leaves a 2xx status that is not listed as success", %{bypass: bypass, config: config} do
