@@ -51,7 +51,8 @@ This is an Elixir client library for the BambooHR API, published as `bamboo_hr` 
 **Dependency flow:**
 
 ```text
-Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / TimeOff / TimeTracking  (resource modules)
+Company / Datasets / Employee / Files / Hiring / Metadata /      (resource modules)
+Reports / Scheduling / Tables / TimeOff / TimeTracking
          ↓
       BambooHR.Client                          (HTTP routing + auth)
          ↓
@@ -94,15 +95,21 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   whatever `:expose_headers` says, so it keeps the `X-Request-ID`.
   `:partial_success` is handled in `HTTPClient.Req`, not in the resource
   module, so the telemetry span records it as an error and the error
-  keeps the raw body.
+  keeps the raw body. It applies to 2xx statuses only, and takes a map
+  or a keyword list.
+  An implementation must drop options it does not recognise rather than
+  pass them on, because Req raises on an unknown option. Adding an
+  option to the behaviour relies on this, so call it out in the commit
+  message. `CHANGELOG.md` is generated from commit messages by
+  release-please, so don't edit it by hand.
   `BambooHR.HTTPClient.Req` is the default implementation; tests use
   Bypass (a real local HTTP server) rather than mocking the behaviour.
 - `BambooHR.Company`, `BambooHR.Datasets`, `BambooHR.Employee`,
   `BambooHR.Files`, `BambooHR.Hiring`, `BambooHR.Metadata`,
-  `BambooHR.Reports`, `BambooHR.Tables`, `BambooHR.TimeOff`,
-  `BambooHR.TimeTracking` — Resource modules that delegate to
-  `Client.get/3`, `Client.post/3`, `Client.patch/3`, `Client.put/3`, or
-  `Client.delete/3`.
+  `BambooHR.Reports`, `BambooHR.Scheduling`, `BambooHR.Tables`,
+  `BambooHR.TimeOff`, `BambooHR.TimeTracking` — Resource modules that
+  delegate to `Client.get/3`, `Client.post/3`, `Client.patch/3`,
+  `Client.put/3`, or `Client.delete/3`.
   All public functions return `{:ok, data} | {:error, reason}`. `data` is
   the decoded JSON body — usually a map, occasionally `nil` (empty 2xx
   body) or a list/scalar.
@@ -225,7 +232,10 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `future`, `all` for `recurrenceEditOption`). `color` is 6 hex digits
   with no `#`. A publish failure is keyed `shiftId`, not `id`.
   `update_shift/3` needs `recurrenceEditOption` when the shift already
-  repeats.
+  repeats. It also takes `updatedAt` as an optimistic-concurrency check
+  (a stale value gives `:conflict`). `list_shifts/2` returns only planned
+  and published shifts unless `:statuses` says otherwise. A bare
+  `employee_ids: nil` means no filter; `[nil]` means unassigned shifts.
   Shift `start` and `end` are UTC; `timezone` is a separate field for
   display. `format_value/1` turns a `DateTime`, `NaiveDateTime` or
   `Date` into an ISO-8601 date-time in whole seconds. Without it, Req
