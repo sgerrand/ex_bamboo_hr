@@ -44,6 +44,9 @@ defmodule BambooHR.Error do
     * `:transport_error` - the request never completed (connection
       refused, timeout, DNS failure)
     * `:decode_error` - a 2xx response whose body was not valid JSON
+    * `:partial_publish` - a `207` from
+      `BambooHR.Scheduling.publish_shifts/2`: some shifts published and
+      some did not. `:body` holds both lists, as BambooHR sent them
 
   This struct is also an exception, so `raise error` and
   `Exception.message/1` work on it. The client itself never raises.
@@ -65,6 +68,7 @@ defmodule BambooHR.Error do
           | :http_error
           | :transport_error
           | :decode_error
+          | :partial_publish
 
   @type t :: %__MODULE__{
           reason: reason(),
@@ -110,6 +114,18 @@ defmodule BambooHR.Error do
   end
 
   @doc """
+  Builds an error from a 2xx response that reports partial success.
+
+  A 2xx like this is not a clean success, so the caller asks for it to
+  be treated as an error (see the `:partial_success` option in
+  `BambooHR.HTTPClient`) and names the `reason`.
+  """
+  @spec from_partial_success(reason(), non_neg_integer(), binary() | nil, map()) :: t()
+  def from_partial_success(reason, status, body, headers \\ %{}) do
+    %{from_response(status, body, headers) | reason: reason}
+  end
+
+  @doc """
   Builds an error from a request that never produced a response.
   """
   @spec from_exception(Exception.t()) :: t()
@@ -119,12 +135,14 @@ defmodule BambooHR.Error do
 
   @doc """
   Builds an error from a 2xx response whose body was not valid JSON.
+
+  `status` is the 2xx status that came back; it defaults to `200`.
   """
-  @spec from_decode_error(Exception.t(), binary(), map()) :: t()
-  def from_decode_error(exception, body, headers \\ %{}) do
+  @spec from_decode_error(Exception.t(), binary(), map(), non_neg_integer()) :: t()
+  def from_decode_error(exception, body, headers \\ %{}, status \\ 200) do
     %__MODULE__{
       reason: :decode_error,
-      status: 200,
+      status: status,
       body: body,
       exception: exception,
       request_id: header(headers, [@request_id_header])

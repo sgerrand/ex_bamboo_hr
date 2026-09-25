@@ -7,8 +7,12 @@ defmodule BambooHR.HTTPClient do
   (where `decoded_body` is the JSON-decoded payload, or `nil` for an empty
   body) or `{:error, %BambooHR.Error{}}` otherwise. `BambooHR.Error` has
   constructors for each failure kind — `from_response/3`,
-  `from_exception/1`, and `from_decode_error/3`. See
-  `t:BambooHR.Client.response/0` for the full shape.
+  `from_exception/1`, `from_decode_error/4`, and `from_partial_success/4`.
+  See `t:BambooHR.Client.response/0` for the full shape.
+
+  New options can be added to the list below. An implementation must
+  drop any option it does not recognise rather than pass it on — `Req`,
+  for one, raises on an option it does not know.
 
   ## Options passed to `request/1`
 
@@ -30,6 +34,13 @@ defmodule BambooHR.HTTPClient do
       Useful for endpoints that return no body and communicate their
       result through a header instead — e.g. `POST /employees`, whose
       `Location` header is the only way to identify the created employee.
+    * `:partial_success` — a map of 2xx status to `BambooHR.Error`
+      reason, e.g. `%{207 => :partial_publish}`. A response with one of
+      those statuses comes back as `{:error, error}`, built with
+      `BambooHR.Error.from_partial_success/4` from the raw body and
+      headers. Defaults to `%{}`. Needed where a 2xx is not a clean
+      success — e.g. `POST /scheduling/shifts/publish`, which answers
+      `207` when only some shifts published.
     * `:raw_response` — when `true`, a 2xx response body is returned as-is
       instead of being JSON-decoded. Defaults to `false`. Required for
       binary downloads (e.g. file content), which are not JSON. Composes
