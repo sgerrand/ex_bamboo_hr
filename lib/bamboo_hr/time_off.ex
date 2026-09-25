@@ -19,8 +19,12 @@ defmodule BambooHR.TimeOff do
   request as a resource: `list_requests/2`, `create_request/2`,
   `get_request/3`, `update_request/4`, the decisions `approve_request/3`,
   `deny_request/3` and `cancel_request/2`, and comments. `list_whos_out/4`
-  belongs with them, as do policies (`list_policies/2` and friends) and
-  categories (`create_category/2` and friends). They page with `:page` and `:page_size` and filter
+  belongs with them, as do policies (`list_policies/2` and friends),
+  categories (`create_category/2` and friends), and per-employee policy
+  assignments (`list_policy_assignments/3`, `assign_policy/3`,
+  `update_policy_assignment/4`, `unassign_policy/3`). The older
+  `get_employee_policies/2` and `assign_employee_policies/3` work on the
+  same assignments in bulk. They page with `:page` and `:page_size` and filter
   with an OData-style `:filter` string, and the request list sorts with
   `:order_by`.
 
@@ -32,6 +36,15 @@ defmodule BambooHR.TimeOff do
   and restarts its approval workflow. **The response carries a new id**,
   and the old id returns a `410` error — reason `:gone` — from then on.
   Always keep the id from the latest response. See `update_request/4`.
+  Policy assignments behave the same way: `update_policy_assignment/4`
+  and `unassign_policy/3` both leave the assignment under a new id.
+
+  ## A 500 is not always a failure
+
+  `assign_policy/3` and `update_policy_assignment/4` can answer `500`
+  after the change has been written, when BambooHR cannot read it back.
+  Retrying then fails with a `409` or `422`. After a `500` from either,
+  check `list_policy_assignments/3` before doing anything else.
 
   ## Deletes that cascade
 
@@ -874,6 +887,157 @@ defmodule BambooHR.TimeOff do
   @spec delete_category(Client.t(), integer()) :: Client.response()
   def delete_category(client, category_id) when is_integer(category_id) do
     Client.delete("/time-off/categories/#{category_id}", client)
+  end
+
+  @doc """
+  Lists the time off policy assignments an employee currently holds,
+  most recent effective date first.
+
+  Only active assignments are listed. One can still carry an `"endDate"`
+  in the past: it was in force up to that date and still counts towards
+  historical accrual. Archived and superseded assignments are not listed
+  here, or anywhere else — see `assign_policy/3`.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `employee_id` - The employee's ID
+    * `opts` - Optional keyword list: `:filter`, `:page`, `:page_size`
+      (defaults to 50)
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.list_policy_assignments(client, 123)
+      {:ok, %{
+        "data" => [%{"id" => 88, "policyId" => 12, "effectiveDate" => "2024-01-01", "endDate" => nil}],
+        "meta" => %{"page" => 1, "pageSize" => 50, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_policy_assignments(Client.t(), integer(), keyword()) :: Client.response()
+  def list_policy_assignments(client, employee_id, opts \\ []) when is_integer(employee_id) do
+    Client.get("/employees/#{employee_id}/time-off/policies", client,
+      params: rest_params(opts, filter: "filter", page: "page", page_size: "pageSize")
+    )
+  end
+
+  @doc """
+  Assigns a time off policy to an employee from a given date.
+
+  An employee holds at most one assignment per category at a time, and
+  BambooHR keeps that true **by changing other assignments rather than
+  refusing**: one in the same category that is in force on
+  `"effectiveDate"` is ended the day before, and any that start on or
+  after it are archived. Neither is an error.
+
+  Everything changed that way comes back in `"supersededAssignments"`.
+  **This response is the only place archived assignments appear** — they
+  are not listed by `list_policy_assignments/3` — so keep them if you
+  need a record. Accruals for the category are recalculated from the
+  effective date.
+
+  Assigning a policy the employee already holds with the same date
+  returns a `409` error. `"effectiveDate"` cannot precede the employee's
+  hire date, and `"endDate"` is not accepted: an assignment ends only
+  when it is unassigned or superseded.
+
+  **A `500` error here usually means the assignment was written** but
+  could not be read back. Check with `list_policy_assignments/3` rather
+  than retrying — a retry returns a `409`.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `employee_id` - The employee's ID
+    * `assignment_data` - Map with `"policyId"` and `"effectiveDate"`
+      (`YYYY-MM-DD`)
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.assign_policy(client, 123, %{"policyId" => 12, "effectiveDate" => "2025-01-01"})
+      {:ok, %{
+        "id" => 91,
+        "policyId" => 12,
+        "supersededAssignments" => [%{"id" => 88, "endDate" => "2024-12-31", "status" => "ACTIVE"}]
+      }}
+  """
+  @spec assign_policy(Client.t(), integer(), map()) :: Client.response()
+  def assign_policy(client, employee_id, assignment_data)
+      when is_integer(employee_id) and is_map(assignment_data) do
+    Client.post("/employees/#{employee_id}/time-off/policies", client, json: assignment_data)
+  end
+
+  @doc """
+  Changes the policy or effective date of an employee's assignment.
+
+  At least one of `"policyId"` and `"effectiveDate"` must be sent. A new
+  `"policyId"` has to be in the same category; moving to another
+  category is a new assignment, made with `assign_policy/3`.
+
+  **The response carries a new id whenever anything changed.** The
+  assignment you addressed is kept as an audit copy with status
+  `"SUPERSEDED"`, and using its id again returns a `422` error. Other
+  assignments in the category are adjusted to keep one in force at a
+  time, and everything changed comes back in `"supersededAssignments"`,
+  which is the only place archived ones appear.
+
+  Sending the values the assignment already has returns a `409` error.
+
+  **A `500` error here usually means the change was written** but could
+  not be read back. Check with `list_policy_assignments/3` rather than
+  retrying — a retry returns a `422`, because the original id is now
+  superseded.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `employee_id` - The employee's ID
+    * `assignment_id` - The assignment's ID
+    * `changes` - Map with `"policyId"` and/or `"effectiveDate"`
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.update_policy_assignment(client, 123, 88, %{"effectiveDate" => "2024-02-01"})
+      {:ok, %{"id" => 92, "effectiveDate" => "2024-02-01", "supersededAssignments" => [%{"id" => 88, "status" => "SUPERSEDED"}]}}
+  """
+  @spec update_policy_assignment(Client.t(), integer(), integer(), map()) :: Client.response()
+  def update_policy_assignment(client, employee_id, assignment_id, changes)
+      when is_integer(employee_id) and is_integer(assignment_id) and is_map(changes) do
+    Client.patch("/employees/#{employee_id}/time-off/policies/#{assignment_id}", client,
+      json: changes
+    )
+  end
+
+  @doc """
+  Takes a time off policy away from an employee as of today.
+
+  **Nothing is deleted.** The assignment is ended rather than removed, so
+  `list_policy_assignments/3` still returns it afterwards — **under a new
+  id**, with today as its `"endDate"`. Historical balances and requests
+  are kept. A future-dated assignment is ended on its own effective date
+  instead, and leaves no record because it never took effect. Any other
+  assignment in the same category scheduled to start later is ended too,
+  so the employee is not re-enrolled.
+
+  This is idempotent, and very forgiving: it returns `{:ok, nil}` when
+  the assignment id does not exist, **belongs to a different employee**,
+  or is already ended. Only an unknown employee is an error. So a success
+  here does not confirm anything changed.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `employee_id` - The employee's ID
+    * `assignment_id` - The assignment's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.unassign_policy(client, 123, 88)
+      {:ok, nil}
+  """
+  @spec unassign_policy(Client.t(), integer(), integer()) :: Client.response()
+  def unassign_policy(client, employee_id, assignment_id)
+      when is_integer(employee_id) and is_integer(assignment_id) do
+    Client.delete("/employees/#{employee_id}/time-off/policies/#{assignment_id}", client)
   end
 
   # Maps keyword options onto the query parameter names the newer
