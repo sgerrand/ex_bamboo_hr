@@ -30,6 +30,7 @@ defmodule BambooHR.HTTPClient.Req do
     {expose_headers, opts} = Keyword.pop(opts, :expose_headers, false)
     {raw_response, opts} = Keyword.pop(opts, :raw_response, false)
     {partial_success, opts} = Keyword.pop(opts, :partial_success, %{})
+    partial_success = Map.new(partial_success)
 
     opts =
       opts
@@ -37,8 +38,10 @@ defmodule BambooHR.HTTPClient.Req do
       |> Keyword.put_new(:retry, &__MODULE__.retry?/2)
 
     case Req.request(opts) do
+      # Only a 2xx can be a partial success; a listed 4xx or 5xx keeps its
+      # usual reason.
       {:ok, %{status: status, body: body, headers: headers}}
-      when is_map_key(partial_success, status) ->
+      when status in 200..299 and is_map_key(partial_success, status) ->
         reason = Map.fetch!(partial_success, status)
         {:error, BambooHR.Error.from_partial_success(reason, status, body, headers)}
 
