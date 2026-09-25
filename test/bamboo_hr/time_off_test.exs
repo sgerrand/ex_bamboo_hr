@@ -741,4 +741,250 @@ defmodule BambooHR.TimeOffTest do
                BambooHR.TimeOff.list_whos_out(config, "2024-01-01", "2025-06-01")
     end
   end
+
+  describe "time off policies" do
+    test "lists policies", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-off/policies",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params == %{"filter" => "categoryId eq 4", "orderBy" => "name asc"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [%{"id" => 12}]}))
+        end
+      )
+
+      assert {:ok, %{"data" => [%{"id" => 12}]}} =
+               BambooHR.TimeOff.list_policies(config,
+                 filter: "categoryId eq 4",
+                 order_by: "name asc"
+               )
+    end
+
+    test "creates a policy", %{bypass: bypass, config: config} do
+      policy_data = %{"name" => "Unlimited PTO", "categoryId" => 4, "type" => "unlimited"}
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-off/policies",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == policy_data
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(201, Jason.encode!(%{"id" => 12}))
+        end
+      )
+
+      assert {:ok, %{"id" => 12}} = BambooHR.TimeOff.create_policy(config, policy_data)
+    end
+
+    test "retrieves a policy", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-off/policies/12",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 12, "assignedEmployeeCount" => 40}))
+        end
+      )
+
+      assert {:ok, %{"assignedEmployeeCount" => 40}} = BambooHR.TimeOff.get_policy(config, 12)
+    end
+
+    test "replaces the accrual schedule on update", %{bypass: bypass, config: config} do
+      version = %{"effectiveDate" => "2025-01-01", "milestones" => []}
+
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-off/policies/12",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"version" => version}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 12}))
+        end
+      )
+
+      assert {:ok, %{"id" => 12}} =
+               BambooHR.TimeOff.update_policy(config, 12, %{"version" => version})
+    end
+
+    test "surfaces an attempt to change the policy type", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-off/policies/12",
+        fn conn ->
+          Plug.Conn.resp(conn, 422, "")
+        end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :unprocessable_entity}} =
+               BambooHR.TimeOff.update_policy(config, 12, %{"type" => "manual"})
+    end
+
+    test "deletes a policy", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "DELETE",
+        "/api/gateway.php/test_company/v1/time-off/policies/12",
+        fn conn ->
+          Plug.Conn.resp(conn, 204, "")
+        end
+      )
+
+      assert {:ok, nil} = BambooHR.TimeOff.delete_policy(config, 12)
+    end
+
+    test "lists a policy's versions", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-off/policies/12/versions",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params == %{"pageSize" => "10"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [%{"id" => 30}]}))
+        end
+      )
+
+      assert {:ok, %{"data" => [%{"id" => 30}]}} =
+               BambooHR.TimeOff.list_policy_versions(config, 12, page_size: 10)
+    end
+
+    test "lists versions with no options", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-off/policies/12/versions",
+        fn conn ->
+          assert conn.query_string == ""
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} = BambooHR.TimeOff.list_policy_versions(config, 12)
+    end
+
+    test "lists policies with no options", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-off/policies",
+        fn conn ->
+          assert conn.query_string == ""
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, %{"data" => []}} = BambooHR.TimeOff.list_policies(config)
+    end
+  end
+
+  describe "time off categories" do
+    test "creates a category", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-off/categories",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"name" => "Vacation", "unit" => "hours"}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(201, Jason.encode!(%{"id" => 4, "enabled" => true}))
+        end
+      )
+
+      assert {:ok, %{"id" => 4}} =
+               BambooHR.TimeOff.create_category(config, %{"name" => "Vacation", "unit" => "hours"})
+    end
+
+    test "surfaces a name held by a deleted category", %{bypass: bypass, config: config} do
+      body = Jason.encode!(%{"conflictingCategoryId" => 2})
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/time-off/categories",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(409, body)
+        end
+      )
+
+      assert {:error, %BambooHR.Error{reason: :conflict, body: ^body}} =
+               BambooHR.TimeOff.create_category(config, %{"name" => "Vacation", "unit" => "hours"})
+    end
+
+    test "retrieves a category", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/time-off/categories/4",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 4, "enabled" => false}))
+        end
+      )
+
+      assert {:ok, %{"enabled" => false}} = BambooHR.TimeOff.get_category(config, 4)
+    end
+
+    test "changes a category's unit with hoursPerDay", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "PATCH",
+        "/api/gateway.php/test_company/v1/time-off/categories/4",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body) == %{"unit" => "days", "hoursPerDay" => 8}
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => 4, "unit" => "days"}))
+        end
+      )
+
+      assert {:ok, %{"unit" => "days"}} =
+               BambooHR.TimeOff.update_category(config, 4, %{"unit" => "days", "hoursPerDay" => 8})
+    end
+
+    test "deletes a category", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "DELETE",
+        "/api/gateway.php/test_company/v1/time-off/categories/4",
+        fn conn ->
+          Plug.Conn.resp(conn, 204, "")
+        end
+      )
+
+      assert {:ok, nil} = BambooHR.TimeOff.delete_category(config, 4)
+    end
+  end
 end

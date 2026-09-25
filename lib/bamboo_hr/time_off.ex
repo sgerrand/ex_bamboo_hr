@@ -19,7 +19,8 @@ defmodule BambooHR.TimeOff do
   request as a resource: `list_requests/2`, `create_request/2`,
   `get_request/3`, `update_request/4`, the decisions `approve_request/3`,
   `deny_request/3` and `cancel_request/2`, and comments. `list_whos_out/4`
-  belongs with them. They page with `:page` and `:page_size` and filter
+  belongs with them, as do policies (`list_policies/2` and friends) and
+  categories (`create_category/2` and friends). They page with `:page` and `:page_size` and filter
   with an OData-style `:filter` string, and the request list sorts with
   `:order_by`.
 
@@ -31,6 +32,14 @@ defmodule BambooHR.TimeOff do
   and restarts its approval workflow. **The response carries a new id**,
   and the old id returns a `410` error — reason `:gone` — from then on.
   Always keep the id from the latest response. See `update_request/4`.
+
+  ## Deletes that cascade
+
+  `delete_policy/2` unassigns every employee on the policy, and
+  `delete_category/2` deletes every policy in the category along with
+  their assignments. Neither refuses a policy or category still in use.
+  To retire a category without that, disable it with
+  `update_category/3` instead.
   """
 
   alias BambooHR.Client
@@ -594,6 +603,277 @@ defmodule BambooHR.TimeOff do
         )
 
     Client.get("/whos-out", client, params: params)
+  end
+
+  @doc """
+  Lists time off policies, one page at a time.
+
+  Each accruing policy carries its currently effective accrual schedule,
+  with milestones, in `"currentVersion"`. Unlimited and manual policies
+  have none.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `opts` - Optional keyword list: `:filter`, `:order_by`, `:page`,
+      `:page_size` (defaults to 50)
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.list_policies(client, filter: "categoryId eq 4")
+      {:ok, %{
+        "data" => [%{"id" => 12, "name" => "Standard PTO", "type" => "accruing", "categoryId" => 4}],
+        "meta" => %{"page" => 1, "pageSize" => 50, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_policies(Client.t(), keyword()) :: Client.response()
+  def list_policies(client, opts \\ []) do
+    Client.get("/time-off/policies", client,
+      params:
+        rest_params(opts,
+          filter: "filter",
+          order_by: "orderBy",
+          page: "page",
+          page_size: "pageSize"
+        )
+    )
+  end
+
+  @doc """
+  Creates a time off policy.
+
+  An accruing policy needs its initial accrual schedule, with milestones,
+  in `"version"`. Unlimited and manual policies take no version. A policy
+  with the same name already in the category returns a `409` error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `policy_data` - Map with `"name"`, `"categoryId"` and `"type"`, and
+      `"version"` for an accruing policy
+
+  ## Examples
+
+      iex> policy_data = %{"name" => "Unlimited PTO", "categoryId" => 4, "type" => "unlimited"}
+      iex> BambooHR.TimeOff.create_policy(client, policy_data)
+      {:ok, %{"id" => 12, "name" => "Unlimited PTO", "type" => "unlimited"}}
+  """
+  @spec create_policy(Client.t(), map()) :: Client.response()
+  def create_policy(client, policy_data) when is_map(policy_data) do
+    Client.post("/time-off/policies", client, json: policy_data)
+  end
+
+  @doc """
+  Retrieves a time off policy, with its current accrual schedule inlined
+  for an accruing policy.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `policy_id` - The policy's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.get_policy(client, 12)
+      {:ok, %{"id" => 12, "name" => "Standard PTO", "assignedEmployeeCount" => 40}}
+  """
+  @spec get_policy(Client.t(), integer()) :: Client.response()
+  def get_policy(client, policy_id) when is_integer(policy_id) do
+    Client.get("/time-off/policies/#{policy_id}", client)
+  end
+
+  @doc """
+  Updates a time off policy's name or accrual schedule.
+
+  Only `"name"` and `"version"` can be changed; trying to change
+  `"type"` or `"categoryId"` returns a `422` error.
+
+  **Sending a `"version"` replaces the whole accrual schedule**, the same
+  as Edit Schedule in the BambooHR app: overlapping versions are archived
+  and a new one is created. It is not merged with the current schedule,
+  so send the complete schedule you want. `list_policy_versions/3` shows
+  the history.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `policy_id` - The policy's ID
+    * `changes` - Map with `"name"` and/or `"version"`
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.update_policy(client, 12, %{"name" => "Standard PTO (2025)"})
+      {:ok, %{"id" => 12, "name" => "Standard PTO (2025)"}}
+  """
+  @spec update_policy(Client.t(), integer(), map()) :: Client.response()
+  def update_policy(client, policy_id, changes)
+      when is_integer(policy_id) and is_map(changes) do
+    Client.patch("/time-off/policies/#{policy_id}", client, json: changes)
+  end
+
+  @doc """
+  Deletes a time off policy.
+
+  **Every employee assigned to the policy is unassigned as part of the
+  delete.** BambooHR does not refuse to delete a policy that is still in
+  use — there is no conflict response — so check
+  `"assignedEmployeeCount"` from `get_policy/2` first if that matters.
+  Historical balances and requests tied to the policy are kept.
+
+  Deletion is idempotent, so `{:ok, nil}` does not prove the policy
+  existed. On success, returns `nil` (no response body).
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `policy_id` - The policy's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.delete_policy(client, 12)
+      {:ok, nil}
+  """
+  @spec delete_policy(Client.t(), integer()) :: Client.response()
+  def delete_policy(client, policy_id) when is_integer(policy_id) do
+    Client.delete("/time-off/policies/#{policy_id}", client)
+  end
+
+  @doc """
+  Lists a policy's accrual schedule versions, newest first.
+
+  Includes the current version and superseded ones, each with its
+  milestones. Unlimited and manual policies have no schedule, so they
+  return an empty list.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `policy_id` - The policy's ID
+    * `opts` - Optional keyword list: `:filter`, `:page`, `:page_size`
+      (defaults to 50)
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.list_policy_versions(client, 12)
+      {:ok, %{
+        "data" => [%{"id" => 30, "policyId" => 12, "effectiveDate" => "2025-01-01", "status" => "active"}],
+        "meta" => %{"page" => 1, "pageSize" => 50, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_policy_versions(Client.t(), integer(), keyword()) :: Client.response()
+  def list_policy_versions(client, policy_id, opts \\ []) when is_integer(policy_id) do
+    Client.get("/time-off/policies/#{policy_id}/versions", client,
+      params: rest_params(opts, filter: "filter", page: "page", page_size: "pageSize")
+    )
+  end
+
+  @doc """
+  Creates a time off category.
+
+  Names must be unique across **all** of the company's categories,
+  including disabled and deleted ones. A clash returns a `409` error
+  whose body names the category holding the name.
+
+  There is no endpoint in this family for listing categories;
+  `BambooHR.Metadata.get_time_off_types/2` lists them.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `category_data` - Map with `"name"` and `"unit"`, and optionally
+      `"color"`, `"icon"`, `"paid"`, `"includeInPayroll"`
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.create_category(client, %{"name" => "Vacation", "unit" => "hours"})
+      {:ok, %{"id" => 4, "name" => "Vacation", "unit" => "hours", "enabled" => true}}
+  """
+  @spec create_category(Client.t(), map()) :: Client.response()
+  def create_category(client, category_data) when is_map(category_data) do
+    Client.post("/time-off/categories", client, json: category_data)
+  end
+
+  @doc """
+  Retrieves a time off category.
+
+  A disabled category comes back with `"enabled" => false`; a deleted one
+  returns a `404` error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `category_id` - The category's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.get_category(client, 4)
+      {:ok, %{"id" => 4, "name" => "Vacation", "enabled" => true}}
+  """
+  @spec get_category(Client.t(), integer()) :: Client.response()
+  def get_category(client, category_id) when is_integer(category_id) do
+    Client.get("/time-off/categories/#{category_id}", client)
+  end
+
+  @doc """
+  Updates a time off category.
+
+  Only the fields you pass are changed. Two of them do more than it looks:
+
+    * **Changing `"unit"` converts every existing balance, request and
+      history amount in the category**, and needs `"hoursPerDay"` in the
+      same body to do it. This rewrites historical data.
+    * `"enabled" => false` disables the category and removes it from
+      payroll. Disabling one that is already disabled does nothing.
+
+  Renaming onto a name any other category holds — including disabled and
+  deleted ones — returns a `409` error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `category_id` - The category's ID
+    * `changes` - Map of fields to change: `"name"`, `"unit"`,
+      `"hoursPerDay"`, `"color"`, `"icon"`, `"paid"`,
+      `"includeInPayroll"`, `"enabled"`
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.update_category(client, 4, %{"color" => "#2e7d32"})
+      {:ok, %{"id" => 4, "color" => "#2e7d32"}}
+  """
+  @spec update_category(Client.t(), integer(), map()) :: Client.response()
+  def update_category(client, category_id, changes)
+      when is_integer(category_id) and is_map(changes) do
+    Client.patch("/time-off/categories/#{category_id}", client, json: changes)
+  end
+
+  @doc """
+  Deletes a time off category **and retires everything under it**.
+
+  Every active policy in the category is unassigned from its employees
+  and deleted along with the category, in one call, with no check for
+  whether any of them are still in use. The category is also removed
+  from payroll. Historical balances and requests are kept.
+
+  To take a category out of use without deleting its policies, use
+  `update_category/3` with `"enabled" => false` instead.
+
+  Deletion is idempotent, so `{:ok, nil}` does not prove the category
+  existed. On success, returns `nil` (no response body).
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `category_id` - The category's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.delete_category(client, 4)
+      {:ok, nil}
+  """
+  @spec delete_category(Client.t(), integer()) :: Client.response()
+  def delete_category(client, category_id) when is_integer(category_id) do
+    Client.delete("/time-off/categories/#{category_id}", client)
   end
 
   # Maps keyword options onto the query parameter names the newer
