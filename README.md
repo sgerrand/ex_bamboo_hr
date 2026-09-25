@@ -39,7 +39,7 @@ The library is organized into several modules, each representing different API r
 - `BambooHR.Company` - Company information and EINs
 - `BambooHR.Employee` - Employee management
 - `BambooHR.Metadata` - Field, tabular, and list field metadata
-- `BambooHR.TimeTracking` - Time entries and timesheets
+- `BambooHR.TimeTracking` - Time entries, timesheets, projects and tasks
 
 ### Examples
 
@@ -239,6 +239,28 @@ clock_out_data = %{
   "timezone" => "America/New_York"
 }
 {:ok, _} = BambooHR.TimeTracking.clock_out(config, 123, clock_out_data)
+
+# Create a project, then a task on it. BambooHR's spec lists OAuth as
+# the only way in for this one endpoint, so an API key may get a 401 or
+# 403. Use a bearer token that has the time_tracking:project.write scope.
+oauth_config =
+  BambooHR.Client.new(company_domain: "your_company", auth: {:bearer, "your_access_token"})
+
+{:ok, project} =
+  BambooHR.TimeTracking.create_project(oauth_config, %{
+    "name" => "Website rebuild",
+    "billable" => true,
+    "employeeIds" => [123]
+  })
+
+{:ok, _task} =
+  BambooHR.TimeTracking.create_project_task(config, project["id"], %{"name" => "Design"})
+
+# List a project's tasks, deleted ones included
+{:ok, _page} =
+  BambooHR.TimeTracking.list_project_tasks(config, project["id"],
+    statuses: ["active", "deleted"]
+  )
 ```
 
 ## Development
