@@ -7,8 +7,12 @@ defmodule BambooHR.HTTPClient do
   (where `decoded_body` is the JSON-decoded payload, or `nil` for an empty
   body) or `{:error, %BambooHR.Error{}}` otherwise. `BambooHR.Error` has
   constructors for each failure kind — `from_response/3`,
-  `from_exception/1`, and `from_decode_error/3`. See
-  `t:BambooHR.Client.response/0` for the full shape.
+  `from_exception/1`, `from_decode_error/4`, and `from_partial_success/4`.
+  See `t:BambooHR.Client.response/0` for the full shape.
+
+  New options can be added to the list below. An implementation must
+  drop any option it does not recognise rather than pass it on — `Req`,
+  for one, raises on an option it does not know.
 
   ## Options passed to `request/1`
 
