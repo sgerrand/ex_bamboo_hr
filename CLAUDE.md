@@ -215,11 +215,13 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   endpoint is like that. BambooHR renders the PDF on request, so a big
   schedule can take longer than the 15s default timeout. A failed render
   returns `500`. A `GET` retries both, and each retry renders again.
-  So `get_schedule_pdf/5` passes `retry: false` on to the HTTP client.
-  It passes on no other request option: Req raises on a value it does
-  not accept, and it only checks `:retry` after the response is in.
-  Any other `:retry` value, or any unknown option, is dropped with a
-  `Logger.warning`, so a typo is easy to find.
+  So `get_schedule_pdf/5` defaults to `retry: false`. A caller can pass
+  any `:retry` value Req accepts (`false`, `:safe_transient`,
+  `:transient`, or a 2-arity function). No other request option is
+  passed on: Req raises on a value it does not accept, and it only
+  checks `:retry` after the response is in. Any other `:retry` value, or
+  any unknown option, is dropped with a `Logger.warning`, so a typo is
+  easy to find.
   The PDF wants repeated `employeeIds[]` params, not a comma-joined
   list. Plug parses the `[]` suffix back into a list, which is what the
   test checks. The PDF window takes a `Date` as well as a string.
