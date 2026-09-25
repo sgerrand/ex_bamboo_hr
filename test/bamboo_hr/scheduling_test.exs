@@ -629,6 +629,51 @@ defmodule BambooHR.SchedulingTest do
                )
     end
 
+    test "does not retry a failed render by default", %{bypass: bypass, config: config} do
+      # Bypass.expect_once fails the test on a second request.
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn -> Plug.Conn.resp(conn, 500, "Failed to render PDF") end
+      )
+
+      assert {:error, %BambooHR.Error{status: 500}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07"
+               )
+    end
+
+    test "passes a retry function Req accepts on to Req", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn -> Plug.Conn.resp(conn, 500, "Failed to render PDF") end
+      )
+
+      test_pid = self()
+
+      retry = fn _request, _response ->
+        send(test_pid, :retry_called)
+        false
+      end
+
+      assert {:error, %BambooHR.Error{status: 500}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07",
+                 retry: retry
+               )
+
+      assert_received :retry_called
+    end
+
     test "drops a retry value other than false, with a warning", %{
       bypass: bypass,
       config: config
