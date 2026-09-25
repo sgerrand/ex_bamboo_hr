@@ -125,9 +125,18 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   reason. Date changes need `dailyAmounts` in the same body; create
   takes exactly one of `amount`/`dailyAmounts`. `rest_params/2` drops
   nil and false options, which matches every parameter's default here.
-  Still uncovered in this area: time off policies, categories and
-  per-employee policy assignments (`/time-off/policies`,
-  `/time-off/categories`, `/employees/{id}/time-off/policies`).
+  Policies and categories are in the new family too. Their deletes
+  cascade with no conflict check: `delete_policy/2` unassigns every
+  employee on it, and `delete_category/2` deletes every policy in the
+  category with their assignments — disabling a category via
+  `update_category/3` is the non-destructive alternative. Changing a
+  category's `unit` rewrites every historical amount and needs
+  `hoursPerDay`. A policy `version` on update replaces the whole accrual
+  schedule rather than merging. Category names are unique across
+  disabled and deleted categories too. There is no list-categories
+  endpoint in this family; `Metadata.get_time_off_types/2` covers that.
+  Still uncovered in this area: per-employee policy assignments
+  (`/employees/{id}/time-off/policies`).
   `BambooHR.Employee` covers single-employee reads and writes, the
   directory, the cursor-paginated `GET /employees` list, and
   `get_changed/3` (`GET /employees/changed`) for sync jobs — feed its
