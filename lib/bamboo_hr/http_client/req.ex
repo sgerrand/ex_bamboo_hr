@@ -30,7 +30,7 @@ defmodule BambooHR.HTTPClient.Req do
     {expose_headers, opts} = Keyword.pop(opts, :expose_headers, false)
     {raw_response, opts} = Keyword.pop(opts, :raw_response, false)
     {partial_success, opts} = Keyword.pop(opts, :partial_success, %{})
-    partial_success = Map.new(partial_success)
+    partial_success = Map.new(partial_success || %{})
 
     opts =
       opts

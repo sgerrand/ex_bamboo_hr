@@ -95,8 +95,9 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   whatever `:expose_headers` says, so it keeps the `X-Request-ID`.
   `:partial_success` is handled in `HTTPClient.Req`, not in the resource
   module, so the telemetry span records it as an error and the error
-  keeps the raw body. It applies to 2xx statuses only, and takes a map
-  or a keyword list.
+  keeps the raw body. It applies to 2xx statuses only. It takes a map,
+  or a list of `{status, reason}` pairs (not a keyword list: the keys
+  are integers). `nil` means none.
   An implementation must drop options it does not recognise rather than
   pass them on, because Req raises on an unknown option. Adding an
   option to the behaviour relies on this, so call it out in the commit
