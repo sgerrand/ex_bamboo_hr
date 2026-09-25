@@ -181,11 +181,12 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   scope — unverified against the real API, so the docstring warns
   rather than blocking API-key clients. `list_project_tasks/3` sends
   `:statuses` as repeated `statuses[]` params and defaults to active
-  tasks only, though a `deletedAt` predicate in `:filter` overrides
+  tasks only, though a `deletedAt` check in `:filter` overrides
   that default. `update_project/3` takes `"employeeIds"` as a full
   replacement, not an addition. The legacy `POST /time_tracking/projects`
   is deprecated upstream and skipped.
-  Paginated responses report `totalItems` and `totalPages`, not `total`.
+  Paged time tracking responses report `totalItems` and `totalPages`,
+  not `total` (unlike `Employee.list/2`, which returns `meta.total`).
   Remaining uncovered time tracking endpoints: configurations, employee
   enrolments, imports, kiosks, time clocks and shift differentials,
   plus three older bulk ones — `/time_tracking/clock_entries/delete`,

@@ -39,7 +39,7 @@ The library is organized into several modules, each representing different API r
 - `BambooHR.Company` - Company information and EINs
 - `BambooHR.Employee` - Employee management
 - `BambooHR.Metadata` - Field, tabular, and list field metadata
-- `BambooHR.TimeTracking` - Time entries and timesheets
+- `BambooHR.TimeTracking` - Time entries, timesheets, projects and tasks
 
 ### Examples
 
