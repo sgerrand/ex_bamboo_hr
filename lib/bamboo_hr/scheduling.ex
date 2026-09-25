@@ -145,9 +145,10 @@ defmodule BambooHR.Scheduling do
 
   BambooHR renders the PDF on request, so a large schedule can outrun
   the client's default 15s `:timeout`, and a failed render comes back as
-  a `500`. Both are retried on a `GET`, so each attempt costs another
-  render — give this call a client with a longer `:timeout`, and pass
-  `retry: false` in `opts` if one render attempt is enough.
+  a `500`. Each retry would render the PDF again, so this call does not
+  retry by default. For a large schedule, give it a client with a
+  longer `:timeout`. To retry anyway, pass a `:retry` value Req accepts
+  (see below).
 
   ## Parameters
 
@@ -159,8 +160,10 @@ defmodule BambooHR.Scheduling do
       list; put `nil` in it, e.g. `[123, nil]`, to include unassigned
       shifts — a bare `nil` means no filter),
       `:include_employees_without_shifts`, `:include_holidays`,
-      `:include_time_off`, and `retry: false` to turn off retries. Any
-      other key, or any other `:retry` value, is ignored with a warning
+      `:include_time_off`, and `:retry`. `:retry` defaults to `false`,
+      and also takes `:safe_transient`, `:transient`, or a 2-arity
+      function, as Req does. Any other key, or any other `:retry` value,
+      is ignored with a warning
 
   ## Examples
 
@@ -477,24 +480,22 @@ defmodule BambooHR.Scheduling do
       )
   end
 
-  # The only request option passed on is `retry: false`, which turns off
-  # retries for a slow render. Any other value is dropped with a warning,
-  # because Req raises on a value it does not accept, and it only checks
-  # `:retry` once the response is in — after the PDF has been rendered.
+  # The PDF does not retry unless asked: each retry renders it again.
+  # Only the `:retry` values Req accepts are passed on. Req raises on any
+  # other value, and only once the response is in — after the PDF has
+  # been rendered — so anything else is dropped with a warning.
   defp retry_opt(opts) do
-    case Keyword.fetch(opts, :retry) do
-      {:ok, false} ->
-        [retry: false]
+    case Keyword.get(opts, :retry, false) do
+      retry when retry in [false, :safe_transient, :transient] or is_function(retry, 2) ->
+        [retry: retry]
 
-      {:ok, other} ->
+      other ->
         Logger.warning(
-          "BambooHR.Scheduling: ignoring retry: #{inspect(other)}, only false is supported"
+          "BambooHR.Scheduling: ignoring retry: #{inspect(other)}, " <>
+            "expected false, :safe_transient, :transient or a 2-arity function"
         )
 
-        []
-
-      :error ->
-        []
+        [retry: false]
     end
   end
 
