@@ -36,7 +36,8 @@ defmodule BambooHR.Error do
 
     * `:bad_request` (400), `:unauthorized` (401), `:forbidden` (403),
       `:not_found` (404), `:not_acceptable` (406), `:conflict` (409),
-      `:precondition_failed` (412), `:unsupported_media_type` (415),
+      `:gone` (410), `:precondition_failed` (412),
+      `:unsupported_media_type` (415),
       `:unprocessable_entity` (422), `:rate_limited` (429)
     * `:client_error` - any other 4xx
     * `:server_error` - any 5xx
@@ -56,6 +57,7 @@ defmodule BambooHR.Error do
           | :not_found
           | :not_acceptable
           | :conflict
+          | :gone
           | :precondition_failed
           | :unsupported_media_type
           | :unprocessable_entity
@@ -84,6 +86,7 @@ defmodule BambooHR.Error do
     404 => :not_found,
     406 => :not_acceptable,
     409 => :conflict,
+    410 => :gone,
     412 => :precondition_failed,
     415 => :unsupported_media_type,
     422 => :unprocessable_entity,

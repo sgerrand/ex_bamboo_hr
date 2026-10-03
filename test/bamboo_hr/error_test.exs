@@ -12,6 +12,7 @@ defmodule BambooHR.ErrorTest do
             {404, :not_found},
             {406, :not_acceptable},
             {409, :conflict},
+            {410, :gone},
             {412, :precondition_failed},
             {415, :unsupported_media_type},
             {422, :unprocessable_entity},
