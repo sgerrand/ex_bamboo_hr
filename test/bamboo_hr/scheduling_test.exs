@@ -435,10 +435,10 @@ defmodule BambooHR.SchedulingTest do
         bypass,
         "GET",
         "/api/gateway.php/test_company/v1/scheduling/shift-assessments",
-        fn conn -> Plug.Conn.resp(conn, 400, "") end
+        fn conn -> Plug.Conn.resp(conn, 422, "") end
       )
 
-      assert {:error, %BambooHR.Error{reason: :bad_request}} =
+      assert {:error, %BambooHR.Error{reason: :unprocessable_entity}} =
                BambooHR.Scheduling.list_shift_assessments(config)
     end
   end
