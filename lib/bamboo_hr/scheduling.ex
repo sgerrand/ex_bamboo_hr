@@ -477,15 +477,22 @@ defmodule BambooHR.Scheduling do
   # first second. The end of the day, rather than midnight after it, keeps
   # a full calendar month inside BambooHR's one-month limit.
   defp end_of_day_for(opts, key) do
-    case Keyword.fetch(opts, key) do
-      {:ok, %Date{} = date} -> Keyword.put(opts, key, NaiveDateTime.new!(date, ~T[23:59:59]))
-      _ -> opts
+    opts = keyword(opts)
+
+    case List.keyfind(opts, key, 0) do
+      {^key, %Date{} = date} ->
+        List.keystore(opts, key, 0, {key, NaiveDateTime.new!(date, ~T[23:59:59])})
+
+      _ ->
+        opts
     end
   end
 
   # The PDF endpoint takes employeeIds[] as a repeated parameter rather
   # than a comma-separated list, so each ID gets its own entry.
   defp pdf_params(opts) do
+    opts = keyword(opts)
+
     employee_ids =
       for id <- List.wrap(opts[:employee_ids]), do: {"employeeIds[]", format_value(id)}
 
@@ -509,7 +516,7 @@ defmodule BambooHR.Scheduling do
   # other value, and only once the response is in — after the PDF has
   # been rendered — so anything else is dropped with a warning.
   defp retry_opt(opts) do
-    case Keyword.get(opts, :retry, false) do
+    case Keyword.get(keyword(opts), :retry, false) do
       retry when retry in [false, :safe_transient, :transient] or is_function(retry, 2) ->
         [retry: retry]
 
@@ -528,6 +535,7 @@ defmodule BambooHR.Scheduling do
   # empty `ids` as a filter and ignores every other one, and leaving a
   # filter out returns everything. See "Empty lists" in the moduledoc.
   defp build_params(opts, mapping, also_known \\ []) do
+    opts = keyword(opts)
     warn_unknown_opts(opts, Keyword.keys(mapping) ++ also_known)
 
     case for {key, []} <- opts, key != :retry, do: key do
@@ -552,7 +560,7 @@ defmodule BambooHR.Scheduling do
   # like `include_holiday` for `include_holidays`. Public functions must
   # not raise, so say something instead.
   defp warn_unknown_opts(opts, known) do
-    case Keyword.keys(opts) -- known do
+    case for {key, _value} <- opts, key not in known, do: key do
       [] ->
         :ok
 
@@ -560,6 +568,12 @@ defmodule BambooHR.Scheduling do
         Logger.warning("BambooHR.Scheduling: ignoring unknown options #{inspect(unknown)}")
     end
   end
+
+  # Options are a keyword list, but `opts[key]` elsewhere in this client
+  # also reads a map or `nil`, so neither raises here.
+  defp keyword(opts) when is_list(opts), do: opts
+  defp keyword(opts) when is_map(opts), do: Map.to_list(opts)
+  defp keyword(nil), do: []
 
   defp join(value) when is_list(value), do: Enum.map_join(value, ",", &format_value/1)
   defp join(value), do: format_value(value)
