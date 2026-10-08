@@ -43,7 +43,70 @@ defmodule BambooHR.HTTPClient.ReqTest do
     end
   end
 
+  describe "retry_unprocessed?/2" do
+    test "retries a 429 and a refused connection" do
+      request = %Req.Request{method: :get}
+
+      assert ReqClient.retry_unprocessed?(request, %Req.Response{status: 429})
+      assert ReqClient.retry_unprocessed?(request, %Req.TransportError{reason: :econnrefused})
+    end
+
+    test "does not retry anything BambooHR may have started work on" do
+      request = %Req.Request{method: :get}
+
+      for status <- [408, 500, 502, 503, 504] do
+        refute ReqClient.retry_unprocessed?(request, %Req.Response{status: status}),
+               "expected no retry on status #{status}"
+      end
+
+      for reason <- [:timeout, :closed] do
+        refute ReqClient.retry_unprocessed?(request, %Req.TransportError{reason: reason}),
+               "expected no retry on #{reason}"
+      end
+    end
+  end
+
   describe "request/1 retry behaviour" do
+    test "retry: :unprocessed does not retry a GET on 500", %{bypass: bypass, config: config} do
+      # The default policy would retry this GET; expect_once fails the test
+      # on a second request.
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
+        Plug.Conn.resp(conn, 500, "")
+      end)
+
+      assert {:error, %BambooHR.Error{status: 500}} =
+               BambooHR.Client.get("/path", config, retry: :unprocessed)
+    end
+
+    test "retry: :unprocessed retries a 429", %{bypass: bypass, config: config} do
+      counter = :counters.new(1, [])
+
+      Bypass.expect(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
+        :counters.add(counter, 1, 1)
+
+        case :counters.get(counter, 1) do
+          1 ->
+            conn
+            |> Plug.Conn.put_resp_header("retry-after", "0")
+            |> Plug.Conn.resp(429, "")
+
+          _ ->
+            conn
+            |> Plug.Conn.put_resp_header("content-type", "application/json")
+            |> Plug.Conn.resp(200, Jason.encode!(%{"ok" => true}))
+        end
+      end)
+
+      assert {:ok, %{"ok" => true}} =
+               BambooHR.Client.get("/path", config,
+                 retry: :unprocessed,
+                 retry_delay: 0,
+                 retry_log_level: false
+               )
+
+      assert :counters.get(counter, 1) == 2
+    end
+
     test "retries POST on 429 then succeeds", %{bypass: bypass, config: config} do
       counter = :counters.new(1, [])
 

@@ -17,7 +17,9 @@ defmodule BambooHR.HTTPClient.Req do
       processing.
 
   Callers can override by passing `retry:` in `opts` (e.g. `retry: false`
-  to disable, or a custom function).
+  to disable, or a custom function). `retry: :unprocessed` selects
+  `retry_unprocessed?/2`, which retries only what BambooHR certainly did
+  not process.
   """
 
   @behaviour BambooHR.HTTPClient
@@ -36,6 +38,7 @@ defmodule BambooHR.HTTPClient.Req do
       opts
       |> Keyword.put(:decode_body, false)
       |> Keyword.put_new(:retry, &__MODULE__.retry?/2)
+      |> Keyword.update!(:retry, &retry_option/1)
 
     case Req.request(opts) do
       # Only a 2xx can be a partial success; a listed 4xx or 5xx keeps its
@@ -55,6 +58,10 @@ defmodule BambooHR.HTTPClient.Req do
         {:error, BambooHR.Error.from_exception(exception)}
     end
   end
+
+  # `:unprocessed` is this client's own name, not one Req knows.
+  defp retry_option(:unprocessed), do: &__MODULE__.retry_unprocessed?/2
+  defp retry_option(retry), do: retry
 
   defp decode_success(body, _status, headers, expose_headers, true) do
     wrap_success(body, headers, expose_headers)
@@ -89,6 +96,19 @@ defmodule BambooHR.HTTPClient.Req do
   end
 
   def retry?(_request, _response_or_exception), do: false
+
+  @doc """
+  Retry predicate for a request that must not run twice.
+
+  Retries only when BambooHR certainly did not process the request: a
+  `429`, which it turns away before doing any work, and a refused
+  connection, which never reached it. A `5xx` or a timeout is not
+  retried, because the work may have been done.
+  """
+  @spec retry_unprocessed?(Req.Request.t(), Req.Response.t() | Exception.t()) :: boolean()
+  def retry_unprocessed?(_request, %Req.Response{status: 429}), do: true
+  def retry_unprocessed?(_request, %Req.TransportError{reason: :econnrefused}), do: true
+  def retry_unprocessed?(_request, _response_or_exception), do: false
 
   defp decode_body(""), do: {:ok, nil}
   defp decode_body(body), do: Jason.decode(body)

@@ -23,6 +23,18 @@ defmodule BambooHR.HTTPClient do
       normally, or `Accept: */*` when `:raw_response` is `true`, so binary
       downloads aren't forced into requesting a JSON representation)
     * `:receive_timeout` — milliseconds
+    * `:retry` — how to retry this one request (optional). Left out, the
+      implementation uses its own policy. Otherwise one of:
+        * `false` — never retry
+        * `:unprocessed` — retry only when BambooHR certainly did not
+          process the request: a `429`, or a refused connection. For a
+          request that is costly or unsafe to run twice, such as the
+          schedule PDF, which BambooHR renders again on every attempt
+        * anything else — a value in the HTTP library's own terms.
+          `BambooHR.HTTPClient.Req` passes `:safe_transient`,
+          `:transient` and a 2-arity function straight to `Req`. An
+          implementation that cannot honour such a value should treat it
+          as `false` rather than fall back to retrying freely
     * `:params` — query string parameters (optional)
     * `:json` — request body to JSON-encode (optional)
     * `:form_multipart` — request body to encode as `multipart/form-data`,
