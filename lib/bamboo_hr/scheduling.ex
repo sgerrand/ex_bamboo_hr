@@ -155,10 +155,11 @@ defmodule BambooHR.Scheduling do
 
   BambooHR renders the PDF on request, so a large schedule can outrun
   the client's default 15s `:timeout`, and a failed render comes back as
-  a `500`. Each retry would render the PDF again, so this call does not
-  retry by default. For a large schedule, give it a client with a
-  longer `:timeout`. To retry anyway, pass a `:retry` value Req accepts
-  (see below).
+  a `500`. Each retry would render the PDF again, so by default this
+  call retries only when BambooHR certainly did not start a render: a
+  `429`, or a refused connection. A `500` or a timeout is not retried.
+  For a large schedule, give it a client with a longer `:timeout`. To
+  retry more, or not at all, pass `:retry` (see below).
 
   ## Parameters
 
@@ -170,10 +171,13 @@ defmodule BambooHR.Scheduling do
       list; put `nil` in it, e.g. `[123, nil]`, to include unassigned
       shifts — a bare `nil` means no filter),
       `:include_employees_without_shifts`, `:include_holidays`,
-      `:include_time_off`, and `:retry`. `:retry` defaults to `false`,
-      and also takes `:safe_transient`, `:transient`, or a 2-arity
-      function, as Req does. Any other key, or any other `:retry` value,
-      is ignored with a warning. An empty
+      `:include_time_off`, and `:retry`. `:retry` defaults to
+      `:unprocessed` (described above), and also takes `false`,
+      `:safe_transient`, `:transient`, or a 2-arity function, as Req
+      does. A function should return `true`, `false` or
+      `{:delay, milliseconds}`; anything else, or a function that
+      raises, counts as `false`, with a warning. Any other key, or any
+      other `:retry` value, is ignored with a warning. An empty
       `:employee_ids` list returns an `:empty_filter` error; see "Empty
       lists" above
 
@@ -511,23 +515,56 @@ defmodule BambooHR.Scheduling do
     end
   end
 
-  # The PDF does not retry unless asked: each retry renders it again.
-  # Only the `:retry` values Req accepts are passed on. Req raises on any
-  # other value, and only once the response is in — after the PDF has
-  # been rendered — so anything else is dropped with a warning.
+  # Each retry renders the PDF again, so by default only a request that
+  # BambooHR certainly did not process is retried. Only the `:retry`
+  # values Req accepts are passed on. Req raises on any other value, and
+  # only once the response is in — after the PDF has been rendered — so
+  # anything else is dropped with a warning.
   defp retry_opt(opts) do
-    case Keyword.get(keyword(opts), :retry, false) do
-      retry when retry in [false, :safe_transient, :transient] or is_function(retry, 2) ->
+    case List.keyfind(keyword(opts), :retry, 0) do
+      {:retry, retry} when retry in [false, :unprocessed, :safe_transient, :transient] ->
         [retry: retry]
 
-      other ->
+      {:retry, retry} when is_function(retry, 2) ->
+        [retry: safe_retry(retry)]
+
+      {:retry, other} when other != nil ->
         Logger.warning(
-          "BambooHR.Scheduling: ignoring retry: #{inspect(other)}, " <>
-            "expected false, :safe_transient, :transient or a 2-arity function"
+          "BambooHR.Scheduling: ignoring retry: #{inspect(other)}, expected false, " <>
+            ":unprocessed, :safe_transient, :transient or a 2-arity function"
         )
 
-        [retry: false]
+        [retry: :unprocessed]
+
+      _not_given ->
+        [retry: :unprocessed]
     end
+  end
+
+  # Req has no clause for a retry function's result other than these, and
+  # raises when it meets one, as it does when the function itself raises.
+  # Either way that is after the PDF has rendered, so a bad result or a
+  # raise is read as "do not retry".
+  defp safe_retry(retry) do
+    fn request, response_or_exception ->
+      try do
+        case retry.(request, response_or_exception) do
+          true -> true
+          {:delay, ms} = delay when is_integer(ms) and ms >= 0 -> delay
+          no when no in [false, nil] -> false
+          other -> warn_bad_retry("returned #{inspect(other)}")
+        end
+      rescue
+        exception -> warn_bad_retry("raised #{Exception.message(exception)}")
+      catch
+        kind, value -> warn_bad_retry("#{kind} #{inspect(value)}")
+      end
+    end
+  end
+
+  defp warn_bad_retry(what) do
+    Logger.warning("BambooHR.Scheduling: the :retry function #{what}; not retrying")
+    false
   end
 
   # `false` is a meaningful value for the PDF flags, so it is kept. An
