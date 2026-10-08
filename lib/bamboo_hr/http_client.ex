@@ -51,7 +51,8 @@ defmodule BambooHR.HTTPClient do
       reason, e.g. `%{207 => :partial_publish}`. A response with one of
       those statuses comes back as `{:error, error}`, built with
       `BambooHR.Error.from_partial_success/4` from the raw body and
-      headers. Defaults to `%{}`. Needed where a 2xx is not a clean
+      headers. Defaults to `%{}`; anything that is not such a map or
+      list is treated the same way. Needed where a 2xx is not a clean
       success — e.g. `POST /scheduling/shifts/publish`, which answers
       `207` when only some shifts published.
     * `:raw_response` — when `true`, a 2xx response body is returned as-is
