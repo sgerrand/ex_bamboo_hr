@@ -15,6 +15,10 @@ defmodule BambooHR.Scheduling do
   returns and `publish_shifts/2` and `delete_shift/3` accept. Treat a
   shift ID as an opaque string rather than validating it as a UUID.
 
+  An ID is percent-encoded before it goes into the request path, so one
+  that holds a `/`, `?` or `#` stays a single path segment and cannot
+  change which endpoint is called or add query parameters.
+
   ## Paging and filtering
 
   Listing functions page with `:page` and `:page_size`. `:filter` and
@@ -95,7 +99,7 @@ defmodule BambooHR.Scheduling do
   """
   @spec get_schedule(Client.t(), String.t()) :: Client.response()
   def get_schedule(client, schedule_id) when is_binary(schedule_id) do
-    Client.get("/scheduling/schedules/#{schedule_id}", client)
+    Client.get("/scheduling/schedules/#{segment(schedule_id)}", client)
   end
 
   @doc """
@@ -118,7 +122,7 @@ defmodule BambooHR.Scheduling do
   @spec update_schedule(Client.t(), String.t(), map()) :: Client.response()
   def update_schedule(client, schedule_id, changes)
       when is_binary(schedule_id) and is_map(changes) do
-    Client.patch("/scheduling/schedules/#{schedule_id}", client, json: changes)
+    Client.patch("/scheduling/schedules/#{segment(schedule_id)}", client, json: changes)
   end
 
   @doc """
@@ -139,7 +143,7 @@ defmodule BambooHR.Scheduling do
   """
   @spec delete_schedule(Client.t(), String.t()) :: Client.response()
   def delete_schedule(client, schedule_id) when is_binary(schedule_id) do
-    Client.delete("/scheduling/schedules/#{schedule_id}", client)
+    Client.delete("/scheduling/schedules/#{segment(schedule_id)}", client)
   end
 
   @doc """
@@ -201,7 +205,7 @@ defmodule BambooHR.Scheduling do
         [{"startYmd", format_ymd(start_ymd)}, {"endYmd", format_ymd(end_ymd)}] ++ optional
 
       Client.get(
-        "/scheduling/schedules/#{schedule_id}/pdf",
+        "/scheduling/schedules/#{segment(schedule_id)}/pdf",
         client,
         [params: params, raw_response: true, expose_headers: true] ++ retry_opt(opts)
       )
@@ -321,7 +325,7 @@ defmodule BambooHR.Scheduling do
   """
   @spec get_shift(Client.t(), String.t()) :: Client.response()
   def get_shift(client, shift_id) when is_binary(shift_id) do
-    Client.get("/scheduling/shifts/#{shift_id}", client)
+    Client.get("/scheduling/shifts/#{segment(shift_id)}", client)
   end
 
   @doc """
@@ -361,7 +365,7 @@ defmodule BambooHR.Scheduling do
   """
   @spec update_shift(Client.t(), String.t(), map()) :: Client.response()
   def update_shift(client, shift_id, changes) when is_binary(shift_id) and is_map(changes) do
-    Client.patch("/scheduling/shifts/#{shift_id}", client, json: changes)
+    Client.patch("/scheduling/shifts/#{segment(shift_id)}", client, json: changes)
   end
 
   @doc """
@@ -386,7 +390,7 @@ defmodule BambooHR.Scheduling do
   @spec delete_shift(Client.t(), String.t(), keyword()) :: Client.response()
   def delete_shift(client, shift_id, opts \\ []) when is_binary(shift_id) do
     with {:ok, params} <- build_params(opts, recurrence_edit_option: "recurrenceEditOption") do
-      Client.delete("/scheduling/shifts/#{shift_id}", client, params: params)
+      Client.delete("/scheduling/shifts/#{segment(shift_id)}", client, params: params)
     end
   end
 
@@ -626,6 +630,9 @@ defmodule BambooHR.Scheduling do
   defp keyword(opts) when is_list(opts), do: opts
   defp keyword(opts) when is_map(opts), do: Map.to_list(opts)
   defp keyword(nil), do: []
+
+  # Keeps an ID to one path segment, whatever it holds.
+  defp segment(id), do: URI.encode(id, &URI.char_unreserved?/1)
 
   defp join(value) when is_list(value), do: Enum.map_join(value, ",", &format_value/1)
   defp join(value), do: format_value(value)
