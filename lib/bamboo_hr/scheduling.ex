@@ -402,16 +402,19 @@ defmodule BambooHR.Scheduling do
   the shifts that did publish and the reason for each failure are still
   there.
 
-  A custom `BambooHR.HTTPClient` has to honour the `:partial_success`
-  option for a `207` to come back as an error. One that drops the
-  option, as the behaviour asks for options it does not know, returns
-  `{:ok, result}`, with the failures still in `"failed"`.
+  This holds for a custom `BambooHR.HTTPClient` too. One that does not
+  know the `:partial_success` option hands a `207` back as a success,
+  so a result with anything in `"failed"` is turned into the same
+  `:partial_publish` error here. In that case `:body` is the result
+  encoded as JSON again, and there is no `:request_id`, because the
+  client has already dropped the response headers.
 
   ## Parameters
 
     * `client` - Client configuration created with `BambooHR.Client.new/1`
-    * `shift_ids` - List of shift IDs to publish: UUIDs, or the composite
-      IDs `list_shifts/2` returns for repeats that do not exist yet
+    * `shift_ids` - List of 1 to 100 shift IDs to publish: UUIDs, or the
+      composite IDs `list_shifts/2` returns for repeats that do not
+      exist yet. An empty list, or more than 100, is a `422` error
 
   ## Examples
 
@@ -429,11 +432,23 @@ defmodule BambooHR.Scheduling do
   @spec publish_shifts(Client.t(), list(String.t())) :: Client.response()
   def publish_shifts(client, shift_ids) when is_list(shift_ids) do
     # A 207 is a 2xx, so without this it would look like a clean run.
-    Client.post("/scheduling/shifts/publish", client,
-      json: %{"shiftIds" => shift_ids},
-      partial_success: %{207 => :partial_publish}
-    )
+    result =
+      Client.post("/scheduling/shifts/publish", client,
+        json: %{"shiftIds" => shift_ids},
+        partial_success: %{207 => :partial_publish}
+      )
+
+    partial_publish_to_error(result)
   end
+
+  # An HTTP client that does not know `:partial_success` returns the 207
+  # as a success. BambooHR only reports failures on a 207 or a 409, and a
+  # 409 is already an error, so a success with failures in it was a 207.
+  defp partial_publish_to_error({:ok, %{"failed" => [_ | _]} = result}) do
+    {:error, BambooHR.Error.from_partial_success(:partial_publish, 207, Jason.encode!(result))}
+  end
+
+  defp partial_publish_to_error(result), do: result
 
   @doc """
   Lists shift assessments.

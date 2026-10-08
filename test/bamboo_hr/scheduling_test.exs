@@ -360,11 +360,23 @@ defmodule BambooHR.SchedulingTest do
       # Returns the decoded body, as a custom client that does not know
       # about :partial_success would.
       @impl true
-      def request(_opts),
-        do: {:ok, %{"published" => [], "failed" => [%{"shiftId" => "x", "reason" => "y"}]}}
+      def request(_opts) do
+        {:ok,
+         %{
+           "published" => [%{"id" => "w"}],
+           "failed" => [%{"shiftId" => "x", "reason" => "y"}]
+         }}
+      end
     end
 
-    test "returns the body as success when a custom client ignores partial_success" do
+    defmodule CleanPublish do
+      @behaviour BambooHR.HTTPClient
+
+      @impl true
+      def request(_opts), do: {:ok, %{"published" => [%{"id" => "w"}], "failed" => []}}
+    end
+
+    test "still returns an error when a custom client ignores partial_success" do
       config =
         BambooHR.Client.new(
           company_domain: "test_company",
@@ -372,10 +384,25 @@ defmodule BambooHR.SchedulingTest do
           http_client: IgnoresPartialSuccess
         )
 
-      # Documented: detection needs the client to honour the option, but
-      # the failures are still in the result.
-      assert {:ok, %{"failed" => [%{"shiftId" => "x"}]}} =
-               BambooHR.Scheduling.publish_shifts(config, ["x"])
+      assert {:error, %BambooHR.Error{reason: :partial_publish, status: 207, body: body}} =
+               BambooHR.Scheduling.publish_shifts(config, ["w", "x"])
+
+      # Both lists survive, re-encoded from what the client handed back.
+      assert Jason.decode!(body) == %{
+               "published" => [%{"id" => "w"}],
+               "failed" => [%{"shiftId" => "x", "reason" => "y"}]
+             }
+    end
+
+    test "leaves a custom client's clean publish as a success" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: CleanPublish
+        )
+
+      assert {:ok, %{"failed" => []}} = BambooHR.Scheduling.publish_shifts(config, ["w"])
     end
 
     defp response_409 do
