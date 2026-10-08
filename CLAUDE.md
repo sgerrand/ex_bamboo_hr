@@ -97,7 +97,14 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   module, so the telemetry span records it as an error and the error
   keeps the raw body. It applies to 2xx statuses only. It takes a map,
   or a list of `{status, reason}` pairs (not a keyword list: the keys
-  are integers). `nil` means none.
+  are integers). `nil`, or any other value, means none, so a bad value
+  cannot raise after the request has been sent.
+  `:retry` is in the behaviour's option list too. `false` means never
+  retry. `:unprocessed` means retry only what BambooHR certainly did not
+  process (a `429`, or a refused connection); `HTTPClient.Req` maps it
+  to `retry_unprocessed?/2`. Any other value is in the HTTP library's
+  own terms. An option used in `lib/` but missing from that list is a
+  bug: a custom client is written against it.
   An implementation must drop options it does not recognise rather than
   pass them on, because Req raises on an unknown option. Adding an
   option to the behaviour relies on this, so call it out in the commit
@@ -230,18 +237,25 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   `:expose_headers`, like `Files` downloads.
   Schedule IDs are UUID strings. A shift ID can also be
   `<recurringShiftDefinitionId>_<recurrenceId>`, for a repeat that does
-  not exist yet, so treat shift IDs as plain strings.
+  not exist yet, so treat shift IDs as plain strings. `segment/1`
+  percent-encodes every ID before it goes into the path, so a `/`, `?`
+  or `#` in one cannot change the endpoint or add query params.
+  `BambooHR.Breaks` puts its UUIDs into paths without this.
   The PDF endpoint takes OAuth only, not API keys. No other scheduling
   endpoint is like that. BambooHR renders the PDF on request, so a big
   schedule can take longer than the 15s default timeout. A failed render
-  returns `500`. A `GET` retries both, and each retry renders again.
-  So `get_schedule_pdf/5` defaults to `retry: false`. A caller can pass
-  any `:retry` value Req accepts (`false`, `:safe_transient`,
-  `:transient`, or a 2-arity function). No other request option is
-  passed on: Req raises on a value it does not accept, and it only
-  checks `:retry` after the response is in. Any other `:retry` value, or
-  any unknown option, is dropped with a `Logger.warning`, so a typo is
-  easy to find.
+  returns `500`. A `GET` retries both by default, and each retry renders
+  again. So `get_schedule_pdf/5` defaults to `retry: :unprocessed`: it
+  still waits out a `429` and retries a refused connection, but not a
+  `500` or a timeout. A caller can pass `false`, `:unprocessed`,
+  `:safe_transient`, `:transient`, or a 2-arity function. No other
+  request option is passed on: Req raises on a value it does not accept,
+  and it only checks `:retry` after the response is in. For the same
+  reason a caller's function is wrapped by `safe_retry/1`: a result
+  other than `true`, `false`, `nil` or `{:delay, ms}`, or a raise, is
+  read as "do not retry". Any other `:retry` value, or any unknown
+  option, is dropped with a `Logger.warning`, so a typo is easy to
+  find. Options may be a keyword list, a map or `nil`.
   The PDF wants repeated `employeeIds[]` params, not a comma-joined
   list. Plug parses the `[]` suffix back into a list, which is what the
   test checks. The PDF window takes a `Date` as well as a string.
@@ -250,7 +264,11 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   :partial_publish}`, so a 207 comes back as an error, and `{:ok, _}`
   always means every shift published. The error's `:body` is the raw
   JSON, with both lists. A custom `HTTPClient` that ignores the option
-  returns `{:ok, body}` instead, with the failures still in `"failed"`.
+  hands the 207 back as a success, so `publish_shifts/2` also turns any
+  success with a non-empty `"failed"` into the same error. That error's
+  body is the result encoded again, with no request ID, and telemetry
+  has already recorded the call as `:ok`. `shiftIds` takes 1 to 100
+  IDs; BambooHR answers 422 outside that, and the client does not check.
   Enum values are lowercase (`planned`, `published`; `instance`,
   `future`, `all` for `recurrenceEditOption`). `color` is 6 hex digits
   with no `#`. A publish failure is keyed `shiftId`, not `id`.
@@ -268,10 +286,17 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   that day, so the last day is included. In another zone, `23:59:59`
   UTC falls earlier in the local day. A caller who needs the whole local
   day passes a zoned `DateTime`.
-  `build_params/3` keeps an explicit `false`. It drops an empty list,
-  because BambooHR reads a present but empty `ids` as a filter and
-  ignores all the others. `nil` in an ID list becomes the string
-  `"null"`, which is how the spec asks for unassigned shifts.
+  `build_params/3` keeps an explicit `false`. An empty list is never
+  sent and never dropped: sent, BambooHR reads an empty `ids` as a
+  filter and ignores all the others; dropped, the filter is gone and
+  everything comes back. So any option given as `[]` returns
+  `{:error, %BambooHR.Error{reason: :empty_filter}}` without a request.
+  `nil` is how a caller says "no filter". `nil` in an ID list becomes
+  the string `"null"`, which is how the spec asks for unassigned shifts.
+  The date and list formatting here is one of four copies with
+  different rules: `Breaks.format_param/1` drops the zone where this
+  keeps it, `TimeTracking.list_params/1` drops `false` where this keeps
+  it, and only this module warns about unknown options.
   Bypass accepts any value, so check doc examples against the spec.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
