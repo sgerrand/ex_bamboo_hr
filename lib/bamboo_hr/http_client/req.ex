@@ -32,7 +32,7 @@ defmodule BambooHR.HTTPClient.Req do
     {expose_headers, opts} = Keyword.pop(opts, :expose_headers, false)
     {raw_response, opts} = Keyword.pop(opts, :raw_response, false)
     {partial_success, opts} = Keyword.pop(opts, :partial_success, %{})
-    partial_success = Map.new(partial_success || %{})
+    partial_success = partial_success_map(partial_success)
 
     opts =
       opts
@@ -62,6 +62,16 @@ defmodule BambooHR.HTTPClient.Req do
   # `:unprocessed` is this client's own name, not one Req knows.
   defp retry_option(:unprocessed), do: &__MODULE__.retry_unprocessed?/2
   defp retry_option(retry), do: retry
+
+  # Only resource modules set this, but a bad value must not raise once
+  # the request is on its way, so anything unusable means "none".
+  defp partial_success_map(value) when is_map(value), do: value
+
+  defp partial_success_map(value) when is_list(value) do
+    if Enum.all?(value, &match?({_status, _reason}, &1)), do: Map.new(value), else: %{}
+  end
+
+  defp partial_success_map(_value), do: %{}
 
   defp decode_success(body, _status, headers, expose_headers, true) do
     wrap_success(body, headers, expose_headers)

@@ -275,6 +275,22 @@ defmodule BambooHR.HTTPClient.ReqTest do
       assert {:ok, %{}} = BambooHR.Client.post("/publish", config, partial_success: nil)
     end
 
+    test "treats a value that is not a map or a list of pairs as none", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(207, "{}")
+      end)
+
+      # Each of these made `Map.new/1` raise, after the request was sent.
+      for bad <- [[207], true, :partial_publish, "207"] do
+        assert {:ok, %{}} = BambooHR.Client.post("/publish", config, partial_success: bad)
+      end
+    end
+
     test "leaves a 2xx status that is not listed as success", %{bypass: bypass, config: config} do
       Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
         conn
