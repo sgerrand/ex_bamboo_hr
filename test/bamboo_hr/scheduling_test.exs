@@ -688,7 +688,7 @@ defmodule BambooHR.SchedulingTest do
       assert_received :retry_called
     end
 
-    test "drops a retry value other than false, with a warning", %{
+    test "ignores a retry value Req does not accept, with a warning", %{
       bypass: bypass,
       config: config
     } do
@@ -776,17 +776,128 @@ defmodule BambooHR.SchedulingTest do
       assert log =~ "ignoring unknown options [:api_version]"
     end
 
-    test "passes retry: false to the HTTP client", %{bypass: bypass, config: config} do
-      # Bypass.expect_once fails the test on a second request, so this
-      # only passes if `retry: false` reached Req.
+    defmodule CaptureRetry do
+      @behaviour BambooHR.HTTPClient
+
+      @impl true
+      def request(opts) do
+        send(self(), {:retry_opt, Keyword.fetch(opts, :retry)})
+        {:ok, %{body: "%PDF-", headers: %{}}}
+      end
+    end
+
+    test "forwards the caller's retry value, and :unprocessed without one" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: CaptureRetry
+        )
+
+      BambooHR.Scheduling.get_schedule_pdf(config, @schedule_id, "2024-01-01", "2024-01-07")
+      assert_received {:retry_opt, {:ok, :unprocessed}}
+
+      for retry <- [false, :safe_transient, :transient, :unprocessed] do
+        BambooHR.Scheduling.get_schedule_pdf(config, @schedule_id, "2024-01-01", "2024-01-07",
+          retry: retry
+        )
+
+        assert_received {:retry_opt, {:ok, ^retry}}
+      end
+
+      BambooHR.Scheduling.get_schedule_pdf(config, @schedule_id, "2024-01-01", "2024-01-07",
+        retry: nil
+      )
+
+      assert_received {:retry_opt, {:ok, :unprocessed}}
+    end
+
+    test "hands Req a retry function that cannot raise or return junk" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: CaptureRetry
+        )
+
+      wrapped = fn retry ->
+        BambooHR.Scheduling.get_schedule_pdf(config, @schedule_id, "2024-01-01", "2024-01-07",
+          retry: retry
+        )
+
+        assert_received {:retry_opt, {:ok, wrapped}}
+        wrapped
+      end
+
+      assert wrapped.(fn _request, _response -> true end).(:request, :response) == true
+      assert wrapped.(fn _request, _response -> nil end).(:request, :response) == false
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          thrower = wrapped.(fn _request, _response -> throw(:stop) end)
+          assert thrower.(:request, :response) == false
+
+          negative = wrapped.(fn _request, _response -> {:delay, -1} end)
+          assert negative.(:request, :response) == false
+        end)
+
+      assert log =~ "the :retry function throw :stop"
+      assert log =~ "the :retry function returned {:delay, -1}"
+    end
+
+    test "retries a rate-limited render by default", %{bypass: bypass, config: config} do
+      counter = :counters.new(1, [])
+
+      Bypass.expect(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn ->
+          :counters.add(counter, 1, 1)
+
+          case :counters.get(counter, 1) do
+            1 ->
+              conn
+              |> Plug.Conn.put_resp_header("retry-after", "0")
+              |> Plug.Conn.resp(429, "")
+
+            _ ->
+              conn
+              |> Plug.Conn.put_resp_header("content-type", "application/pdf")
+              |> Plug.Conn.resp(200, "%PDF-")
+          end
+        end
+      )
+
+      # Req logs each retry.
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:ok, %{body: "%PDF-"}} =
+                 BambooHR.Scheduling.get_schedule_pdf(
+                   config,
+                   @schedule_id,
+                   "2024-01-01",
+                   "2024-01-07"
+                 )
+      end)
+
+      assert :counters.get(counter, 1) == 2
+    end
+
+    test "does not retry at all with retry: false", %{bypass: bypass, config: config} do
+      # Bypass.expect_once fails the test on a second request. A 429 is
+      # retried by default, so one request proves `retry: false` arrived.
       Bypass.expect_once(
         bypass,
         "GET",
         "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
-        fn conn -> Plug.Conn.resp(conn, 500, "Failed to render PDF") end
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("retry-after", "0")
+          |> Plug.Conn.resp(429, "")
+        end
       )
 
-      assert {:error, %BambooHR.Error{status: 500}} =
+      assert {:error, %BambooHR.Error{reason: :rate_limited}} =
                BambooHR.Scheduling.get_schedule_pdf(
                  config,
                  @schedule_id,
@@ -794,6 +905,96 @@ defmodule BambooHR.SchedulingTest do
                  "2024-01-07",
                  retry: false
                )
+    end
+
+    test "reads a bad result from a retry function as no retry", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn -> Plug.Conn.resp(conn, 500, "Failed to render PDF") end
+      )
+
+      # Req has no clause for an integer here and would raise.
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:error, %BambooHR.Error{status: 500}} =
+                   BambooHR.Scheduling.get_schedule_pdf(
+                     config,
+                     @schedule_id,
+                     "2024-01-01",
+                     "2024-01-07",
+                     retry: fn _request, response -> response.status end
+                   )
+        end)
+
+      assert log =~ "the :retry function returned 500"
+    end
+
+    test "reads a retry function that raises as no retry", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn -> Plug.Conn.resp(conn, 500, "Failed to render PDF") end
+      )
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:error, %BambooHR.Error{status: 500}} =
+                   BambooHR.Scheduling.get_schedule_pdf(
+                     config,
+                     @schedule_id,
+                     "2024-01-01",
+                     "2024-01-07",
+                     retry: fn _request, _response -> raise "boom" end
+                   )
+        end)
+
+      assert log =~ "the :retry function raised boom"
+    end
+
+    test "passes a delay from a retry function on to Req", %{bypass: bypass, config: config} do
+      counter = :counters.new(1, [])
+
+      Bypass.expect(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn ->
+          :counters.add(counter, 1, 1)
+
+          case :counters.get(counter, 1) do
+            1 ->
+              Plug.Conn.resp(conn, 500, "Failed to render PDF")
+
+            _ ->
+              conn
+              |> Plug.Conn.put_resp_header("content-type", "application/pdf")
+              |> Plug.Conn.resp(200, "%PDF-")
+          end
+        end
+      )
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:ok, %{body: "%PDF-"}} =
+                 BambooHR.Scheduling.get_schedule_pdf(
+                   config,
+                   @schedule_id,
+                   "2024-01-01",
+                   "2024-01-07",
+                   # Req asks about every response, the 200 included.
+                   retry: fn
+                     _request, %{status: 500} -> {:delay, 0}
+                     _request, _response -> false
+                   end
+                 )
+      end)
+
+      assert :counters.get(counter, 1) == 2
     end
 
     test "keeps a flag that was explicitly set to false", %{bypass: bypass, config: config} do
