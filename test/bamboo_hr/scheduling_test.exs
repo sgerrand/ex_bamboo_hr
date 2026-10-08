@@ -859,4 +859,56 @@ defmodule BambooHR.SchedulingTest do
                )
     end
   end
+
+  describe "options that are not a keyword list" do
+    test "reads a map, and nil, without raising", %{bypass: bypass, config: config} do
+      Bypass.expect(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/shifts",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => [], "query" => conn.query_params}))
+        end
+      )
+
+      assert {:ok,
+              %{"query" => %{"scheduleIds" => @schedule_id, "end" => "2024-01-07T23:59:59Z"}}} =
+               BambooHR.Scheduling.list_shifts(config, %{
+                 schedule_ids: [@schedule_id],
+                 end: ~D[2024-01-07]
+               })
+
+      assert {:ok, %{"query" => query}} = BambooHR.Scheduling.list_shifts(config, nil)
+      assert query == %{}
+    end
+
+    test "reads a map for the PDF options", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params["includeHolidays"] == "true"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/pdf")
+          |> Plug.Conn.resp(200, "%PDF-")
+        end
+      )
+
+      assert {:ok, %{body: "%PDF-"}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07",
+                 %{include_holidays: true, retry: false}
+               )
+    end
+  end
 end
