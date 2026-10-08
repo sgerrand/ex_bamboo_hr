@@ -25,7 +25,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   builds `{METHOD, "/<api_version>/path"}` keys. Interpolations and spec
   `{param}` names both become `{}`. If a call passes the path as a function
   parameter (like `Files.upload/6`), the script reads the literal from the
-  callers in the same file. If it can't work out a path, it exits 2.
+  callers in the same file. If it can't work out a path, it exits 2 —
+  so don't pipe the path in (`"/x" |> Client.post(client, ...)`); pass
+  it as the first argument, even when piping the result onward.
 - It exits 1 when the client calls an endpoint that is missing from the spec
   or deprecated in it. Uncovered spec endpoints are listed for information
   only. To keep calling an endpoint the spec doesn't list, add it with a
@@ -49,7 +51,8 @@ This is an Elixir client library for the BambooHR API, published as `bamboo_hr` 
 **Dependency flow:**
 
 ```text
-Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / TimeOff / TimeTracking  (resource modules)
+Company / Datasets / Employee / Files / Hiring / Metadata /      (resource modules)
+Reports / Scheduling / Tables / TimeOff / TimeTracking
          ↓
       BambooHR.Client                          (HTTP routing + auth)
          ↓
@@ -84,16 +87,37 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   The opts keyword list passed to implementations is documented in the
   behaviour's `@moduledoc`, including `:expose_headers` (surface response
   headers alongside the body — needed when a header, not the body, carries
-  the useful data, e.g. a `Location` header) and `:raw_response` (skip
+  the useful data, e.g. a `Location` header), `:partial_success` (a map
+  of 2xx status to error reason, for a 2xx that is not a clean success,
+  e.g. `%{207 => :partial_publish}`) and `:raw_response` (skip
   JSON-decoding — needed for binary responses like file downloads).
+  A decode error always gets the real response headers and status,
+  whatever `:expose_headers` says, so it keeps the `X-Request-ID`.
+  `:partial_success` is handled in `HTTPClient.Req`, not in the resource
+  module, so the telemetry span records it as an error and the error
+  keeps the raw body. It applies to 2xx statuses only. It takes a map,
+  or a list of `{status, reason}` pairs (not a keyword list: the keys
+  are integers). `nil`, or any other value, means none, so a bad value
+  cannot raise after the request has been sent.
+  `:retry` is in the behaviour's option list too. `false` means never
+  retry. `:unprocessed` means retry only what BambooHR certainly did not
+  process (a `429`, or a refused connection); `HTTPClient.Req` maps it
+  to `retry_unprocessed?/2`. Any other value is in the HTTP library's
+  own terms. An option used in `lib/` but missing from that list is a
+  bug: a custom client is written against it.
+  An implementation must drop options it does not recognise rather than
+  pass them on, because Req raises on an unknown option. Adding an
+  option to the behaviour relies on this, so call it out in the commit
+  message. `CHANGELOG.md` is generated from commit messages by
+  release-please, so don't edit it by hand.
   `BambooHR.HTTPClient.Req` is the default implementation; tests use
   Bypass (a real local HTTP server) rather than mocking the behaviour.
 - `BambooHR.Company`, `BambooHR.Datasets`, `BambooHR.Employee`,
   `BambooHR.Files`, `BambooHR.Hiring`, `BambooHR.Metadata`,
-  `BambooHR.Reports`, `BambooHR.Tables`, `BambooHR.TimeOff`,
-  `BambooHR.TimeTracking` — Resource modules that delegate to
-  `Client.get/3`, `Client.post/3`, `Client.patch/3`, `Client.put/3`, or
-  `Client.delete/3`.
+  `BambooHR.Reports`, `BambooHR.Scheduling`, `BambooHR.Tables`,
+  `BambooHR.TimeOff`, `BambooHR.TimeTracking` — Resource modules that
+  delegate to `Client.get/3`, `Client.post/3`, `Client.patch/3`,
+  `Client.put/3`, or `Client.delete/3`.
   All public functions return `{:ok, data} | {:error, reason}`. `data` is
   the decoded JSON body — usually a map, occasionally `nil` (empty 2xx
   body) or a list/scalar.
@@ -208,6 +232,72 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   loses its zone, because the spec does not say which zone BambooHR uses.
   Bypass does not check the spec's patterns, so a test can pass with a
   value the real API rejects.
+  `BambooHR.Scheduling` covers schedules, shifts, shift assessments, and
+  the schedule PDF export. The PDF uses `:raw_response` and
+  `:expose_headers`, like `Files` downloads.
+  Schedule IDs are UUID strings. A shift ID can also be
+  `<recurringShiftDefinitionId>_<recurrenceId>`, for a repeat that does
+  not exist yet, so treat shift IDs as plain strings. `segment/1`
+  percent-encodes every ID before it goes into the path, so a `/`, `?`
+  or `#` in one cannot change the endpoint or add query params.
+  `BambooHR.Breaks` puts its UUIDs into paths without this.
+  The PDF endpoint takes OAuth only, not API keys. No other scheduling
+  endpoint is like that. BambooHR renders the PDF on request, so a big
+  schedule can take longer than the 15s default timeout. A failed render
+  returns `500`. A `GET` retries both by default, and each retry renders
+  again. So `get_schedule_pdf/5` defaults to `retry: :unprocessed`: it
+  still waits out a `429` and retries a refused connection, but not a
+  `500` or a timeout. A caller can pass `false`, `:unprocessed`,
+  `:safe_transient`, `:transient`, or a 2-arity function. No other
+  request option is passed on: Req raises on a value it does not accept,
+  and it only checks `:retry` after the response is in. For the same
+  reason a caller's function is wrapped by `safe_retry/1`: a result
+  other than `true`, `false`, `nil` or `{:delay, ms}`, or a raise, is
+  read as "do not retry". Any other `:retry` value, or any unknown
+  option, is dropped with a `Logger.warning`, so a typo is easy to
+  find. Options may be a keyword list, a map or `nil`.
+  The PDF wants repeated `employeeIds[]` params, not a comma-joined
+  list. Plug parses the `[]` suffix back into a list, which is what the
+  test checks. The PDF window takes a `Date` as well as a string.
+  `publish_shifts/2` can half-succeed: BambooHR answers 207 when only
+  some shifts published. It passes `partial_success: %{207 =>
+  :partial_publish}`, so a 207 comes back as an error, and `{:ok, _}`
+  always means every shift published. The error's `:body` is the raw
+  JSON, with both lists. A custom `HTTPClient` that ignores the option
+  hands the 207 back as a success, so `publish_shifts/2` also turns any
+  success with a non-empty `"failed"` into the same error. That error's
+  body is the result encoded again, with no request ID, and telemetry
+  has already recorded the call as `:ok`. `shiftIds` takes 1 to 100
+  IDs; BambooHR answers 422 outside that, and the client does not check.
+  Enum values are lowercase (`planned`, `published`; `instance`,
+  `future`, `all` for `recurrenceEditOption`). `color` is 6 hex digits
+  with no `#`. A publish failure is keyed `shiftId`, not `id`.
+  `update_shift/3` needs `recurrenceEditOption` when the shift already
+  repeats. It also takes `updatedAt` as an optimistic-concurrency check
+  (a stale value gives `:conflict`). `list_shifts/2` returns only planned
+  and published shifts unless `:statuses` says otherwise. A bare
+  `employee_ids: nil` means no filter; `[nil]` means unassigned shifts.
+  Shift `start` and `end` are UTC; `timezone` is a separate field for
+  display. `format_value/1` turns a `DateTime`, `NaiveDateTime` or
+  `Date` into an ISO-8601 date-time in whole seconds. Without it, Req
+  would put a space where the `T` goes — the same trap as
+  `Breaks.format_param/1`. A value with no zone is read as UTC, because
+  the spec wants an offset. A `Date` as `:end` becomes `23:59:59` UTC
+  that day, so the last day is included. In another zone, `23:59:59`
+  UTC falls earlier in the local day. A caller who needs the whole local
+  day passes a zoned `DateTime`.
+  `build_params/3` keeps an explicit `false`. An empty list is never
+  sent and never dropped: sent, BambooHR reads an empty `ids` as a
+  filter and ignores all the others; dropped, the filter is gone and
+  everything comes back. So any option given as `[]` returns
+  `{:error, %BambooHR.Error{reason: :empty_filter}}` without a request.
+  `nil` is how a caller says "no filter". `nil` in an ID list becomes
+  the string `"null"`, which is how the spec asks for unassigned shifts.
+  The date and list formatting here is one of four copies with
+  different rules: `Breaks.format_param/1` drops the zone where this
+  keeps it, `TimeTracking.list_params/1` drops `false` where this keeps
+  it, and only this module warns about unknown options.
+  Bypass accepts any value, so check doc examples against the spec.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
   candidates. `create_candidate/5` and `create_job_opening/7` use
@@ -221,6 +311,10 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   which provides `bypass` and `config` (a `Client.t()` pointing at the local
   Bypass port) in the test context.
 - Tests run `async: true`.
+- To test a path that only a custom `BambooHR.HTTPClient` reaches (one
+  that ignores `:expose_headers` or `:partial_success`), define a small
+  fake module in the test. `request/1` runs in the test's own process,
+  so the fake can read its canned response from `Process.get/1`.
 - Telemetry handlers are global, so a test's handler also sees events
   from other async tests. Attach with `&__MODULE__.forward_telemetry/4`
   and `{self(), ref}` in `client_test.exs`: it forwards only events fired
@@ -236,8 +330,9 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
 - Handle errors with pattern matching; never raise from public API functions.
 - Every failure is `{:error, %BambooHR.Error{}}` — see `lib/bamboo_hr/error.ex`.
   `BambooHR.HTTPClient.Req` builds it with `from_response/3` (non-2xx),
-  `from_exception/1` (transport), or `from_decode_error/3` (bad JSON in a
-  2xx). Callers match on `:reason`, not the status code. The struct is a
+  `from_exception/1` (transport), `from_decode_error/4` (bad JSON in a
+  2xx), or `from_partial_success/4` (a 2xx listed in `:partial_success`,
+  e.g. a 207 publish). Callers match on `:reason`, not the status code. The struct is a
   `defexception`, so `Exception.message/1` works and callers may raise it,
   but the client never does. It also picks up BambooHR's diagnostic
   headers: `x-bamboohr-error-message` / `X-BambooHR-Message` into

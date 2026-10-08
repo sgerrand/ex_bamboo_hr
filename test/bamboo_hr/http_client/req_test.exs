@@ -43,7 +43,70 @@ defmodule BambooHR.HTTPClient.ReqTest do
     end
   end
 
+  describe "retry_unprocessed?/2" do
+    test "retries a 429 and a refused connection" do
+      request = %Req.Request{method: :get}
+
+      assert ReqClient.retry_unprocessed?(request, %Req.Response{status: 429})
+      assert ReqClient.retry_unprocessed?(request, %Req.TransportError{reason: :econnrefused})
+    end
+
+    test "does not retry anything BambooHR may have started work on" do
+      request = %Req.Request{method: :get}
+
+      for status <- [408, 500, 502, 503, 504] do
+        refute ReqClient.retry_unprocessed?(request, %Req.Response{status: status}),
+               "expected no retry on status #{status}"
+      end
+
+      for reason <- [:timeout, :closed] do
+        refute ReqClient.retry_unprocessed?(request, %Req.TransportError{reason: reason}),
+               "expected no retry on #{reason}"
+      end
+    end
+  end
+
   describe "request/1 retry behaviour" do
+    test "retry: :unprocessed does not retry a GET on 500", %{bypass: bypass, config: config} do
+      # The default policy would retry this GET; expect_once fails the test
+      # on a second request.
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
+        Plug.Conn.resp(conn, 500, "")
+      end)
+
+      assert {:error, %BambooHR.Error{status: 500}} =
+               BambooHR.Client.get("/path", config, retry: :unprocessed)
+    end
+
+    test "retry: :unprocessed retries a 429", %{bypass: bypass, config: config} do
+      counter = :counters.new(1, [])
+
+      Bypass.expect(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
+        :counters.add(counter, 1, 1)
+
+        case :counters.get(counter, 1) do
+          1 ->
+            conn
+            |> Plug.Conn.put_resp_header("retry-after", "0")
+            |> Plug.Conn.resp(429, "")
+
+          _ ->
+            conn
+            |> Plug.Conn.put_resp_header("content-type", "application/json")
+            |> Plug.Conn.resp(200, Jason.encode!(%{"ok" => true}))
+        end
+      end)
+
+      assert {:ok, %{"ok" => true}} =
+               BambooHR.Client.get("/path", config,
+                 retry: :unprocessed,
+                 retry_delay: 0,
+                 retry_log_level: false
+               )
+
+      assert :counters.get(counter, 1) == 2
+    end
+
     test "retries POST on 429 then succeeds", %{bypass: bypass, config: config} do
       counter = :counters.new(1, [])
 
@@ -131,6 +194,127 @@ defmodule BambooHR.HTTPClient.ReqTest do
       assert {:error, %{status: 429}} = BambooHR.Client.get("/path", config, retry: false)
 
       assert :counters.get(counter, 1) == 1
+    end
+  end
+
+  describe "request/1 decode errors" do
+    test "keeps the request ID when a 2xx body is not valid JSON", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/thing", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.put_resp_header("x-request-id", "req-123")
+        |> Plug.Conn.resp(200, "not json")
+      end)
+
+      assert {:error, %BambooHR.Error{reason: :decode_error, request_id: "req-123"}} =
+               BambooHR.Client.get("/thing", config)
+    end
+  end
+
+  describe "request/1 partial_success" do
+    test "turns a listed 2xx status into an error with the raw body", %{
+      bypass: bypass,
+      config: config
+    } do
+      raw = ~s({"published":[],"failed":["a"]})
+
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.put_resp_header("x-request-id", "req-207")
+        |> Plug.Conn.resp(207, raw)
+      end)
+
+      assert {:error,
+              %BambooHR.Error{
+                reason: :partial_publish,
+                status: 207,
+                body: ^raw,
+                request_id: "req-207"
+              }} =
+               BambooHR.Client.post("/publish", config,
+                 partial_success: %{207 => :partial_publish}
+               )
+    end
+
+    test "does not turn a listed non-2xx status into a partial success", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
+        Plug.Conn.resp(conn, 409, "{}")
+      end)
+
+      assert {:error, %BambooHR.Error{reason: :conflict, status: 409}} =
+               BambooHR.Client.post("/publish", config,
+                 partial_success: %{409 => :partial_publish}
+               )
+    end
+
+    test "accepts partial_success as a list of pairs", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
+        Plug.Conn.resp(conn, 207, "{}")
+      end)
+
+      assert {:error, %BambooHR.Error{reason: :partial_publish, status: 207}} =
+               BambooHR.Client.post("/publish", config,
+                 partial_success: [{207, :partial_publish}]
+               )
+    end
+
+    test "treats partial_success: nil as none", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(207, "{}")
+      end)
+
+      assert {:ok, %{}} = BambooHR.Client.post("/publish", config, partial_success: nil)
+    end
+
+    test "treats a value that is not a map or a list of pairs as none", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(207, "{}")
+      end)
+
+      # Each of these made `Map.new/1` raise, after the request was sent.
+      for bad <- [[207], true, :partial_publish, "207"] do
+        assert {:ok, %{}} = BambooHR.Client.post("/publish", config, partial_success: bad)
+      end
+    end
+
+    test "leaves a 2xx status that is not listed as success", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{"failed" => []}))
+      end)
+
+      assert {:ok, %{"failed" => []}} =
+               BambooHR.Client.post("/publish", config,
+                 partial_success: %{207 => :partial_publish}
+               )
+    end
+  end
+
+  describe "request/1 decode errors with a non-200 status" do
+    test "keeps the real 2xx status", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/thing", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(201, "not json")
+      end)
+
+      assert {:error, %BambooHR.Error{reason: :decode_error, status: 201}} =
+               BambooHR.Client.post("/thing", config, json: %{})
     end
   end
 

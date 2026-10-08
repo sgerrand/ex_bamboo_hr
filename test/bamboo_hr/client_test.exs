@@ -677,6 +677,26 @@ defmodule BambooHR.ClientTest do
       {:ok, telemetry_ref: ref}
     end
 
+    test "records a partial success as an error", %{
+      bypass: bypass,
+      config: config,
+      telemetry_ref: ref
+    } do
+      Bypass.expect_once(bypass, "POST", "/api/gateway.php/test_company/v1/publish", fn conn ->
+        Plug.Conn.resp(conn, 207, "{}")
+      end)
+
+      assert {:error, %BambooHR.Error{reason: :partial_publish}} =
+               BambooHR.Client.post("/publish", config,
+                 partial_success: %{207 => :partial_publish}
+               )
+
+      assert_receive {^ref, [:bamboo_hr, :request, :stop], _measurements, metadata}
+      assert metadata.result == :error
+      assert metadata.status == 207
+      assert metadata.reason == :partial_publish
+    end
+
     test "emits start and stop on success", %{
       bypass: bypass,
       config: config,
