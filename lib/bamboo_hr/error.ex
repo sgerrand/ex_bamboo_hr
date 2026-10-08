@@ -47,6 +47,10 @@ defmodule BambooHR.Error do
     * `:partial_publish` - a `207` from
       `BambooHR.Scheduling.publish_shifts/2`: some shifts published and
       some did not. `:body` holds both lists, as BambooHR sent them
+    * `:empty_filter` - a list filter was given as an empty list, so the
+      request was **not sent**. Left out of the request, the filter would
+      match everything, where an empty list most likely means nothing.
+      `:message` names the option. Pass `nil` to mean no filter
 
   This struct is also an exception, so `raise error` and
   `Exception.message/1` work on it. The client itself never raises.
@@ -69,6 +73,7 @@ defmodule BambooHR.Error do
           | :transport_error
           | :decode_error
           | :partial_publish
+          | :empty_filter
 
   @type t :: %__MODULE__{
           reason: reason(),

@@ -20,6 +20,14 @@ defmodule BambooHR.Scheduling do
   Listing functions page with `:page` and `:page_size`. `:filter` and
   `:sort`, where supported, are OData-style strings passed straight
   through.
+
+  ## Empty lists
+
+  An option given as an empty list is never sent. Leaving it out would
+  drop the filter and return everything, where a list that worked out
+  empty most likely means nothing should match. The call returns
+  `{:error, %BambooHR.Error{reason: :empty_filter}}` without contacting
+  BambooHR. Pass `nil`, or leave the option out, to mean no filter.
   """
 
   require Logger
@@ -42,7 +50,9 @@ defmodule BambooHR.Scheduling do
   """
   @spec list_schedules(Client.t(), keyword()) :: Client.response()
   def list_schedules(client, opts \\ []) do
-    Client.get("/scheduling/schedules", client, params: list_params(opts))
+    with {:ok, params} <- list_params(opts) do
+      Client.get("/scheduling/schedules", client, params: params)
+    end
   end
 
   @doc """
@@ -163,7 +173,9 @@ defmodule BambooHR.Scheduling do
       `:include_time_off`, and `:retry`. `:retry` defaults to `false`,
       and also takes `:safe_transient`, `:transient`, or a 2-arity
       function, as Req does. Any other key, or any other `:retry` value,
-      is ignored with a warning
+      is ignored with a warning. An empty
+      `:employee_ids` list returns an `:empty_filter` error; see "Empty
+      lists" above
 
   ## Examples
 
@@ -180,14 +192,16 @@ defmodule BambooHR.Scheduling do
   def get_schedule_pdf(client, schedule_id, start_ymd, end_ymd, opts \\ [])
       when is_binary(schedule_id) and (is_binary(start_ymd) or is_struct(start_ymd, Date)) and
              (is_binary(end_ymd) or is_struct(end_ymd, Date)) do
-    params =
-      [{"startYmd", format_ymd(start_ymd)}, {"endYmd", format_ymd(end_ymd)}] ++ pdf_params(opts)
+    with {:ok, optional} <- pdf_params(opts) do
+      params =
+        [{"startYmd", format_ymd(start_ymd)}, {"endYmd", format_ymd(end_ymd)}] ++ optional
 
-    Client.get(
-      "/scheduling/schedules/#{schedule_id}/pdf",
-      client,
-      [params: params, raw_response: true, expose_headers: true] ++ retry_opt(opts)
-    )
+      Client.get(
+        "/scheduling/schedules/#{schedule_id}/pdf",
+        client,
+        [params: params, raw_response: true, expose_headers: true] ++ retry_opt(opts)
+      )
+    end
   end
 
   @doc """
@@ -206,7 +220,9 @@ defmodule BambooHR.Scheduling do
   """
   @spec list_timezones(Client.t(), keyword()) :: Client.response()
   def list_timezones(client, opts \\ []) do
-    Client.get("/scheduling/timezones", client, params: list_params(opts))
+    with {:ok, params} <- list_params(opts) do
+      Client.get("/scheduling/timezones", client, params: params)
+    end
   end
 
   @doc """
@@ -229,7 +245,9 @@ defmodule BambooHR.Scheduling do
       zone, `23:59:59` UTC falls earlier in the local day, so pass a
       zoned `DateTime` to cover the whole local day. Pass
       `nil` in the `:employee_ids` list, e.g. `[123, nil]`, to include
-      unassigned (open) shifts; a bare `nil` means no filter.
+      unassigned (open) shifts; a bare `nil` means no filter. An empty
+      list for any of these returns an `:empty_filter` error; see "Empty
+      lists" above.
       `:statuses` takes lowercase values: `"planned"`, `"published"`,
       `"cancelled"`, `"deleted"`. Without it, BambooHR returns only
       planned and published shifts.
@@ -245,7 +263,9 @@ defmodule BambooHR.Scheduling do
   """
   @spec list_shifts(Client.t(), keyword()) :: Client.response()
   def list_shifts(client, opts \\ []) do
-    Client.get("/scheduling/shifts", client, params: shift_params(opts))
+    with {:ok, params} <- shift_params(opts) do
+      Client.get("/scheduling/shifts", client, params: params)
+    end
   end
 
   @doc """
@@ -361,9 +381,9 @@ defmodule BambooHR.Scheduling do
   """
   @spec delete_shift(Client.t(), String.t(), keyword()) :: Client.response()
   def delete_shift(client, shift_id, opts \\ []) when is_binary(shift_id) do
-    params = build_params(opts, recurrence_edit_option: "recurrenceEditOption")
-
-    Client.delete("/scheduling/shifts/#{shift_id}", client, params: params)
+    with {:ok, params} <- build_params(opts, recurrence_edit_option: "recurrenceEditOption") do
+      Client.delete("/scheduling/shifts/#{shift_id}", client, params: params)
+    end
   end
 
   @doc """
@@ -429,7 +449,9 @@ defmodule BambooHR.Scheduling do
   """
   @spec list_shift_assessments(Client.t(), keyword()) :: Client.response()
   def list_shift_assessments(client, opts \\ []) do
-    Client.get("/scheduling/shift-assessments", client, params: list_params(opts))
+    with {:ok, params} <- list_params(opts) do
+      Client.get("/scheduling/shift-assessments", client, params: params)
+    end
   end
 
   defp list_params(opts) do
@@ -467,17 +489,19 @@ defmodule BambooHR.Scheduling do
     employee_ids =
       for id <- List.wrap(opts[:employee_ids]), do: {"employeeIds[]", format_value(id)}
 
-    employee_ids ++
-      build_params(
-        opts,
-        [
-          group_by: "groupBy",
-          include_employees_without_shifts: "includeEmployeesWithoutShifts",
-          include_holidays: "includeHolidays",
-          include_time_off: "includeTimeOff"
-        ],
-        [:employee_ids, :retry]
-      )
+    with {:ok, params} <-
+           build_params(
+             opts,
+             [
+               group_by: "groupBy",
+               include_employees_without_shifts: "includeEmployeesWithoutShifts",
+               include_holidays: "includeHolidays",
+               include_time_off: "includeTimeOff"
+             ],
+             [:employee_ids, :retry]
+           ) do
+      {:ok, employee_ids ++ params}
+    end
   end
 
   # The PDF does not retry unless asked: each retry renders it again.
@@ -500,12 +524,28 @@ defmodule BambooHR.Scheduling do
   end
 
   # `false` is a meaningful value for the PDF flags, so it is kept. An
-  # empty list is dropped: BambooHR reads a present but empty `ids` as a
-  # filter and ignores every other one.
+  # empty list is neither sent nor dropped: BambooHR reads a present but
+  # empty `ids` as a filter and ignores every other one, and leaving a
+  # filter out returns everything. See "Empty lists" in the moduledoc.
   defp build_params(opts, mapping, also_known \\ []) do
     warn_unknown_opts(opts, Keyword.keys(mapping) ++ also_known)
 
-    for {key, param} <- mapping, (value = opts[key]) != nil, value != [], do: {param, join(value)}
+    case for {key, []} <- opts, key != :retry, do: key do
+      [] ->
+        {:ok, for({key, param} <- mapping, (value = opts[key]) != nil, do: {param, join(value)})}
+
+      empty ->
+        {:error, empty_filter_error(empty)}
+    end
+  end
+
+  defp empty_filter_error(keys) do
+    %BambooHR.Error{
+      reason: :empty_filter,
+      message:
+        "#{Enum.map_join(keys, ", ", &inspect/1)} is an empty list, so the request was " <>
+          "not sent. Pass nil to mean no filter."
+    }
   end
 
   # An option this module does not know is dropped, which hides a typo

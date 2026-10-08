@@ -545,25 +545,39 @@ defmodule BambooHR.SchedulingTest do
                )
     end
 
-    test "omits an empty list rather than sending an empty value", %{
-      bypass: bypass,
-      config: config
-    } do
-      Bypass.expect_once(
-        bypass,
-        "GET",
-        "/api/gateway.php/test_company/v1/scheduling/shifts",
-        fn conn ->
-          assert conn.query_string == "scheduleIds=#{@schedule_id}"
+    test "does not send a request when a list filter is empty", %{config: config} do
+      # No Bypass expectation: a request reaching it would fail the test.
+      for opts <- [
+            [ids: [], schedule_ids: [@schedule_id]],
+            [start: "2024-01-01T00:00:00Z", schedule_ids: [@schedule_id], employee_ids: []],
+            [schedule_ids: []],
+            [schedule_ids: [@schedule_id], statuses: []]
+          ] do
+        assert {:error, %BambooHR.Error{reason: :empty_filter, status: nil, message: message}} =
+                 BambooHR.Scheduling.list_shifts(config, opts)
 
-          conn
-          |> Plug.Conn.put_resp_header("content-type", "application/json")
-          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
-        end
-      )
+        assert message =~ "is an empty list"
+      end
+    end
 
-      assert {:ok, %{"data" => []}} =
-               BambooHR.Scheduling.list_shifts(config, ids: [], schedule_ids: [@schedule_id])
+    test "names the empty option in the error", %{config: config} do
+      assert {:error, %BambooHR.Error{reason: :empty_filter, message: message}} =
+               BambooHR.Scheduling.list_shifts(config, employee_ids: [])
+
+      assert message =~ ":employee_ids"
+    end
+
+    test "does not render a PDF for an empty employee list", %{config: config} do
+      assert {:error, %BambooHR.Error{reason: :empty_filter, message: message}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07",
+                 employee_ids: []
+               )
+
+      assert message =~ ":employee_ids"
     end
 
     test "treats a bare nil for employee_ids as no filter", %{bypass: bypass, config: config} do
