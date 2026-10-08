@@ -1088,6 +1088,54 @@ defmodule BambooHR.SchedulingTest do
     end
   end
 
+  describe "IDs in the request path" do
+    test "keeps an ID with reserved characters to one path segment", %{
+      bypass: bypass,
+      config: config
+    } do
+      test_pid = self()
+
+      Bypass.expect(bypass, fn conn ->
+        send(test_pid, {:request, conn.method, conn.request_path, conn.query_string})
+        Plug.Conn.resp(conn, 204, "")
+      end)
+
+      prefix = "/api/gateway.php/test_company/v1/scheduling"
+
+      BambooHR.Scheduling.delete_shift(config, "abc?recurrenceEditOption=all")
+      assert_received {:request, "DELETE", path, ""}
+      assert path == prefix <> "/shifts/abc%3FrecurrenceEditOption%3Dall"
+
+      BambooHR.Scheduling.get_schedule(config, "x/pdf")
+      assert_received {:request, "GET", path, ""}
+      assert path == prefix <> "/schedules/x%2Fpdf"
+
+      BambooHR.Scheduling.get_shift(config, "a#b")
+      assert_received {:request, "GET", path, ""}
+      assert path == prefix <> "/shifts/a%23b"
+    end
+
+    test "leaves a UUID and a composite recurrence ID as they are", %{
+      bypass: bypass,
+      config: config
+    } do
+      composite = "3fa85f64-5717-4562-b3fc-2c963f66afa6_20240101T093000"
+
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/shifts/#{composite}",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"id" => composite}))
+        end
+      )
+
+      assert {:ok, %{"id" => ^composite}} = BambooHR.Scheduling.get_shift(config, composite)
+    end
+  end
+
   describe "options that are not a keyword list" do
     test "reads a map, and nil, without raising", %{bypass: bypass, config: config} do
       Bypass.expect(
