@@ -1186,5 +1186,36 @@ defmodule BambooHR.SchedulingTest do
                  %{include_holidays: true, retry: false}
                )
     end
+
+    test "reads a map, and nil, on every other function that takes options", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect(bypass, fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{"query" => conn.query_params}))
+      end)
+
+      for list <- [
+            &BambooHR.Scheduling.list_schedules/2,
+            &BambooHR.Scheduling.list_timezones/2,
+            &BambooHR.Scheduling.list_shift_assessments/2
+          ] do
+        assert {:ok, %{"query" => %{"page" => "2"}}} = list.(config, %{page: 2})
+        assert {:ok, %{"query" => query}} = list.(config, nil)
+        assert query == %{}
+      end
+
+      assert {:ok, %{"query" => %{"recurrenceEditOption" => "future"}}} =
+               BambooHR.Scheduling.delete_shift(config, @shift_id, %{
+                 recurrence_edit_option: "future"
+               })
+
+      assert {:ok, %{"query" => query}} = BambooHR.Scheduling.delete_shift(config, @shift_id, nil)
+      assert query == %{}
+    end
   end
 end
