@@ -47,6 +47,11 @@ defmodule BambooHR.Scheduling do
   unknown too. The call returns
   `{:error, %BambooHR.Error{reason: :invalid_argument}}` without
   contacting BambooHR, and the error's `:message` names the option.
+
+  The same error comes back for a value that cannot go in a query
+  string. A value is text, a number, an atom, a `Date`, a
+  `NaiveDateTime`, a `DateTime`, or a flat list of those. A `MapSet`, a
+  map or a list inside a list is not; turn it into a list first.
   """
 
   require Logger
@@ -221,7 +226,8 @@ defmodule BambooHR.Scheduling do
   def get_schedule_pdf(client, schedule_id, start_ymd, end_ymd, opts \\ [])
       when is_binary(schedule_id) and (is_binary(start_ymd) or is_struct(start_ymd, Date)) and
              (is_binary(end_ymd) or is_struct(end_ymd, Date)) do
-    with {:ok, optional} <- pdf_params(opts) do
+    with {:ok, opts} <- keyword(opts),
+         {:ok, optional} <- pdf_params(opts) do
       params =
         [{"startYmd", format_ymd(start_ymd)}, {"endYmd", format_ymd(end_ymd)}] ++ optional
 
@@ -431,7 +437,8 @@ defmodule BambooHR.Scheduling do
   know the `:partial_success` option hands a `207` back as a success,
   so a result with anything in `"failed"` is turned into the same
   `:partial_publish` error here. In that case `:body` is the result
-  encoded as JSON again, and there is no `:request_id`, because the
+  encoded as JSON again, or as `inspect/1` prints it if it holds
+  something JSON cannot, and there is no `:request_id`, because the
   client has already dropped the response headers.
 
   ## Parameters
@@ -470,10 +477,19 @@ defmodule BambooHR.Scheduling do
   # as a success. BambooHR only reports failures on a 207 or a 409, and a
   # 409 is already an error, so a success with failures in it was a 207.
   defp partial_publish_to_error({:ok, %{"failed" => [_ | _]} = result}) do
-    {:error, BambooHR.Error.from_partial_success(:partial_publish, 207, Jason.encode!(result))}
+    {:error, BambooHR.Error.from_partial_success(:partial_publish, 207, encode(result))}
   end
 
   defp partial_publish_to_error(result), do: result
+
+  # A custom client can hand back a term JSON cannot hold, such as a
+  # tuple. `Jason.encode!/1` would raise on it.
+  defp encode(result) do
+    case Jason.encode(result) do
+      {:ok, json} -> json
+      {:error, _reason} -> inspect(result)
+    end
+  end
 
   @doc """
   Lists shift assessments.
@@ -503,26 +519,26 @@ defmodule BambooHR.Scheduling do
   end
 
   defp shift_params(opts) do
-    opts
-    |> end_of_day_for(:end)
-    |> build_params(
-      ids: "ids",
-      start: "start",
-      end: "end",
-      employee_ids: "employeeIds",
-      schedule_ids: "scheduleIds",
-      statuses: "statuses",
-      page: "page",
-      page_size: "pageSize"
-    )
+    with {:ok, opts} <- keyword(opts) do
+      opts
+      |> end_of_day_for(:end)
+      |> build_params(
+        ids: "ids",
+        start: "start",
+        end: "end",
+        employee_ids: "employeeIds",
+        schedule_ids: "scheduleIds",
+        statuses: "statuses",
+        page: "page",
+        page_size: "pageSize"
+      )
+    end
   end
 
   # A `Date` as the end of the window means the whole of that day, not its
   # first second. The end of the day, rather than midnight after it, keeps
   # a full calendar month inside BambooHR's one-month limit.
   defp end_of_day_for(opts, key) do
-    opts = keyword(opts)
-
     case List.keyfind(opts, key, 0) do
       {^key, %Date{} = date} ->
         List.keystore(opts, key, 0, {key, NaiveDateTime.new!(date, ~T[23:59:59])})
@@ -535,11 +551,6 @@ defmodule BambooHR.Scheduling do
   # The PDF endpoint takes employeeIds[] as a repeated parameter rather
   # than a comma-separated list, so each ID gets its own entry.
   defp pdf_params(opts) do
-    opts = keyword(opts)
-
-    employee_ids =
-      for id <- List.wrap(opts[:employee_ids]), do: {"employeeIds[]", format_value(id)}
-
     with {:ok, params} <-
            build_params(
              opts,
@@ -551,6 +562,9 @@ defmodule BambooHR.Scheduling do
              ],
              [:employee_ids, :retry]
            ) do
+      employee_ids =
+        for id <- List.wrap(opts[:employee_ids]), do: {"employeeIds[]", format_value(id)}
+
       {:ok, employee_ids ++ params}
     end
   end
@@ -561,7 +575,7 @@ defmodule BambooHR.Scheduling do
   # only once the response is in — after the PDF has been rendered — so
   # anything else is dropped with a warning.
   defp retry_opt(opts) do
-    case List.keyfind(keyword(opts), :retry, 0) do
+    case List.keyfind(opts, :retry, 0) do
       {:retry, retry} when retry in [false, :unprocessed, :safe_transient, :transient] ->
         [retry: retry]
 
@@ -609,9 +623,9 @@ defmodule BambooHR.Scheduling do
 
   # `false` is a meaningful value for the PDF flags, so it is kept.
   defp build_params(opts, mapping, also_known \\ []) do
-    opts = keyword(opts)
-
-    with :ok <- check_known(opts, Keyword.keys(mapping) ++ also_known),
+    with {:ok, opts} <- keyword(opts),
+         :ok <- check_known(opts, Keyword.keys(mapping) ++ also_known),
+         :ok <- check_values(opts),
          :ok <- check_not_empty(opts) do
       {:ok, for({key, param} <- mapping, (value = opts[key]) != nil, do: {param, join(value)})}
     end
@@ -636,6 +650,34 @@ defmodule BambooHR.Scheduling do
          }}
     end
   end
+
+  # A value has to be something a query string can hold. Anything else,
+  # such as a `MapSet`, a map or a list inside a list, raises once Req
+  # encodes the query, and public functions must not raise.
+  defp check_values(opts) do
+    case for {key, value} <- opts, key != :retry, not sendable?(value), do: key do
+      [] ->
+        :ok
+
+      bad ->
+        {:error,
+         invalid_argument(
+           "#{names(bad)} must be a string, number, atom, date, date-time, or a flat " <>
+             "list of those, so the request was not sent."
+         )}
+    end
+  end
+
+  defp sendable?(value) when is_list(value), do: scalars?(value)
+  defp sendable?(value), do: scalar?(value)
+
+  defp scalars?([head | rest]), do: scalar?(head) and scalars?(rest)
+  defp scalars?([]), do: true
+  defp scalars?(_improper), do: false
+
+  defp scalar?(value) when is_binary(value) or is_atom(value) or is_number(value), do: true
+  defp scalar?(%struct{}) when struct in [Date, NaiveDateTime, DateTime], do: true
+  defp scalar?(_value), do: false
 
   defp empty?([]), do: true
   defp empty?(value) when is_list(value), do: Enum.any?(value, &blank?/1)
@@ -669,10 +711,25 @@ defmodule BambooHR.Scheduling do
   defp names(keys), do: Enum.map_join(keys, ", ", &inspect/1)
 
   # Options are a keyword list, but `opts[key]` elsewhere in this client
-  # also reads a map or `nil`, so neither raises here.
-  defp keyword(opts) when is_list(opts), do: opts
-  defp keyword(opts) when is_map(opts), do: Map.to_list(opts)
-  defp keyword(nil), do: []
+  # also reads a map or `nil`, so both are read here. Anything else would
+  # raise further down, so it is turned away.
+  defp keyword(nil), do: {:ok, []}
+  defp keyword(opts) when is_map(opts) and not is_struct(opts), do: {:ok, Map.to_list(opts)}
+
+  defp keyword(opts) do
+    if pairs?(opts) do
+      {:ok, opts}
+    else
+      {:error,
+       invalid_argument(
+         "the options must be a keyword list, a map or nil, so the request was not sent."
+       )}
+    end
+  end
+
+  defp pairs?([{_key, _value} | rest]), do: pairs?(rest)
+  defp pairs?([]), do: true
+  defp pairs?(_other), do: false
 
   # Keeps an ID to one path segment, whatever it holds.
   defp segment(id), do: URI.encode(id, &URI.char_unreserved?/1)

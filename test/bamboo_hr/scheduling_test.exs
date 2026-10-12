@@ -369,6 +369,13 @@ defmodule BambooHR.SchedulingTest do
       end
     end
 
+    defmodule UnencodablePublish do
+      @behaviour BambooHR.HTTPClient
+
+      @impl true
+      def request(_opts), do: {:ok, %{"published" => [], "failed" => [{:shift, "x"}]}}
+    end
+
     defmodule CleanPublish do
       @behaviour BambooHR.HTTPClient
 
@@ -392,6 +399,20 @@ defmodule BambooHR.SchedulingTest do
                "published" => [%{"id" => "w"}],
                "failed" => [%{"shiftId" => "x", "reason" => "y"}]
              }
+    end
+
+    test "does not raise when a custom client's result is not JSON" do
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          http_client: UnencodablePublish
+        )
+
+      assert {:error, %BambooHR.Error{reason: :partial_publish, status: 207, body: body}} =
+               BambooHR.Scheduling.publish_shifts(config, ["x"])
+
+      assert body =~ ~s(shift: "x")
     end
 
     test "leaves a custom client's clean publish as a success" do
@@ -1137,6 +1158,65 @@ defmodule BambooHR.SchedulingTest do
       )
 
       assert {:ok, %{"id" => ^composite}} = BambooHR.Scheduling.get_shift(config, composite)
+    end
+  end
+
+  describe "options and values that cannot be sent" do
+    test "returns an error for options that are not a keyword list, map or nil", %{
+      config: config
+    } do
+      # No Bypass expectation: a request reaching it would fail the test.
+      for opts <- ["x", 1, [1, 2], [:ids], [{:ids, ["a"]} | :rest], ~D[2024-01-01]] do
+        for call <- [
+              &BambooHR.Scheduling.list_shifts(config, &1),
+              &BambooHR.Scheduling.list_schedules(config, &1),
+              &BambooHR.Scheduling.delete_shift(config, @shift_id, &1),
+              &BambooHR.Scheduling.get_schedule_pdf(
+                config,
+                @schedule_id,
+                "2024-01-01",
+                "2024-01-07",
+                &1
+              )
+            ] do
+          assert {:error,
+                  %BambooHR.Error{reason: :invalid_argument, status: nil, message: message}} =
+                   call.(opts)
+
+          assert message =~ "must be a keyword list, a map or nil"
+        end
+      end
+    end
+
+    test "returns an error for a value a query string cannot hold", %{config: config} do
+      for ids <- [
+            MapSet.new(["a"]),
+            MapSet.new(),
+            %{"a" => 1},
+            {"a", "b"},
+            [["a", "b"]],
+            ["a", %{}],
+            ["a" | "b"],
+            self()
+          ] do
+        assert {:error, %BambooHR.Error{reason: :invalid_argument, status: nil, message: message}} =
+                 BambooHR.Scheduling.list_shifts(config, ids: ids)
+
+        assert message =~ ":ids must be"
+      end
+    end
+
+    test "returns an error for a list inside the PDF's employee IDs", %{config: config} do
+      assert {:error, %BambooHR.Error{reason: :invalid_argument, message: message}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07",
+                 employee_ids: [[1, 2]]
+               )
+
+      assert message =~ ":employee_ids must be"
     end
   end
 
