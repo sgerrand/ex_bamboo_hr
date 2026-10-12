@@ -583,8 +583,38 @@ defmodule BambooHR.SchedulingTest do
         assert {:error, %BambooHR.Error{reason: :empty_filter, status: nil, message: message}} =
                  BambooHR.Scheduling.list_shifts(config, opts)
 
-        assert message =~ "is an empty list"
+        assert message =~ "is empty"
       end
+    end
+
+    test "does not send a request when a filter holds only an empty string", %{config: config} do
+      # Each of these would go out as `ids=`, which BambooHR reads as a
+      # filter that matches nothing and puts ahead of every other one.
+      for ids <- [[""], "", String.split("", ","), [@shift_id, ""], " ", ["  "]] do
+        assert {:error, %BambooHR.Error{reason: :empty_filter, status: nil, message: message}} =
+                 BambooHR.Scheduling.list_shifts(config, ids: ids, schedule_ids: [@schedule_id])
+
+        assert message =~ ":ids"
+      end
+    end
+
+    test "does not send a request for an empty string in any other option", %{config: config} do
+      assert {:error, %BambooHR.Error{reason: :empty_filter, message: message}} =
+               BambooHR.Scheduling.list_shift_assessments(config, filter: "")
+
+      assert message =~ ":filter"
+
+      assert {:error, %BambooHR.Error{reason: :empty_filter}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07",
+                 employee_ids: [""]
+               )
+
+      assert {:error, %BambooHR.Error{reason: :empty_filter}} =
+               BambooHR.Scheduling.delete_shift(config, @shift_id, recurrence_edit_option: "")
     end
 
     test "names the empty option in the error", %{config: config} do

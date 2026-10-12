@@ -25,13 +25,16 @@ defmodule BambooHR.Scheduling do
   `:sort`, where supported, are OData-style strings passed straight
   through.
 
-  ## Empty lists
+  ## Empty values
 
   An option given as an empty list is never sent. Leaving it out would
   drop the filter and return everything, where a list that worked out
-  empty most likely means nothing should match. The call returns
-  `{:error, %BambooHR.Error{reason: :empty_filter}}` without contacting
-  BambooHR. Pass `nil`, or leave the option out, to mean no filter.
+  empty most likely means nothing should match. An empty string, or a
+  list that holds one, is treated the same way: `String.split("", ",")`
+  gives `[""]`, not `[]`. A string of only spaces counts as empty. The
+  call returns `{:error, %BambooHR.Error{reason: :empty_filter}}`
+  without contacting BambooHR. Pass `nil`, or leave the option out, to
+  mean no filter.
 
   ## Options
 
@@ -201,7 +204,7 @@ defmodule BambooHR.Scheduling do
       `{:delay, milliseconds}`; anything else, or a function that
       raises, counts as `false`, with a warning. Any other `:retry`
       value is ignored with a warning. An empty `:employee_ids` list
-      returns an `:empty_filter` error; see "Empty lists" above
+      returns an `:empty_filter` error; see "Empty values" above
 
   ## Examples
 
@@ -273,7 +276,7 @@ defmodule BambooHR.Scheduling do
       `nil` in the `:employee_ids` list, e.g. `[123, nil]`, to include
       unassigned (open) shifts; a bare `nil` means no filter. An empty
       list for any of these returns an `:empty_filter` error; see "Empty
-      lists" above.
+      values" above.
       `:statuses` takes lowercase values: `"planned"`, `"published"`,
       `"cancelled"`, `"deleted"`. Without it, BambooHR returns only
       planned and published shifts.
@@ -604,33 +607,42 @@ defmodule BambooHR.Scheduling do
     false
   end
 
-  # `false` is a meaningful value for the PDF flags, so it is kept. An
-  # empty list is neither sent nor dropped: BambooHR reads a present but
-  # empty `ids` as a filter and ignores every other one, and leaving a
-  # filter out returns everything. See "Empty lists" in the moduledoc.
+  # `false` is a meaningful value for the PDF flags, so it is kept.
   defp build_params(opts, mapping, also_known \\ []) do
     opts = keyword(opts)
 
-    with :ok <- check_known(opts, Keyword.keys(mapping) ++ also_known) do
-      case for {key, []} <- opts, key != :retry, do: key do
-        [] ->
-          {:ok,
-           for({key, param} <- mapping, (value = opts[key]) != nil, do: {param, join(value)})}
-
-        empty ->
-          {:error, empty_filter_error(empty)}
-      end
+    with :ok <- check_known(opts, Keyword.keys(mapping) ++ also_known),
+         :ok <- check_not_empty(opts) do
+      {:ok, for({key, param} <- mapping, (value = opts[key]) != nil, do: {param, join(value)})}
     end
   end
 
-  defp empty_filter_error(keys) do
-    %BambooHR.Error{
-      reason: :empty_filter,
-      message:
-        "#{names(keys)} is an empty list, so the request was not sent. " <>
-          "Pass nil to mean no filter."
-    }
+  # An empty value is neither sent nor dropped: BambooHR reads a present
+  # but empty `ids` as a filter and ignores every other one, and leaving
+  # a filter out returns everything. `[""]` and `""` both go out as
+  # `ids=`, the same as `[]` would. See "Empty values" in the moduledoc.
+  defp check_not_empty(opts) do
+    case for {key, value} <- opts, key != :retry, empty?(value), do: key do
+      [] ->
+        :ok
+
+      empty ->
+        {:error,
+         %BambooHR.Error{
+           reason: :empty_filter,
+           message:
+             "#{names(empty)} is empty, or holds an empty value, so the request " <>
+               "was not sent. Pass nil to mean no filter."
+         }}
+    end
   end
+
+  defp empty?([]), do: true
+  defp empty?(value) when is_list(value), do: Enum.any?(value, &blank?/1)
+  defp empty?(value), do: blank?(value)
+
+  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank?(_value), do: false
 
   # An option this module does not know is never dropped. Left out of the
   # request, a misspelt filter like `employee_id` for `employee_ids` would

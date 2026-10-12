@@ -47,9 +47,10 @@ defmodule BambooHR.Error do
     * `:partial_publish` - a `207` from
       `BambooHR.Scheduling.publish_shifts/2`: some shifts published and
       some did not. `:body` holds both lists, as BambooHR sent them
-    * `:empty_filter` - a list filter was given as an empty list, so the
-      request was **not sent**. Left out of the request, the filter would
-      match everything, where an empty list most likely means nothing.
+    * `:empty_filter` - a filter was given as an empty list, an empty
+      string, or a list holding an empty string, so the request was
+      **not sent**. Left out of the request, the filter would match
+      everything, where an empty value most likely means nothing.
       `:message` names the option. Pass `nil` to mean no filter
     * `:invalid_argument` - an argument could not be used, so the request
       was **not sent**. `:message` says which one and why
