@@ -256,6 +256,9 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   read as "do not retry". Any other `:retry` value, or any unknown
   option, is dropped with a `Logger.warning`, so a typo is easy to
   find. Options may be a keyword list, a map or `nil`.
+  The specs say so through
+  `t:BambooHR.Scheduling.opts/0`; keep a spec as wide as what the
+  function reads, or Dialyzer rejects a call the code supports.
   The PDF wants repeated `employeeIds[]` params, not a comma-joined
   list. Plug parses the `[]` suffix back into a list, which is what the
   test checks. The PDF window takes a `Date` as well as a string.
