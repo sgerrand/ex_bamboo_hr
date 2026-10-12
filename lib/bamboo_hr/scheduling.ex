@@ -37,6 +37,13 @@ defmodule BambooHR.Scheduling do
 
   Every `opts` argument is usually a keyword list. A map with the same
   atom keys works too, and `nil` means no options. See `t:opts/0`.
+
+  An option the function does not know is never dropped. Left out of the
+  request, a misspelt filter such as `employee_id` for `employee_ids`
+  would return everything. A string key, as in `%{"ids" => ids}`, is
+  unknown too. The call returns
+  `{:error, %BambooHR.Error{reason: :invalid_argument}}` without
+  contacting BambooHR, and the error's `:message` names the option.
   """
 
   require Logger
@@ -192,10 +199,9 @@ defmodule BambooHR.Scheduling do
       `:safe_transient`, `:transient`, or a 2-arity function, as Req
       does. A function should return `true`, `false` or
       `{:delay, milliseconds}`; anything else, or a function that
-      raises, counts as `false`, with a warning. Any other key, or any
-      other `:retry` value, is ignored with a warning. An empty
-      `:employee_ids` list returns an `:empty_filter` error; see "Empty
-      lists" above
+      raises, counts as `false`, with a warning. Any other `:retry`
+      value is ignored with a warning. An empty `:employee_ids` list
+      returns an `:empty_filter` error; see "Empty lists" above
 
   ## Examples
 
@@ -604,14 +610,16 @@ defmodule BambooHR.Scheduling do
   # filter out returns everything. See "Empty lists" in the moduledoc.
   defp build_params(opts, mapping, also_known \\ []) do
     opts = keyword(opts)
-    warn_unknown_opts(opts, Keyword.keys(mapping) ++ also_known)
 
-    case for {key, []} <- opts, key != :retry, do: key do
-      [] ->
-        {:ok, for({key, param} <- mapping, (value = opts[key]) != nil, do: {param, join(value)})}
+    with :ok <- check_known(opts, Keyword.keys(mapping) ++ also_known) do
+      case for {key, []} <- opts, key != :retry, do: key do
+        [] ->
+          {:ok,
+           for({key, param} <- mapping, (value = opts[key]) != nil, do: {param, join(value)})}
 
-      empty ->
-        {:error, empty_filter_error(empty)}
+        empty ->
+          {:error, empty_filter_error(empty)}
+      end
     end
   end
 
@@ -619,23 +627,34 @@ defmodule BambooHR.Scheduling do
     %BambooHR.Error{
       reason: :empty_filter,
       message:
-        "#{Enum.map_join(keys, ", ", &inspect/1)} is an empty list, so the request was " <>
-          "not sent. Pass nil to mean no filter."
+        "#{names(keys)} is an empty list, so the request was not sent. " <>
+          "Pass nil to mean no filter."
     }
   end
 
-  # An option this module does not know is dropped, which hides a typo
-  # like `include_holiday` for `include_holidays`. Public functions must
-  # not raise, so say something instead.
-  defp warn_unknown_opts(opts, known) do
+  # An option this module does not know is never dropped. Left out of the
+  # request, a misspelt filter like `employee_id` for `employee_ids` would
+  # return everything. A string key, as in `%{"ids" => ids}`, is unknown
+  # too. Public functions must not raise, so the call returns an error.
+  defp check_known(opts, known) do
     case for {key, _value} <- opts, key not in known, do: key do
       [] ->
         :ok
 
       unknown ->
-        Logger.warning("BambooHR.Scheduling: ignoring unknown options #{inspect(unknown)}")
+        {:error,
+         invalid_argument(
+           "unknown option #{names(unknown)}, so the request was not sent. " <>
+             "Option names are atoms, and this call takes #{names(known)}."
+         )}
     end
   end
+
+  defp invalid_argument(message) do
+    %BambooHR.Error{reason: :invalid_argument, message: message}
+  end
+
+  defp names(keys), do: Enum.map_join(keys, ", ", &inspect/1)
 
   # Options are a keyword list, but `opts[key]` elsewhere in this client
   # also reads a map or `nil`, so neither raises here.

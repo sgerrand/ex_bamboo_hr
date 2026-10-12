@@ -51,6 +51,8 @@ defmodule BambooHR.Error do
       request was **not sent**. Left out of the request, the filter would
       match everything, where an empty list most likely means nothing.
       `:message` names the option. Pass `nil` to mean no filter
+    * `:invalid_argument` - an argument could not be used, so the request
+      was **not sent**. `:message` says which one and why
 
   This struct is also an exception, so `raise error` and
   `Exception.message/1` work on it. The client itself never raises.
@@ -74,6 +76,7 @@ defmodule BambooHR.Error do
           | :decode_error
           | :partial_publish
           | :empty_filter
+          | :invalid_argument
 
   @type t :: %__MODULE__{
           reason: reason(),

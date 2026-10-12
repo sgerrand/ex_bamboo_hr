@@ -745,62 +745,36 @@ defmodule BambooHR.SchedulingTest do
       assert log =~ "ignoring retry: true"
     end
 
-    test "ignores an unrecognised option rather than raising", %{bypass: bypass, config: config} do
-      Bypass.expect_once(
-        bypass,
-        "GET",
-        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
-        fn conn ->
-          assert conn.query_string == "startYmd=2024-01-01&endYmd=2024-01-07"
+    test "does not send a request for an option it does not know", %{config: config} do
+      # No Bypass expectation: a request reaching it would fail the test.
+      # :api_version is one Client would raise on, so it must stop here too.
+      for {opts, name} <- [
+            {[include_holiday: true], ":include_holiday"},
+            {[employee_id: [42]], ":employee_id"},
+            {[api_version: "v2"], ":api_version"},
+            {%{"employee_ids" => [42]}, ~s("employee_ids")}
+          ] do
+        assert {:error, %BambooHR.Error{reason: :invalid_argument, status: nil, message: message}} =
+                 BambooHR.Scheduling.get_schedule_pdf(
+                   config,
+                   @schedule_id,
+                   "2024-01-01",
+                   "2024-01-07",
+                   opts
+                 )
 
-          conn
-          |> Plug.Conn.put_resp_header("content-type", "application/pdf")
-          |> Plug.Conn.resp(200, "%PDF-")
-        end
-      )
-
-      log =
-        ExUnit.CaptureLog.capture_log(fn ->
-          assert {:ok, %{body: "%PDF-"}} =
-                   BambooHR.Scheduling.get_schedule_pdf(
-                     config,
-                     @schedule_id,
-                     "2024-01-01",
-                     "2024-01-07",
-                     include_holiday: true
-                   )
-        end)
-
-      assert log =~ "ignoring unknown options [:include_holiday]"
+        assert message =~ "unknown option #{name}"
+      end
     end
 
-    test "does not let an api_version option through", %{bypass: bypass, config: config} do
-      # Client raises on an unknown :api_version, so it is never passed on.
-      # The v1 path proves it did not arrive.
-      Bypass.expect_once(
-        bypass,
-        "GET",
-        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
-        fn conn ->
-          conn
-          |> Plug.Conn.put_resp_header("content-type", "application/pdf")
-          |> Plug.Conn.resp(200, "%PDF-")
-        end
-      )
+    test "does not list shifts unfiltered when a filter is misspelt", %{config: config} do
+      for opts <- [[id: ["a"]], %{"ids" => ["a"]}, [schedule_ids: [@schedule_id], retry: false]] do
+        assert {:error, %BambooHR.Error{reason: :invalid_argument, message: message}} =
+                 BambooHR.Scheduling.list_shifts(config, opts)
 
-      log =
-        ExUnit.CaptureLog.capture_log(fn ->
-          assert {:ok, %{body: "%PDF-"}} =
-                   BambooHR.Scheduling.get_schedule_pdf(
-                     config,
-                     @schedule_id,
-                     "2024-01-01",
-                     "2024-01-07",
-                     api_version: "v2"
-                   )
-        end)
-
-      assert log =~ "ignoring unknown options [:api_version]"
+        assert message =~ "unknown option"
+        assert message =~ ":schedule_ids"
+      end
     end
 
     defmodule CaptureRetry do
