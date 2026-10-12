@@ -32,11 +32,23 @@ defmodule BambooHR.Scheduling do
   empty most likely means nothing should match. The call returns
   `{:error, %BambooHR.Error{reason: :empty_filter}}` without contacting
   BambooHR. Pass `nil`, or leave the option out, to mean no filter.
+
+  ## Options
+
+  Every `opts` argument is usually a keyword list. A map with the same
+  atom keys works too, and `nil` means no options. See `t:opts/0`.
   """
 
   require Logger
 
   alias BambooHR.Client
+
+  @typedoc """
+  Options for a function in this module.
+
+  A keyword list, a map with the same atom keys, or `nil` for no options.
+  """
+  @type opts :: keyword() | %{optional(atom()) => term()} | nil
 
   @doc """
   Lists schedules.
@@ -52,7 +64,7 @@ defmodule BambooHR.Scheduling do
       iex> BambooHR.Scheduling.list_schedules(client)
       {:ok, %{"data" => [%{"id" => "3fa8...", "name" => "Store floor"}]}}
   """
-  @spec list_schedules(Client.t(), keyword()) :: Client.response()
+  @spec list_schedules(Client.t(), opts()) :: Client.response()
   def list_schedules(client, opts \\ []) do
     with {:ok, params} <- list_params(opts) do
       Client.get("/scheduling/schedules", client, params: params)
@@ -195,7 +207,7 @@ defmodule BambooHR.Scheduling do
           String.t(),
           String.t() | Date.t(),
           String.t() | Date.t(),
-          keyword()
+          opts()
         ) :: Client.response()
   def get_schedule_pdf(client, schedule_id, start_ymd, end_ymd, opts \\ [])
       when is_binary(schedule_id) and (is_binary(start_ymd) or is_struct(start_ymd, Date)) and
@@ -226,7 +238,7 @@ defmodule BambooHR.Scheduling do
       iex> BambooHR.Scheduling.list_timezones(client)
       {:ok, %{"data" => [%{"name" => "America/New_York"}]}}
   """
-  @spec list_timezones(Client.t(), keyword()) :: Client.response()
+  @spec list_timezones(Client.t(), opts()) :: Client.response()
   def list_timezones(client, opts \\ []) do
     with {:ok, params} <- list_params(opts) do
       Client.get("/scheduling/timezones", client, params: params)
@@ -269,7 +281,7 @@ defmodule BambooHR.Scheduling do
       ...> )
       {:ok, %{"data" => [%{"id" => "9c14...", "status" => "published"}]}}
   """
-  @spec list_shifts(Client.t(), keyword()) :: Client.response()
+  @spec list_shifts(Client.t(), opts()) :: Client.response()
   def list_shifts(client, opts \\ []) do
     with {:ok, params} <- shift_params(opts) do
       Client.get("/scheduling/shifts", client, params: params)
@@ -387,7 +399,7 @@ defmodule BambooHR.Scheduling do
       iex> BambooHR.Scheduling.delete_shift(client, "9c14...")
       {:ok, nil}
   """
-  @spec delete_shift(Client.t(), String.t(), keyword()) :: Client.response()
+  @spec delete_shift(Client.t(), String.t(), opts()) :: Client.response()
   def delete_shift(client, shift_id, opts \\ []) when is_binary(shift_id) do
     with {:ok, params} <- build_params(opts, recurrence_edit_option: "recurrenceEditOption") do
       Client.delete("/scheduling/shifts/#{segment(shift_id)}", client, params: params)
@@ -470,7 +482,7 @@ defmodule BambooHR.Scheduling do
       iex> BambooHR.Scheduling.list_shift_assessments(client, filter: "employeeId eq 123")
       {:ok, %{"data" => [%{"employeeId" => 123, "date" => "2024-01-15"}]}}
   """
-  @spec list_shift_assessments(Client.t(), keyword()) :: Client.response()
+  @spec list_shift_assessments(Client.t(), opts()) :: Client.response()
   def list_shift_assessments(client, opts \\ []) do
     with {:ok, params} <- list_params(opts) do
       Client.get("/scheduling/shift-assessments", client, params: params)
