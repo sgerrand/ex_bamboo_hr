@@ -19,6 +19,12 @@ defmodule BambooHR.Scheduling do
   that holds a `/`, `?` or `#` stays a single path segment and cannot
   change which endpoint is called or add query parameters.
 
+  An empty ID, `"."` and `".."` are never sent. An empty one would turn
+  `get_shift/2` into a call on the whole list, and the dots mean "this
+  folder" and "the one above" in a path. The call returns
+  `{:error, %BambooHR.Error{reason: :invalid_argument}}` without
+  contacting BambooHR.
+
   ## Paging and filtering
 
   Listing functions page with `:page` and `:page_size`. `:filter` and
@@ -126,7 +132,9 @@ defmodule BambooHR.Scheduling do
   """
   @spec get_schedule(Client.t(), String.t()) :: Client.response()
   def get_schedule(client, schedule_id) when is_binary(schedule_id) do
-    Client.get("/scheduling/schedules/#{segment(schedule_id)}", client)
+    with {:ok, id} <- segment(schedule_id) do
+      Client.get("/scheduling/schedules/#{id}", client)
+    end
   end
 
   @doc """
@@ -149,7 +157,9 @@ defmodule BambooHR.Scheduling do
   @spec update_schedule(Client.t(), String.t(), map()) :: Client.response()
   def update_schedule(client, schedule_id, changes)
       when is_binary(schedule_id) and is_map(changes) do
-    Client.patch("/scheduling/schedules/#{segment(schedule_id)}", client, json: changes)
+    with {:ok, id} <- segment(schedule_id) do
+      Client.patch("/scheduling/schedules/#{id}", client, json: changes)
+    end
   end
 
   @doc """
@@ -170,7 +180,9 @@ defmodule BambooHR.Scheduling do
   """
   @spec delete_schedule(Client.t(), String.t()) :: Client.response()
   def delete_schedule(client, schedule_id) when is_binary(schedule_id) do
-    Client.delete("/scheduling/schedules/#{segment(schedule_id)}", client)
+    with {:ok, id} <- segment(schedule_id) do
+      Client.delete("/scheduling/schedules/#{id}", client)
+    end
   end
 
   @doc """
@@ -226,13 +238,14 @@ defmodule BambooHR.Scheduling do
   def get_schedule_pdf(client, schedule_id, start_ymd, end_ymd, opts \\ [])
       when is_binary(schedule_id) and (is_binary(start_ymd) or is_struct(start_ymd, Date)) and
              (is_binary(end_ymd) or is_struct(end_ymd, Date)) do
-    with {:ok, opts} <- keyword(opts),
+    with {:ok, id} <- segment(schedule_id),
+         {:ok, opts} <- keyword(opts),
          {:ok, optional} <- pdf_params(opts) do
       params =
         [{"startYmd", format_ymd(start_ymd)}, {"endYmd", format_ymd(end_ymd)}] ++ optional
 
       Client.get(
-        "/scheduling/schedules/#{segment(schedule_id)}/pdf",
+        "/scheduling/schedules/#{id}/pdf",
         client,
         [params: params, raw_response: true, expose_headers: true] ++ retry_opt(opts)
       )
@@ -352,7 +365,9 @@ defmodule BambooHR.Scheduling do
   """
   @spec get_shift(Client.t(), String.t()) :: Client.response()
   def get_shift(client, shift_id) when is_binary(shift_id) do
-    Client.get("/scheduling/shifts/#{segment(shift_id)}", client)
+    with {:ok, id} <- segment(shift_id) do
+      Client.get("/scheduling/shifts/#{id}", client)
+    end
   end
 
   @doc """
@@ -392,7 +407,9 @@ defmodule BambooHR.Scheduling do
   """
   @spec update_shift(Client.t(), String.t(), map()) :: Client.response()
   def update_shift(client, shift_id, changes) when is_binary(shift_id) and is_map(changes) do
-    Client.patch("/scheduling/shifts/#{segment(shift_id)}", client, json: changes)
+    with {:ok, id} <- segment(shift_id) do
+      Client.patch("/scheduling/shifts/#{id}", client, json: changes)
+    end
   end
 
   @doc """
@@ -416,8 +433,9 @@ defmodule BambooHR.Scheduling do
   """
   @spec delete_shift(Client.t(), String.t(), opts()) :: Client.response()
   def delete_shift(client, shift_id, opts \\ []) when is_binary(shift_id) do
-    with {:ok, params} <- build_params(opts, recurrence_edit_option: "recurrenceEditOption") do
-      Client.delete("/scheduling/shifts/#{segment(shift_id)}", client, params: params)
+    with {:ok, id} <- segment(shift_id),
+         {:ok, params} <- build_params(opts, recurrence_edit_option: "recurrenceEditOption") do
+      Client.delete("/scheduling/shifts/#{id}", client, params: params)
     end
   end
 
@@ -731,8 +749,20 @@ defmodule BambooHR.Scheduling do
   defp pairs?([]), do: true
   defp pairs?(_other), do: false
 
-  # Keeps an ID to one path segment, whatever it holds.
-  defp segment(id), do: URI.encode(id, &URI.char_unreserved?/1)
+  # Keeps an ID to one path segment, whatever it holds. Encoding cannot
+  # help with three values, so they are turned away. An empty ID leaves
+  # the path ending in `/`, which a router may serve as the list
+  # endpoint: a blank ID would then delete or fetch at the wrong level.
+  # `.` and `..` are unreserved, so they pass through as they are, and a
+  # proxy may resolve them as path steps.
+  defp segment(id) do
+    if String.trim(id) == "" or id in [".", ".."] do
+      {:error,
+       invalid_argument("#{inspect(id)} cannot be used as an ID, so the request was not sent.")}
+    else
+      {:ok, URI.encode(id, &URI.char_unreserved?/1)}
+    end
+  end
 
   defp join(value) when is_list(value), do: Enum.map_join(value, ",", &format_value/1)
   defp join(value), do: format_value(value)

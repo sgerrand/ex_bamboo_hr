@@ -1140,6 +1140,39 @@ defmodule BambooHR.SchedulingTest do
       assert path == prefix <> "/shifts/a%23b"
     end
 
+    test "does not send a request for an empty ID or a dot segment", %{config: config} do
+      # No Bypass expectation: a request reaching it would fail the test.
+      # "" would call the list endpoint, and ".." the one above it.
+      for id <- ["", " ", ".", ".."] do
+        for call <- [
+              &BambooHR.Scheduling.get_schedule/2,
+              &BambooHR.Scheduling.delete_schedule/2,
+              &BambooHR.Scheduling.update_schedule(&1, &2, %{"name" => "x"}),
+              &BambooHR.Scheduling.get_schedule_pdf(&1, &2, "2024-01-01", "2024-01-07"),
+              &BambooHR.Scheduling.get_shift/2,
+              &BambooHR.Scheduling.delete_shift/2,
+              &BambooHR.Scheduling.update_shift(&1, &2, %{"capacity" => 3})
+            ] do
+          assert {:error,
+                  %BambooHR.Error{reason: :invalid_argument, status: nil, message: message}} =
+                   call.(config, id)
+
+          assert message =~ "#{inspect(id)} cannot be used as an ID"
+        end
+      end
+    end
+
+    test "still sends an ID that only starts with dots", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/shifts/...",
+        fn conn -> Plug.Conn.resp(conn, 204, "") end
+      )
+
+      assert {:ok, nil} = BambooHR.Scheduling.get_shift(config, "...")
+    end
+
     test "leaves a UUID and a composite recurrence ID as they are", %{
       bypass: bypass,
       config: config
