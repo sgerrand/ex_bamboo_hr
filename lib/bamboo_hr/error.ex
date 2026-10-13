@@ -2,10 +2,18 @@ defmodule BambooHR.Error do
   @moduledoc """
   The error returned by every function in this client.
 
-  A failed call returns `{:error, %BambooHR.Error{}}`, whether the request
-  came back with a non-2xx status, never reached BambooHR, or returned a
-  body that was not the JSON it claimed to be. Match on `:reason` rather
-  than on the status code:
+  A failed call returns `{:error, %BambooHR.Error{}}`. That covers four
+  cases:
+
+    * BambooHR answered with a non-2xx status
+    * the request failed on the way, so no answer came back
+    * BambooHR answered with a 2xx that was still not a clean success: a
+      body that was not the JSON it claimed to be, or a `207` where only
+      part of the work was done
+    * the client did not send the request, because an argument could not
+      be used
+
+  Match on `:reason` rather than on the status code:
 
       case BambooHR.Employee.get(client, 123, ["firstName"]) do
         {:ok, employee} -> employee
@@ -17,15 +25,20 @@ defmodule BambooHR.Error do
   ## Fields
 
     * `:reason` - What went wrong, as an atom. See "Reasons" below.
-    * `:status` - HTTP status, or `nil` when the request never got a
+    * `:status` - HTTP status, or `nil` when there was no response. That
+      is true of a request that failed on the way (`:transport_error`)
+      and of one that was never sent (`:empty_filter`,
+      `:invalid_argument`). Only the first can work on another try, so
+      check `:reason` before retrying on a `nil` status.
+    * `:body` - Raw response body, undecoded. `nil` when there was no
       response.
-    * `:body` - Raw response body, undecoded. `nil` for transport
-      failures.
     * `:message` - BambooHR's own description of the failure, from the
       `x-bamboohr-error-message` or `X-BambooHR-Message` header. These
       distinguish cases the status code alone does not — a `404` on an
       employee photo means "no photo on file", "no such employee", or
-      "not a valid size", and only the header says which.
+      "not a valid size", and only the header says which. For a request
+      that was never sent, the client's own note on which argument
+      stopped it.
     * `:request_id` - Value of the `X-Request-ID` header, which some
       endpoints return. Worth quoting in a support ticket.
     * `:exception` - The underlying exception for `:transport_error` and
@@ -34,6 +47,8 @@ defmodule BambooHR.Error do
 
   ## Reasons
 
+  From a non-2xx response:
+
     * `:bad_request` (400), `:unauthorized` (401), `:forbidden` (403),
       `:not_found` (404), `:not_acceptable` (406), `:conflict` (409),
       `:precondition_failed` (412), `:unsupported_media_type` (415),
@@ -41,19 +56,33 @@ defmodule BambooHR.Error do
     * `:client_error` - any other 4xx
     * `:server_error` - any 5xx
     * `:http_error` - a non-2xx status outside those ranges
-    * `:transport_error` - the request never completed (connection
-      refused, timeout, DNS failure)
-    * `:decode_error` - a 2xx response whose body was not valid JSON
+
+  From a 2xx response:
+
+    * `:decode_error` - the body was not valid JSON
     * `:partial_publish` - a `207` from
       `BambooHR.Scheduling.publish_shifts/2`: some shifts published and
-      some did not. `:body` holds both lists, as BambooHR sent them
+      some did not. `:body` holds both lists, as BambooHR sent them.
+      Part of the work is done, so do not send the same call again
+      without reading them
+
+  With no response:
+
+    * `:transport_error` - the request never completed (connection
+      refused, timeout, DNS failure)
+
+  Never sent, so trying again with the same arguments gives the same
+  error:
+
     * `:empty_filter` - a filter was given as an empty list, an empty
       string, or a list holding an empty string, so the request was
       **not sent**. Left out of the request, the filter would match
       everything, where an empty value most likely means nothing.
       `:message` names the option. Pass `nil` to mean no filter
     * `:invalid_argument` - an argument could not be used, so the request
-      was **not sent**. `:message` says which one and why
+      was **not sent**: an option the function does not know, a value
+      that cannot go in a query string, or an ID that is empty, `"."` or
+      `".."`. `:message` says which one and why
 
   This struct is also an exception, so `raise error` and
   `Exception.message/1` work on it. The client itself never raises.

@@ -199,6 +199,15 @@ The same struct covers requests that never reached BambooHR
 (`:decode_error`). It also carries BambooHR's own `:message` and the
 `:request_id` when the response includes them.
 
+Decide on `:reason`, not on `:status`. Two kinds of error show why:
+
+- A request the client did not send, because an argument could not be
+  used (`:empty_filter`, `:invalid_argument`). Its `:status` is `nil`,
+  like a transport error, but trying again gives the same error.
+- A `207` from `BambooHR.Scheduling.publish_shifts/2`
+  (`:partial_publish`). It is an error even though the status is a 2xx,
+  because only some of the shifts published.
+
 #### Time Tracking
 
 ```elixir
