@@ -240,6 +240,10 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   not exist yet, so treat shift IDs as plain strings. `segment/1`
   percent-encodes every ID before it goes into the path, so a `/`, `?`
   or `#` in one cannot change the endpoint or add query params.
+  Encoding cannot help with an empty ID, `.` or `..`, so `segment/1`
+  returns an `:invalid_argument` error for those and `{:ok, segment}`
+  for the rest. An empty ID would leave the path ending in `/`, which a
+  router may serve as the list endpoint.
   `BambooHR.Breaks` puts its UUIDs into paths without this.
   The PDF endpoint takes OAuth only, not API keys. No other scheduling
   endpoint is like that. BambooHR renders the PDF on request, so a big
@@ -253,9 +257,17 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   and it only checks `:retry` after the response is in. For the same
   reason a caller's function is wrapped by `safe_retry/1`: a result
   other than `true`, `false`, `nil` or `{:delay, ms}`, or a raise, is
-  read as "do not retry". Any other `:retry` value, or any unknown
-  option, is dropped with a `Logger.warning`, so a typo is easy to
-  find. Options may be a keyword list, a map or `nil`.
+  read as "do not retry". Any other `:retry` value is dropped with a
+  `Logger.warning`, and the default is used.
+  Options may be a keyword list, a map or `nil`. Nothing else about
+  them is let through quietly. `build_params/3` checks, in order: the
+  options are one of those three shapes, every key is one the function
+  knows, and every value can go in a query string (text, a number, an
+  atom, a date or date-time, or a flat list of those). A failure
+  returns `{:error, %BambooHR.Error{reason: :invalid_argument}}` and no
+  request is sent. Dropping an unknown key instead would let a misspelt
+  filter return everything. A string key in a map counts as unknown. A
+  `MapSet` or a nested list would raise inside Req's query encoding.
   The specs say so through
   `t:BambooHR.Scheduling.opts/0`; keep a spec as wide as what the
   function reads, or Dialyzer rejects a call the code supports.
@@ -269,8 +281,10 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   JSON, with both lists. A custom `HTTPClient` that ignores the option
   hands the 207 back as a success, so `publish_shifts/2` also turns any
   success with a non-empty `"failed"` into the same error. That error's
-  body is the result encoded again, with no request ID, and telemetry
-  has already recorded the call as `:ok`. `shiftIds` takes 1 to 100
+  body is the result encoded again (or `inspect/1` of it, if the client
+  handed back something JSON cannot hold), with no request ID, and
+  telemetry has already recorded the call as `:ok`. `shiftIds` takes 1
+  to 100
   IDs; BambooHR answers 422 outside that, and the client does not check.
   Enum values are lowercase (`planned`, `published`; `instance`,
   `future`, `all` for `recurrenceEditOption`). `color` is 6 hex digits
@@ -294,12 +308,14 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   filter and ignores all the others; dropped, the filter is gone and
   everything comes back. So any option given as `[]` returns
   `{:error, %BambooHR.Error{reason: :empty_filter}}` without a request.
+  So does `""`, a string of spaces, or a list holding one: they all go
+  out as `ids=`, and `String.split("", ",")` gives `[""]`, not `[]`.
   `nil` is how a caller says "no filter". `nil` in an ID list becomes
   the string `"null"`, which is how the spec asks for unassigned shifts.
   The date and list formatting here is one of four copies with
   different rules: `Breaks.format_param/1` drops the zone where this
   keeps it, `TimeTracking.list_params/1` drops `false` where this keeps
-  it, and only this module warns about unknown options.
+  it, and only this module turns away unknown options.
   Bypass accepts any value, so check doc examples against the spec.
   `BambooHR.Hiring` covers the Applicant Tracking System (ATS): job
   applications, statuses, locations, hiring leads, job openings, and
@@ -335,7 +351,11 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   `BambooHR.HTTPClient.Req` builds it with `from_response/3` (non-2xx),
   `from_exception/1` (transport), `from_decode_error/4` (bad JSON in a
   2xx), or `from_partial_success/4` (a 2xx listed in `:partial_success`,
-  e.g. a 207 publish). Callers match on `:reason`, not the status code. The struct is a
+  e.g. a 207 publish). A resource module may also build one itself for
+  a request it will not send (`:empty_filter` and `:invalid_argument`
+  in `Scheduling`). Those have a `nil` status, like a transport error,
+  but a retry cannot help, so never treat a `nil` status alone as "try
+  again". Callers match on `:reason`, not the status code. The struct is a
   `defexception`, so `Exception.message/1` works and callers may raise it,
   but the client never does. It also picks up BambooHR's diagnostic
   headers: `x-bamboohr-error-message` / `X-BambooHR-Message` into
