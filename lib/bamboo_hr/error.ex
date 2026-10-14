@@ -81,8 +81,9 @@ defmodule BambooHR.Error do
       `:message` names the option. Pass `nil` to mean no filter
     * `:invalid_argument` - an argument could not be used, so the request
       was **not sent**: an option the function does not know, a value
-      that cannot go in a query string, or an ID that is empty, `"."` or
-      `".."`. `:message` says which one and why
+      that cannot go in a query string, an empty value for an option
+      that is not a filter, or an ID that is empty, `"."` or `".."`.
+      `:message` says which one and why
 
   This struct is also an exception, so `raise error` and
   `Exception.message/1` work on it. The client itself never raises.

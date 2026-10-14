@@ -33,14 +33,20 @@ defmodule BambooHR.Scheduling do
 
   ## Empty values
 
-  An option given as an empty list is never sent. Leaving it out would
+  A filter given as an empty list is never sent. Leaving it out would
   drop the filter and return everything, where a list that worked out
   empty most likely means nothing should match. An empty string, or a
   list that holds one, is treated the same way: `String.split("", ",")`
   gives `[""]`, not `[]`. A string of only spaces counts as empty. The
-  call returns `{:error, %BambooHR.Error{reason: :empty_filter}}`
-  without contacting BambooHR. Pass `nil`, or leave the option out, to
-  mean no filter.
+  filters are `:ids`, `:employee_ids`, `:schedule_ids`, `:statuses` and
+  `:filter`. The call returns
+  `{:error, %BambooHR.Error{reason: :empty_filter}}` without contacting
+  BambooHR. Pass `nil`, or leave the option out, to mean no filter.
+
+  An empty value for any other option, such as `:sort`, `:page` or
+  `:recurrence_edit_option`, is not sent either. It is not a filter, so
+  the call returns `{:error, %BambooHR.Error{reason: :invalid_argument}}`
+  instead. Leave the option out, or pass `nil`, to use the default.
 
   ## Options
 
@@ -656,19 +662,35 @@ defmodule BambooHR.Scheduling do
   # but empty `ids` as a filter and ignores every other one, and leaving
   # a filter out returns everything. `[""]` and `""` both go out as
   # `ids=`, the same as `[]` would. See "Empty values" in the moduledoc.
-  defp check_not_empty(opts) do
-    case for {key, value} <- opts, key != :retry, empty?(value), do: key do
-      [] ->
-        :ok
+  # Only a filter's empty value means "match nothing", so only a filter
+  # gets `:empty_filter`. Any other option, such as `:sort`, is simply
+  # not usable when empty.
+  @filters [:ids, :employee_ids, :schedule_ids, :statuses, :filter]
 
-      empty ->
+  defp check_not_empty(opts) do
+    {filters, others} =
+      for({key, value} <- opts, key != :retry, empty?(value), do: key)
+      |> Enum.split_with(&(&1 in @filters))
+
+    cond do
+      filters != [] ->
         {:error,
          %BambooHR.Error{
            reason: :empty_filter,
            message:
-             "#{names(empty)} is empty, or holds an empty value, so the request " <>
+             "#{names(filters)} is empty, or holds an empty value, so the request " <>
                "was not sent. Pass nil to mean no filter."
          }}
+
+      others != [] ->
+        {:error,
+         invalid_argument(
+           "#{names(others)} is empty, so the request was not sent. Leave it out, " <>
+             "or pass nil, to use the default."
+         )}
+
+      true ->
+        :ok
     end
   end
 

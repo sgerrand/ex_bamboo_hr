@@ -619,7 +619,7 @@ defmodule BambooHR.SchedulingTest do
       end
     end
 
-    test "does not send a request for an empty string in any other option", %{config: config} do
+    test "does not send a request for an empty string in any other filter", %{config: config} do
       assert {:error, %BambooHR.Error{reason: :empty_filter, message: message}} =
                BambooHR.Scheduling.list_shift_assessments(config, filter: "")
 
@@ -633,9 +633,41 @@ defmodule BambooHR.SchedulingTest do
                  "2024-01-07",
                  employee_ids: [""]
                )
+    end
 
-      assert {:error, %BambooHR.Error{reason: :empty_filter}} =
-               BambooHR.Scheduling.delete_shift(config, @shift_id, recurrence_edit_option: "")
+    test "calls an empty option that is not a filter an invalid argument", %{config: config} do
+      # No Bypass expectation: a request reaching it would fail the test.
+      for {call, name} <- [
+            {&BambooHR.Scheduling.delete_shift(config, @shift_id, recurrence_edit_option: &1),
+             ":recurrence_edit_option"},
+            {&BambooHR.Scheduling.list_schedules(config, sort: &1), ":sort"},
+            {&BambooHR.Scheduling.list_timezones(config, page: &1), ":page"},
+            {&BambooHR.Scheduling.list_shifts(config, schedule_ids: [@schedule_id], start: &1),
+             ":start"},
+            {&BambooHR.Scheduling.get_schedule_pdf(
+               config,
+               @schedule_id,
+               "2024-01-01",
+               "2024-01-07",
+               group_by: &1
+             ), ":group_by"}
+          ],
+          empty <- ["", " ", []] do
+        assert {:error, %BambooHR.Error{reason: :invalid_argument, status: nil, message: message}} =
+                 call.(empty)
+
+        assert message =~ "#{name} is empty"
+        refute message =~ "filter"
+      end
+    end
+
+    test "names the empty filter first when a filter and another option are empty", %{
+      config: config
+    } do
+      assert {:error, %BambooHR.Error{reason: :empty_filter, message: message}} =
+               BambooHR.Scheduling.list_shifts(config, ids: [], page_size: "")
+
+      assert message =~ ":ids"
     end
 
     test "names the empty option in the error", %{config: config} do
