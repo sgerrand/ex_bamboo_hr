@@ -445,6 +445,7 @@ defmodule BambooHR.Scheduling do
   @spec delete_shift(Client.t(), String.t(), opts()) :: Client.response()
   def delete_shift(client, shift_id, opts \\ []) when is_binary(shift_id) do
     with {:ok, id} <- segment(shift_id),
+         {:ok, opts} <- keyword(opts),
          {:ok, params} <- build_params(opts, recurrence_edit_option: "recurrenceEditOption") do
       Client.delete("/scheduling/shifts/#{id}", client, params: params)
     end
@@ -544,7 +545,9 @@ defmodule BambooHR.Scheduling do
   end
 
   defp list_params(opts) do
-    build_params(opts, filter: "filter", sort: "sort", page: "page", page_size: "pageSize")
+    with {:ok, opts} <- keyword(opts) do
+      build_params(opts, filter: "filter", sort: "sort", page: "page", page_size: "pageSize")
+    end
   end
 
   defp shift_params(opts) do
@@ -667,10 +670,11 @@ defmodule BambooHR.Scheduling do
     false
   end
 
-  # `false` is a meaningful value for the PDF flags, so it is kept.
+  # Takes options `keyword/1` has already read, since some callers need
+  # the list before this runs. `false` is a meaningful value for the PDF
+  # flags, so it is kept.
   defp build_params(opts, mapping, also_known \\ []) do
-    with {:ok, opts} <- keyword(opts),
-         :ok <- check_known(opts, Keyword.keys(mapping) ++ also_known),
+    with :ok <- check_known(opts, Keyword.keys(mapping) ++ also_known),
          :ok <- check_values(opts),
          :ok <- check_not_empty(opts) do
       {:ok, for({key, param} <- mapping, (value = opts[key]) != nil, do: {param, join(value)})}
