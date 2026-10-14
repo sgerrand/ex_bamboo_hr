@@ -57,7 +57,10 @@ defmodule BambooHR.Scheduling do
   The same error comes back for a value that cannot go in a query
   string. A value is text, a number, an atom, a `Date`, a
   `NaiveDateTime`, a `DateTime`, or a flat list of those. A `MapSet`, a
-  map or a list inside a list is not; turn it into a list first.
+  map or a list inside a list is not; turn it into a list first. `nil`
+  inside a list is allowed only in `:employee_ids`, where it means
+  unassigned shifts. Anywhere else it is most likely a missing value,
+  so it is an error too, rather than being sent as the string `"null"`.
   """
 
   require Logger
@@ -675,13 +678,35 @@ defmodule BambooHR.Scheduling do
   defp check_values(opts) do
     case for {key, value} <- opts, key != :retry, not sendable?(value), do: key do
       [] ->
-        :ok
+        check_nil_items(opts)
 
       bad ->
         {:error,
          invalid_argument(
            "#{names(bad)} must be a string, number, atom, date, date-time, or a flat " <>
              "list of those, so the request was not sent."
+         )}
+    end
+  end
+
+  # `nil` in `:employee_ids` asks for unassigned shifts, and goes out as
+  # the string "null". Anywhere else it is most likely a missing value,
+  # such as an ID read from a map that has none, and it would go out as
+  # if it were one: `ids=a,null`. `ids` overrides every other filter, so
+  # that would quietly change what comes back.
+  defp check_nil_items(opts) do
+    case for {key, [_ | _] = value} <- opts,
+             key not in [:employee_ids, :retry],
+             nil in value,
+             do: key do
+      [] ->
+        :ok
+
+      bad ->
+        {:error,
+         invalid_argument(
+           "#{names(bad)} holds nil, so the request was not sent. Only :employee_ids " <>
+             "takes nil, to mean unassigned shifts."
          )}
     end
   end
@@ -768,7 +793,9 @@ defmodule BambooHR.Scheduling do
   defp join(value), do: format_value(value)
 
   # BambooHR spells the open-shift filter as the literal string "null",
-  # which `nil` would otherwise render as an empty element.
+  # which `nil` would otherwise render as an empty element. Only
+  # `:employee_ids` gets this far with a `nil` in it; see
+  # `check_nil_items/1`.
   defp format_value(nil), do: "null"
 
   # BambooHR wants the shift window as an ISO-8601 date-time with an

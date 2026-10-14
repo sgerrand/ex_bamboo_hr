@@ -1239,6 +1239,21 @@ defmodule BambooHR.SchedulingTest do
       end
     end
 
+    test "returns an error for nil in any list but employee_ids", %{config: config} do
+      # No Bypass expectation: a request reaching it would fail the test.
+      # `ids=a,null` would go out, and `ids` overrides every other filter.
+      for {opts, name} <- [
+            {[ids: ["a", nil]], ":ids"},
+            {[schedule_ids: [nil]], ":schedule_ids"},
+            {[schedule_ids: [@schedule_id], statuses: ["planned", nil]], ":statuses"}
+          ] do
+        assert {:error, %BambooHR.Error{reason: :invalid_argument, status: nil, message: message}} =
+                 BambooHR.Scheduling.list_shifts(config, opts)
+
+        assert message =~ "#{name} holds nil"
+      end
+    end
+
     test "returns an error for a list inside the PDF's employee IDs", %{config: config} do
       assert {:error, %BambooHR.Error{reason: :invalid_argument, message: message}} =
                BambooHR.Scheduling.get_schedule_pdf(
