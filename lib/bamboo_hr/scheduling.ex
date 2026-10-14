@@ -221,7 +221,9 @@ defmodule BambooHR.Scheduling do
     * `end_ymd` - Last day to include, as `YYYY-MM-DD` or a `Date`
     * `opts` - Optional keyword list: `:group_by`, `:employee_ids` (a
       list; put `nil` in it, e.g. `[123, nil]`, to include unassigned
-      shifts — a bare `nil` means no filter),
+      shifts — a bare `nil` means no filter. A comma-joined string such
+      as `"10,20"` is split into one ID each, so it means what it does
+      for `list_shifts/2`),
       `:include_employees_without_shifts`, `:include_holidays`,
       `:include_time_off`, and `:retry`. `:retry` defaults to
       `:unprocessed` (described above), and also takes `false`,
@@ -578,6 +580,8 @@ defmodule BambooHR.Scheduling do
   # The PDF endpoint takes employeeIds[] as a repeated parameter rather
   # than a comma-separated list, so each ID gets its own entry.
   defp pdf_params(opts) do
+    opts = split_employee_ids(opts)
+
     with {:ok, params} <-
            build_params(
              opts,
@@ -593,6 +597,21 @@ defmodule BambooHR.Scheduling do
         for id <- List.wrap(opts[:employee_ids]), do: {"employeeIds[]", format_value(id)}
 
       {:ok, employee_ids ++ params}
+    end
+  end
+
+  # `list_shifts/2` sends a string as it is, and BambooHR reads "10,20"
+  # there as two IDs. Sent as one employeeIds[] entry it would be one ID
+  # that matches nobody, so the string is split here to mean the same.
+  # An empty piece stays, so `"10,"` still gets the `:empty_filter` error.
+  defp split_employee_ids(opts) do
+    case List.keyfind(opts, :employee_ids, 0) do
+      {:employee_ids, ids} when is_binary(ids) ->
+        split = ids |> String.split(",") |> Enum.map(&String.trim/1)
+        List.keystore(opts, :employee_ids, 0, {:employee_ids, split})
+
+      _not_a_string ->
+        opts
     end
   end
 

@@ -565,6 +565,51 @@ defmodule BambooHR.SchedulingTest do
                )
     end
 
+    test "splits a comma-joined employee ID string for the PDF", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params["employeeIds"] == ["10", "20"]
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/pdf")
+          |> Plug.Conn.resp(200, "%PDF-")
+        end
+      )
+
+      assert {:ok, %{body: "%PDF-"}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07",
+                 employee_ids: "10, 20"
+               )
+    end
+
+    test "returns an empty filter error for an empty piece of the PDF's ID string", %{
+      config: config
+    } do
+      for ids <- ["", "10,", ",20", "10,,20"] do
+        assert {:error, %BambooHR.Error{reason: :empty_filter, message: message}} =
+                 BambooHR.Scheduling.get_schedule_pdf(
+                   config,
+                   @schedule_id,
+                   "2024-01-01",
+                   "2024-01-07",
+                   employee_ids: ids
+                 )
+
+        assert message =~ ":employee_ids"
+      end
+    end
+
     test "sends nil in the PDF's repeated employee IDs as the open-shift filter", %{
       bypass: bypass,
       config: config
