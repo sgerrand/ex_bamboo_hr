@@ -83,13 +83,7 @@ defmodule BambooHR.HTTPClient.Req do
   defp guard_retry(retry, retry_delay?) do
     fn request, response_or_exception ->
       try do
-        case retry.(request, response_or_exception) do
-          result when is_boolean(result) -> result
-          nil -> false
-          {:delay, ms} when is_integer(ms) and ms >= 0 and retry_delay? -> true
-          {:delay, ms} = delay when is_integer(ms) and ms >= 0 -> delay
-          other -> warn_bad_retry("returned #{inspect(other)}")
-        end
+        retry_result(retry.(request, response_or_exception), retry_delay?)
       rescue
         exception -> warn_bad_retry("raised #{Exception.message(exception)}")
       catch
@@ -97,6 +91,14 @@ defmodule BambooHR.HTTPClient.Req do
       end
     end
   end
+
+  defp retry_result(result, _retry_delay?) when is_boolean(result), do: result
+  defp retry_result(nil, _retry_delay?), do: false
+
+  defp retry_result({:delay, ms} = delay, retry_delay?) when is_integer(ms) and ms >= 0,
+    do: if(retry_delay?, do: true, else: delay)
+
+  defp retry_result(other, _retry_delay?), do: warn_bad_retry("returned #{inspect(other)}")
 
   defp warn_bad_retry(what) do
     Logger.warning("BambooHR.HTTPClient.Req: the :retry function #{what}; not retrying")

@@ -75,6 +75,7 @@ defmodule BambooHR.Scheduling do
   """
 
   alias BambooHR.Client
+  alias BambooHR.HTTPClient.Req, as: ReqClient
 
   @typedoc """
   Options for a function in this module.
@@ -654,24 +655,21 @@ defmodule BambooHR.Scheduling do
   # sent; `HTTPClient.Req` guards what a function returns.
   defp retry_opt(opts) do
     case List.keyfind(opts, :retry, 0) do
-      {:retry, retry} when retry in [nil, :unprocessed] ->
-        {:ok, [retry: &BambooHR.HTTPClient.Req.retry_unprocessed?/2]}
-
       {:retry, retry} when retry in [false, :safe_transient, :transient] ->
         {:ok, [retry: retry]}
 
       {:retry, retry} when is_function(retry, 2) ->
         {:ok, [retry: retry]}
 
-      {:retry, other} ->
+      {:retry, other} when other not in [nil, :unprocessed] ->
         {:error,
          invalid_argument(
            ":retry is #{inspect(other)}, so the request was not sent. Pass false, " <>
              ":unprocessed, :safe_transient, :transient or a 2-arity function."
          )}
 
-      nil ->
-        {:ok, [retry: &BambooHR.HTTPClient.Req.retry_unprocessed?/2]}
+      _unprocessed_or_not_given ->
+        {:ok, [retry: &ReqClient.retry_unprocessed?/2]}
     end
   end
 

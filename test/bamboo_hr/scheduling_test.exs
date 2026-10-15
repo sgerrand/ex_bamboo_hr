@@ -1,6 +1,8 @@
 defmodule BambooHR.SchedulingTest do
   use BambooHR.BypassCase, async: true
 
+  alias BambooHR.HTTPClient.Req, as: ReqClient
+
   @schedule_id "3fa85f64"
   @shift_id "9c14ab02"
 
@@ -1000,7 +1002,7 @@ defmodule BambooHR.SchedulingTest do
           http_client: CaptureRetry
         )
 
-      unprocessed = &BambooHR.HTTPClient.Req.retry_unprocessed?/2
+      unprocessed = &ReqClient.retry_unprocessed?/2
 
       BambooHR.Scheduling.get_schedule_pdf(config, @schedule_id, "2024-01-01", "2024-01-07")
       assert_received {:retry_opt, {:ok, ^unprocessed}}
