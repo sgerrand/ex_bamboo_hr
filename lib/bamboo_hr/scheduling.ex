@@ -60,6 +60,10 @@ defmodule BambooHR.Scheduling do
   `{:error, %BambooHR.Error{reason: :invalid_argument}}` without
   contacting BambooHR, and the error's `:message` names the option.
 
+  An option given twice in a keyword list is turned away the same way.
+  Only the first would be read, so with `defaults ++ overrides` the
+  override would be lost. Use `Keyword.merge/2` to combine them.
+
   The same error comes back for a value that cannot go in a query
   string. A value is text, a number, an atom, a `Date`, a
   `NaiveDateTime`, a `DateTime`, or a flat list of those. A `MapSet`, a
@@ -788,14 +792,31 @@ defmodule BambooHR.Scheduling do
   defp keyword(opts) when is_map(opts) and not is_struct(opts), do: {:ok, Map.to_list(opts)}
 
   defp keyword(opts) do
-    if pairs?(opts) do
-      {:ok, opts}
-    else
-      {:error,
-       invalid_argument(
-         "the options must be a keyword list, a map or nil, so the request was not sent."
-       )}
+    cond do
+      not pairs?(opts) ->
+        {:error,
+         invalid_argument(
+           "the options must be a keyword list, a map or nil, so the request was not sent."
+         )}
+
+      (repeated = repeated_keys(opts)) != [] ->
+        {:error,
+         invalid_argument(
+           "#{names(repeated)} is given more than once, so the request was not sent. " <>
+             "Give each option once; Keyword.merge/2 lays overrides on top of defaults."
+         )}
+
+      true ->
+        {:ok, opts}
     end
+  end
+
+  # `opts[key]` reads only the first entry for a key, so a later one
+  # would be dropped without a word. With `defaults ++ overrides`, that
+  # is the override, and a filter set there would be lost.
+  defp repeated_keys(opts) do
+    keys = for {key, _value} <- opts, do: key
+    Enum.uniq(keys -- Enum.uniq(keys))
   end
 
   defp pairs?([{_key, _value} | rest]), do: pairs?(rest)

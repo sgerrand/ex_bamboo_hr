@@ -265,7 +265,9 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   other request option is passed on.
   Options may be a keyword list, a map or `nil`. Nothing else about
   them is let through quietly. Each public function reads its options
-  once with `keyword/1`, which turns away any other shape. Then
+  once with `keyword/1`, which turns away any other shape, and a key
+  given twice: `opts[key]` reads only the first, so with
+  `defaults ++ overrides` the override would be lost. Then
   `build_params/3`, which takes the list `keyword/1` returned, checks
   that every key is one the function knows and every value can go in a
   query string (text, a number, an

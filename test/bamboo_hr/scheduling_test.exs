@@ -1356,6 +1356,38 @@ defmodule BambooHR.SchedulingTest do
   end
 
   describe "options that are not a keyword list" do
+    test "does not send a request when an option is given twice", %{config: config} do
+      # No Bypass expectation: a request reaching it would fail the test.
+      # Only the first entry would be read, so the override would be lost.
+      defaults = [employee_ids: nil, page_size: 50]
+      overrides = [employee_ids: [7], page_size: 10]
+
+      assert {:error, %BambooHR.Error{reason: :invalid_argument, message: message}} =
+               BambooHR.Scheduling.list_shifts(
+                 config,
+                 [start: "2024-01-01T00:00:00Z", end: "2024-01-07T23:59:59Z"] ++
+                   defaults ++ overrides
+               )
+
+      assert message =~ ":employee_ids, :page_size is given more than once"
+
+      assert {:error, %BambooHR.Error{reason: :invalid_argument}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07",
+                 retry: false,
+                 retry: :transient
+               )
+
+      assert {:error, %BambooHR.Error{reason: :invalid_argument}} =
+               BambooHR.Scheduling.delete_shift(config, @shift_id,
+                 recurrence_edit_option: "all",
+                 recurrence_edit_option: "instance"
+               )
+    end
+
     test "reads a map, and nil, without raising", %{bypass: bypass, config: config} do
       Bypass.expect(
         bypass,
