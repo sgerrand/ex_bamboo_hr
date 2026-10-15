@@ -244,14 +244,16 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   `/scheduling/shift-claims`, `POST /scheduling/shift-claims/{claimId}/withdraw`).
   Schedule IDs are UUID strings. A shift ID can also be
   `<recurringShiftDefinitionId>_<recurrenceId>`, for a repeat that does
-  not exist yet, so treat shift IDs as plain strings. `segment/1`
-  percent-encodes every ID before it goes into the path, so a `/`, `?`
-  or `#` in one cannot change the endpoint or add query params.
-  Encoding cannot help with an empty ID, `.` or `..`, so `segment/1`
-  returns an `:invalid_argument` error for those and `{:ok, segment}`
-  for the rest. An empty ID would leave the path ending in `/`, which a
-  router may serve as the list endpoint.
-  `BambooHR.Breaks` puts its UUIDs into paths without this.
+  not exist yet, so treat shift IDs as plain strings.
+  `BambooHR.PathSegment.encode/1` (internal, `@moduledoc false`)
+  percent-encodes every string ID before it goes into the path, so a
+  `/`, `?` or `#` in one cannot change the endpoint or add query params.
+  Encoding cannot help with an empty ID, `.` or `..`, so it returns an
+  `:invalid_argument` error for those and `{:ok, segment}` for the rest.
+  An empty ID would leave the path ending in `/`, which a router may
+  serve as the list endpoint. `Scheduling` and `Breaks` use it. Other
+  modules with string path segments (`Tables`' table name, `Datasets`'
+  dataset name) still put them in as they are.
   The PDF endpoint takes OAuth only, not API keys. No other scheduling
   endpoint is like that. BambooHR renders the PDF on request, so a big
   schedule can take longer than the 15s default timeout. A failed render

@@ -15,6 +15,12 @@ defmodule BambooHR.Breaks do
   Break and break policy IDs are UUID strings, not integers. Employee IDs
   are still integers.
 
+  An ID is percent-encoded before it goes into the request path, so one
+  that holds a `/`, `?` or `#` stays a single path segment. An empty ID,
+  `"."` and `".."` are never sent: the call returns
+  `{:error, %BambooHR.Error{reason: :invalid_argument}}` without
+  contacting BambooHR.
+
   ## Paging and filtering
 
   Listing functions take `:offset` and `:limit`, unlike the clock and
@@ -82,7 +88,9 @@ defmodule BambooHR.Breaks do
   """
   @spec get_policy(Client.t(), String.t(), keyword()) :: Client.response()
   def get_policy(client, policy_id, opts \\ []) when is_binary(policy_id) do
-    Client.get("/time-tracking/break-policies/#{policy_id}", client, params: list_params(opts))
+    with {:ok, policy_id} <- segment(policy_id) do
+      Client.get("/time-tracking/break-policies/#{policy_id}", client, params: list_params(opts))
+    end
   end
 
   @doc """
@@ -105,7 +113,9 @@ defmodule BambooHR.Breaks do
   """
   @spec update_policy(Client.t(), String.t(), map()) :: Client.response()
   def update_policy(client, policy_id, changes) when is_binary(policy_id) and is_map(changes) do
-    Client.patch("/time-tracking/break-policies/#{policy_id}", client, json: changes)
+    with {:ok, policy_id} <- segment(policy_id) do
+      Client.patch("/time-tracking/break-policies/#{policy_id}", client, json: changes)
+    end
   end
 
   @doc """
@@ -130,7 +140,9 @@ defmodule BambooHR.Breaks do
   @spec sync_policy(Client.t(), String.t(), map()) :: Client.response()
   def sync_policy(client, policy_id, policy_data)
       when is_binary(policy_id) and is_map(policy_data) do
-    Client.put("/time-tracking/break-policies/#{policy_id}/sync", client, json: policy_data)
+    with {:ok, policy_id} <- segment(policy_id) do
+      Client.put("/time-tracking/break-policies/#{policy_id}/sync", client, json: policy_data)
+    end
   end
 
   @doc """
@@ -150,7 +162,9 @@ defmodule BambooHR.Breaks do
   """
   @spec delete_policy(Client.t(), String.t()) :: Client.response()
   def delete_policy(client, policy_id) when is_binary(policy_id) do
-    Client.delete("/time-tracking/break-policies/#{policy_id}", client)
+    with {:ok, policy_id} <- segment(policy_id) do
+      Client.delete("/time-tracking/break-policies/#{policy_id}", client)
+    end
   end
 
   @doc """
@@ -191,9 +205,11 @@ defmodule BambooHR.Breaks do
   """
   @spec list_policy_breaks(Client.t(), String.t(), keyword()) :: Client.response()
   def list_policy_breaks(client, policy_id, opts \\ []) when is_binary(policy_id) do
-    Client.get("/time-tracking/break-policies/#{policy_id}/breaks", client,
-      params: list_params(opts)
-    )
+    with {:ok, policy_id} <- segment(policy_id) do
+      Client.get("/time-tracking/break-policies/#{policy_id}/breaks", client,
+        params: list_params(opts)
+      )
+    end
   end
 
   @doc """
@@ -215,7 +231,9 @@ defmodule BambooHR.Breaks do
   @spec create_policy_break(Client.t(), String.t(), map()) :: Client.response()
   def create_policy_break(client, policy_id, break_data)
       when is_binary(policy_id) and is_map(break_data) do
-    Client.post("/time-tracking/break-policies/#{policy_id}/breaks", client, json: break_data)
+    with {:ok, policy_id} <- segment(policy_id) do
+      Client.post("/time-tracking/break-policies/#{policy_id}/breaks", client, json: break_data)
+    end
   end
 
   @doc """
@@ -239,7 +257,9 @@ defmodule BambooHR.Breaks do
   @spec replace_policy_breaks(Client.t(), String.t(), list(map())) :: Client.response()
   def replace_policy_breaks(client, policy_id, breaks)
       when is_binary(policy_id) and is_list(breaks) do
-    Client.put("/time-tracking/break-policies/#{policy_id}/breaks", client, json: breaks)
+    with {:ok, policy_id} <- segment(policy_id) do
+      Client.put("/time-tracking/break-policies/#{policy_id}/breaks", client, json: breaks)
+    end
   end
 
   @doc """
@@ -257,7 +277,9 @@ defmodule BambooHR.Breaks do
   """
   @spec get_break(Client.t(), String.t()) :: Client.response()
   def get_break(client, break_id) when is_binary(break_id) do
-    Client.get("/time-tracking/breaks/#{break_id}", client)
+    with {:ok, break_id} <- segment(break_id) do
+      Client.get("/time-tracking/breaks/#{break_id}", client)
+    end
   end
 
   @doc """
@@ -279,7 +301,9 @@ defmodule BambooHR.Breaks do
   """
   @spec update_break(Client.t(), String.t(), map()) :: Client.response()
   def update_break(client, break_id, changes) when is_binary(break_id) and is_map(changes) do
-    Client.patch("/time-tracking/breaks/#{break_id}", client, json: changes)
+    with {:ok, break_id} <- segment(break_id) do
+      Client.patch("/time-tracking/breaks/#{break_id}", client, json: changes)
+    end
   end
 
   @doc """
@@ -300,7 +324,9 @@ defmodule BambooHR.Breaks do
   """
   @spec delete_break(Client.t(), String.t()) :: Client.response()
   def delete_break(client, break_id) when is_binary(break_id) do
-    Client.delete("/time-tracking/breaks/#{break_id}", client)
+    with {:ok, break_id} <- segment(break_id) do
+      Client.delete("/time-tracking/breaks/#{break_id}", client)
+    end
   end
 
   @doc """
@@ -322,9 +348,11 @@ defmodule BambooHR.Breaks do
   """
   @spec list_policy_employees(Client.t(), String.t(), keyword()) :: Client.response()
   def list_policy_employees(client, policy_id, opts \\ []) when is_binary(policy_id) do
-    Client.get("/time-tracking/break-policies/#{policy_id}/employees", client,
-      params: list_params(opts)
-    )
+    with {:ok, policy_id} <- segment(policy_id) do
+      Client.get("/time-tracking/break-policies/#{policy_id}/employees", client,
+        params: list_params(opts)
+      )
+    end
   end
 
   @doc """
@@ -346,9 +374,11 @@ defmodule BambooHR.Breaks do
   @spec assign_employees(Client.t(), String.t(), list(integer())) :: Client.response()
   def assign_employees(client, policy_id, employee_ids)
       when is_binary(policy_id) and is_list(employee_ids) do
-    Client.post("/time-tracking/break-policies/#{policy_id}/assign", client,
-      json: %{"employeeIds" => employee_ids}
-    )
+    with {:ok, policy_id} <- segment(policy_id) do
+      Client.post("/time-tracking/break-policies/#{policy_id}/assign", client,
+        json: %{"employeeIds" => employee_ids}
+      )
+    end
   end
 
   @doc """
@@ -371,9 +401,11 @@ defmodule BambooHR.Breaks do
   @spec set_employees(Client.t(), String.t(), list(integer())) :: Client.response()
   def set_employees(client, policy_id, employee_ids)
       when is_binary(policy_id) and is_list(employee_ids) do
-    Client.put("/time-tracking/break-policies/#{policy_id}/assign", client,
-      json: %{"employeeIds" => employee_ids}
-    )
+    with {:ok, policy_id} <- segment(policy_id) do
+      Client.put("/time-tracking/break-policies/#{policy_id}/assign", client,
+        json: %{"employeeIds" => employee_ids}
+      )
+    end
   end
 
   @doc """
@@ -396,9 +428,11 @@ defmodule BambooHR.Breaks do
   @spec unassign_employees(Client.t(), String.t(), list(integer())) :: Client.response()
   def unassign_employees(client, policy_id, employee_ids)
       when is_binary(policy_id) and is_list(employee_ids) do
-    Client.post("/time-tracking/break-policies/#{policy_id}/unassign", client,
-      json: %{"employeeIds" => employee_ids}
-    )
+    with {:ok, policy_id} <- segment(policy_id) do
+      Client.post("/time-tracking/break-policies/#{policy_id}/unassign", client,
+        json: %{"employeeIds" => employee_ids}
+      )
+    end
   end
 
   @doc """
@@ -470,6 +504,8 @@ defmodule BambooHR.Breaks do
   def list_assessments(client, opts \\ []) do
     Client.get("/time-tracking/break-assessments", client, params: list_params(opts))
   end
+
+  defp segment(id), do: BambooHR.PathSegment.encode(id)
 
   defp list_params(opts) do
     for {key, param} <- [
