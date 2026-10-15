@@ -892,6 +892,20 @@ defmodule BambooHR.SchedulingTest do
       assert_received :retry_called
     end
 
+    test "does not send a request for an empty date", %{config: config} do
+      # No Bypass expectation: a request reaching it would fail the test.
+      for {start_ymd, end_ymd, named} <- [
+            {"", "2024-01-07", "start_ymd is empty"},
+            {"2024-01-01", "  ", "end_ymd is empty"},
+            {"", " ", "start_ymd, end_ymd is empty"}
+          ] do
+        assert {:error, %BambooHR.Error{reason: :invalid_argument, message: message}} =
+                 BambooHR.Scheduling.get_schedule_pdf(config, @schedule_id, start_ymd, end_ymd)
+
+        assert message =~ named
+      end
+    end
+
     test "does not send a request for a retry value it cannot use", %{config: config} do
       # No Bypass expectation: a request reaching it would fail the test.
       for retry <- [true, :never, "false", fn _response -> true end] do

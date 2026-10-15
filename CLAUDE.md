@@ -284,7 +284,8 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   test checks. `split_employee_ids/1` splits a string like `"10,20"`
   into one entry each, because `list_shifts/2` sends that string as it
   is and BambooHR reads it as two IDs there. The PDF window takes a
-  `Date` as well as a string.
+  `Date` as well as a string. It does not go through `build_params/3`,
+  so `check_window/1` turns away a blank one itself.
   `publish_shifts/2` can half-succeed: BambooHR answers 207 when only
   some shifts published. The HTTP client cannot see that, so
   `publish_shifts/2` asks for `expose_headers: true` and turns any

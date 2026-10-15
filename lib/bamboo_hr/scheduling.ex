@@ -44,7 +44,8 @@ defmodule BambooHR.Scheduling do
   BambooHR. Pass `nil`, or leave the option out, to mean no filter.
 
   An empty value for any other option, such as `:sort`, `:page` or
-  `:recurrence_edit_option`, is not sent either. It is not a filter, so
+  `:recurrence_edit_option`, or for the dates `get_schedule_pdf/5`
+  takes, is not sent either. It is not a filter, so
   the call returns `{:error, %BambooHR.Error{reason: :invalid_argument}}`
   instead. Leave the option out, or pass `nil`, to use the default.
 
@@ -254,6 +255,7 @@ defmodule BambooHR.Scheduling do
       when is_binary(schedule_id) and (is_binary(start_ymd) or is_struct(start_ymd, Date)) and
              (is_binary(end_ymd) or is_struct(end_ymd, Date)) do
     with {:ok, id} <- segment(schedule_id),
+         :ok <- check_window(start_ymd: start_ymd, end_ymd: end_ymd),
          {:ok, opts} <- keyword(opts),
          {:ok, optional} <- pdf_params(opts),
          {:ok, retry} <- retry_opt(opts) do
@@ -588,6 +590,22 @@ defmodule BambooHR.Scheduling do
 
       _ ->
         opts
+    end
+  end
+
+  # The window goes in the query like any other value, so a blank one
+  # is turned away the same way. See "Empty values" in the moduledoc.
+  defp check_window(window) do
+    case for {name, value} <- window, blank?(value), do: name do
+      [] ->
+        :ok
+
+      blank ->
+        {:error,
+         invalid_argument(
+           "#{Enum.join(blank, ", ")} is empty, so the request was not sent. " <>
+             "Pass a YYYY-MM-DD string or a Date."
+         )}
     end
   end
 
