@@ -424,11 +424,11 @@ defmodule BambooHR.SchedulingTest do
       @impl true
       def request(opts) do
         {expose_headers, opts} = Keyword.pop(opts, :expose_headers, false)
-        {_raw_response, opts} = Keyword.pop(opts, :raw_response, false)
+        {raw_response, opts} = Keyword.pop(opts, :raw_response, false)
 
-        case Req.request(opts) do
+        case Req.request(Keyword.put(opts, :decode_body, false)) do
           {:ok, %{status: status, body: body, headers: headers}} when status in 200..299 ->
-            body = if body == "", do: nil, else: Jason.decode!(body)
+            body = if raw_response or body == "", do: body, else: Jason.decode!(body)
             if expose_headers, do: {:ok, %{body: body, headers: headers}}, else: {:ok, body}
 
           {:ok, %{status: status, body: body, headers: headers}} ->
@@ -438,6 +438,34 @@ defmodule BambooHR.SchedulingTest do
             {:error, BambooHR.Error.from_exception(exception)}
         end
       end
+    end
+
+    test "the PDF works with a custom client that passes its options to Req", %{
+      bypass: bypass
+    } do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
+        fn conn -> Plug.Conn.resp(conn, 200, "%PDF-") end
+      )
+
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          base_url: bypass_url(bypass, "/api/gateway.php"),
+          http_client: PassesOptionsToReq
+        )
+
+      # Req raised here on retry: :unprocessed, after the PDF had rendered.
+      assert {:ok, %{body: "%PDF-"}} =
+               BambooHR.Scheduling.get_schedule_pdf(
+                 config,
+                 @schedule_id,
+                 "2024-01-01",
+                 "2024-01-07"
+               )
     end
 
     test "works with a custom client that passes its options to Req", %{bypass: bypass} do
