@@ -235,6 +235,9 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   `BambooHR.Scheduling` covers schedules, shifts, shift assessments, and
   the schedule PDF export. The PDF uses `:raw_response` and
   `:expose_headers`, like `Files` downloads.
+  Remaining uncovered scheduling endpoints: open shifts
+  (`GET /scheduling/open-shifts`) and shift claims (`GET` and `POST`
+  `/scheduling/shift-claims`, `POST /scheduling/shift-claims/{claimId}/withdraw`).
   Schedule IDs are UUID strings. A shift ID can also be
   `<recurringShiftDefinitionId>_<recurrenceId>`, for a repeat that does
   not exist yet, so treat shift IDs as plain strings. `segment/1`
@@ -260,9 +263,11 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   read as "do not retry". Any other `:retry` value is dropped with a
   `Logger.warning`, and the default is used.
   Options may be a keyword list, a map or `nil`. Nothing else about
-  them is let through quietly. `build_params/3` checks, in order: the
-  options are one of those three shapes, every key is one the function
-  knows, and every value can go in a query string (text, a number, an
+  them is let through quietly. Each public function reads its options
+  once with `keyword/1`, which turns away any other shape. Then
+  `build_params/3`, which takes the list `keyword/1` returned, checks
+  that every key is one the function knows and every value can go in a
+  query string (text, a number, an
   atom, a date or date-time, or a flat list of those). A failure
   returns `{:error, %BambooHR.Error{reason: :invalid_argument}}` and no
   request is sent. Dropping an unknown key instead would let a misspelt
@@ -273,7 +278,10 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   function reads, or Dialyzer rejects a call the code supports.
   The PDF wants repeated `employeeIds[]` params, not a comma-joined
   list. Plug parses the `[]` suffix back into a list, which is what the
-  test checks. The PDF window takes a `Date` as well as a string.
+  test checks. `split_employee_ids/1` splits a string like `"10,20"`
+  into one entry each, because `list_shifts/2` sends that string as it
+  is and BambooHR reads it as two IDs there. The PDF window takes a
+  `Date` as well as a string.
   `publish_shifts/2` can half-succeed: BambooHR answers 207 when only
   some shifts published. It passes `partial_success: %{207 =>
   :partial_publish}`, so a 207 comes back as an error, and `{:ok, _}`
@@ -306,12 +314,18 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   `build_params/3` keeps an explicit `false`. An empty list is never
   sent and never dropped: sent, BambooHR reads an empty `ids` as a
   filter and ignores all the others; dropped, the filter is gone and
-  everything comes back. So any option given as `[]` returns
+  everything comes back. So a filter given as `[]` returns
   `{:error, %BambooHR.Error{reason: :empty_filter}}` without a request.
   So does `""`, a string of spaces, or a list holding one: they all go
   out as `ids=`, and `String.split("", ",")` gives `[""]`, not `[]`.
-  `nil` is how a caller says "no filter". `nil` in an ID list becomes
-  the string `"null"`, which is how the spec asks for unassigned shifts.
+  The filters are the keys in `@filters`. An empty value for any other
+  option, such as `:sort` or `:page`, is not a filter, so it returns
+  `:invalid_argument` instead.
+  `nil` is how a caller says "no filter". `nil` in `:employee_ids`
+  becomes the string `"null"`, which is how the spec asks for unassigned
+  shifts. `check_nil_items/1` rejects `nil` in any other list with
+  `:invalid_argument`: there it is a missing value, and `ids=a,null`
+  would quietly change what comes back.
   The date and list formatting here is one of four copies with
   different rules: `Breaks.format_param/1` drops the zone where this
   keeps it, `TimeTracking.list_params/1` drops `false` where this keeps
