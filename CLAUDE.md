@@ -96,13 +96,19 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   custom client that hands its options to Req, since Req raises on an
   option it does not know; that is why a partial publish is spotted in
   `Scheduling`, not in `HTTPClient.Req`.
-  `:retry` is in the behaviour's option list too. `false` means never
-  retry. `:unprocessed` means retry only what BambooHR certainly did not
-  process (a `429`, a refused connection, or Req's HTTP/2 `:unprocessed`
-  and `:pool_not_available` errors); `HTTPClient.Req` maps it
-  to `retry_unprocessed?/2`. Any other value is in the HTTP library's
-  own terms. An option used in `lib/` but missing from that list is a
-  bug: a custom client is written against it.
+  `:retry` is in the behaviour's option list too, in Req's own terms
+  only, so a custom client that hands it to Req works. `nil` means the
+  client's own policy. `HTTPClient.Req.retry_unprocessed?/2` retries
+  only what BambooHR certainly did not process (a `429`, a refused
+  connection, or Req's HTTP/2 `:unprocessed` and `:pool_not_available`
+  errors). Req checks `:retry` only once the response is in, and raises
+  on a value it does not accept, so `HTTPClient.Req.retry_option/2`
+  guards it for every caller: a value Req does not accept becomes
+  `false`, with a warning, and a function is wrapped so a bad result or
+  a raise reads as `false`. `{:delay, ms}` with `:retry_delay` also set
+  becomes `true`, since Req raises on that pair too.
+  An option used in `lib/` but missing from that list is a bug: a
+  custom client is written against it.
   An implementation must drop options it does not recognise rather than
   pass them on, because Req raises on an unknown option. Adding an
   option to the behaviour relies on this, so call it out in the commit
@@ -250,16 +256,13 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   endpoint is like that. BambooHR renders the PDF on request, so a big
   schedule can take longer than the 15s default timeout. A failed render
   returns `500`. A `GET` retries both by default, and each retry renders
-  again. So `get_schedule_pdf/5` defaults to `retry: :unprocessed`: it
-  still waits out a `429` and retries a refused connection, but not a
-  `500` or a timeout. A caller can pass `false`, `:unprocessed`,
-  `:safe_transient`, `:transient`, or a 2-arity function. No other
-  request option is passed on: Req raises on a value it does not accept,
-  and it only checks `:retry` after the response is in. For the same
-  reason a caller's function is wrapped by `safe_retry/1`: a result
-  other than `true`, `false`, `nil` or `{:delay, ms}`, or a raise, is
-  read as "do not retry". Any other `:retry` value is dropped with a
-  `Logger.warning`, and the default is used.
+  again. So `get_schedule_pdf/5` defaults to `retry: :unprocessed`,
+  which it sends as `&HTTPClient.Req.retry_unprocessed?/2`: it still
+  waits out a `429` and retries a refused connection, but not a `500`
+  or a timeout. A caller can pass `false`, `:unprocessed`,
+  `:safe_transient`, `:transient`, or a 2-arity function. Any other
+  value returns `:invalid_argument` before the request is sent. No
+  other request option is passed on.
   Options may be a keyword list, a map or `nil`. Nothing else about
   them is let through quietly. Each public function reads its options
   once with `keyword/1`, which turns away any other shape. Then

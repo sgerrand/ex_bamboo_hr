@@ -892,34 +892,20 @@ defmodule BambooHR.SchedulingTest do
       assert_received :retry_called
     end
 
-    test "ignores a retry value Req does not accept, with a warning", %{
-      bypass: bypass,
-      config: config
-    } do
-      Bypass.expect_once(
-        bypass,
-        "GET",
-        "/api/gateway.php/test_company/v1/scheduling/schedules/#{@schedule_id}/pdf",
-        fn conn ->
-          conn
-          |> Plug.Conn.put_resp_header("content-type", "application/pdf")
-          |> Plug.Conn.resp(200, "%PDF-")
-        end
-      )
+    test "does not send a request for a retry value it cannot use", %{config: config} do
+      # No Bypass expectation: a request reaching it would fail the test.
+      for retry <- [true, :never, "false", fn _response -> true end] do
+        assert {:error, %BambooHR.Error{reason: :invalid_argument, message: message}} =
+                 BambooHR.Scheduling.get_schedule_pdf(
+                   config,
+                   @schedule_id,
+                   "2024-01-01",
+                   "2024-01-07",
+                   retry: retry
+                 )
 
-      log =
-        ExUnit.CaptureLog.capture_log(fn ->
-          assert {:ok, %{body: "%PDF-"}} =
-                   BambooHR.Scheduling.get_schedule_pdf(
-                     config,
-                     @schedule_id,
-                     "2024-01-01",
-                     "2024-01-07",
-                     retry: true
-                   )
-        end)
-
-      assert log =~ "ignoring retry: true"
+        assert message =~ ":retry is #{inspect(retry)}"
+      end
     end
 
     test "does not send a request for an option it does not know", %{config: config} do
@@ -964,7 +950,7 @@ defmodule BambooHR.SchedulingTest do
       end
     end
 
-    test "forwards the caller's retry value, and :unprocessed without one" do
+    test "forwards the caller's retry value, and retry_unprocessed?/2 without one" do
       config =
         BambooHR.Client.new(
           company_domain: "test_company",
@@ -972,55 +958,30 @@ defmodule BambooHR.SchedulingTest do
           http_client: CaptureRetry
         )
 
-      BambooHR.Scheduling.get_schedule_pdf(config, @schedule_id, "2024-01-01", "2024-01-07")
-      assert_received {:retry_opt, {:ok, :unprocessed}}
+      unprocessed = &BambooHR.HTTPClient.Req.retry_unprocessed?/2
 
-      for retry <- [false, :safe_transient, :transient, :unprocessed] do
+      BambooHR.Scheduling.get_schedule_pdf(config, @schedule_id, "2024-01-01", "2024-01-07")
+      assert_received {:retry_opt, {:ok, ^unprocessed}}
+
+      # A function, not :unprocessed, so a custom client built on Req can
+      # pass it on: Req raises on a value it does not know.
+      for retry <- [:unprocessed, nil] do
+        BambooHR.Scheduling.get_schedule_pdf(config, @schedule_id, "2024-01-01", "2024-01-07",
+          retry: retry
+        )
+
+        assert_received {:retry_opt, {:ok, ^unprocessed}}
+      end
+
+      own = fn _request, _response -> false end
+
+      for retry <- [false, :safe_transient, :transient, own] do
         BambooHR.Scheduling.get_schedule_pdf(config, @schedule_id, "2024-01-01", "2024-01-07",
           retry: retry
         )
 
         assert_received {:retry_opt, {:ok, ^retry}}
       end
-
-      BambooHR.Scheduling.get_schedule_pdf(config, @schedule_id, "2024-01-01", "2024-01-07",
-        retry: nil
-      )
-
-      assert_received {:retry_opt, {:ok, :unprocessed}}
-    end
-
-    test "hands Req a retry function that cannot raise or return junk" do
-      config =
-        BambooHR.Client.new(
-          company_domain: "test_company",
-          api_key: "test_key",
-          http_client: CaptureRetry
-        )
-
-      wrapped = fn retry ->
-        BambooHR.Scheduling.get_schedule_pdf(config, @schedule_id, "2024-01-01", "2024-01-07",
-          retry: retry
-        )
-
-        assert_received {:retry_opt, {:ok, wrapped}}
-        wrapped
-      end
-
-      assert wrapped.(fn _request, _response -> true end).(:request, :response) == true
-      assert wrapped.(fn _request, _response -> nil end).(:request, :response) == false
-
-      log =
-        ExUnit.CaptureLog.capture_log(fn ->
-          thrower = wrapped.(fn _request, _response -> throw(:stop) end)
-          assert thrower.(:request, :response) == false
-
-          negative = wrapped.(fn _request, _response -> {:delay, -1} end)
-          assert negative.(:request, :response) == false
-        end)
-
-      assert log =~ "the :retry function throw :stop"
-      assert log =~ "the :retry function returned {:delay, -1}"
     end
 
     test "retries a rate-limited render by default", %{bypass: bypass, config: config} do

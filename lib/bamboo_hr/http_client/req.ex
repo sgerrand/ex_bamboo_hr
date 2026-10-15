@@ -16,11 +16,22 @@ defmodule BambooHR.HTTPClient.Req do
     * POST is **not** retried on 5xx — those could indicate partial
       processing.
 
-  Callers can override by passing `retry:` in `opts` (e.g. `retry: false`
-  to disable, or a custom function). `retry: :unprocessed` selects
-  `retry_unprocessed?/2`, which retries only what BambooHR certainly did
-  not process.
+  Callers can override by passing `retry:` in `opts`: `false` to
+  disable, `:safe_transient` or `:transient` for Req's own policies, or
+  a 2-arity function. `retry_unprocessed?/2` is one, for a request that
+  must not run twice. `nil` means this client's own policy.
+
+  Req checks `:retry` only once a response or error is in, and raises
+  on a value it does not accept, by then too late for the request to be
+  taken back. So a value it does not accept counts as `false`, with a
+  warning. A function is guarded the same way: a result other than
+  `true`, `false`, `nil` or `{:delay, milliseconds}`, or a raise, counts
+  as `false`, with a warning. `{:delay, milliseconds}` with
+  `:retry_delay` also set counts as `true`, so `:retry_delay` decides
+  the wait.
   """
+
+  require Logger
 
   @behaviour BambooHR.HTTPClient
 
@@ -35,8 +46,7 @@ defmodule BambooHR.HTTPClient.Req do
     opts =
       opts
       |> Keyword.put(:decode_body, false)
-      |> Keyword.put_new(:retry, &__MODULE__.retry?/2)
-      |> Keyword.update!(:retry, &retry_option/1)
+      |> Keyword.put(:retry, retry_option(opts[:retry], opts[:retry_delay] != nil))
 
     case Req.request(opts) do
       {:ok, %{status: status, body: body, headers: headers}} when status in 200..299 ->
@@ -50,9 +60,48 @@ defmodule BambooHR.HTTPClient.Req do
     end
   end
 
-  # `:unprocessed` is this client's own name, not one Req knows.
-  defp retry_option(:unprocessed), do: &__MODULE__.retry_unprocessed?/2
-  defp retry_option(retry), do: retry
+  defp retry_option(nil, _retry_delay?), do: &__MODULE__.retry?/2
+
+  defp retry_option(retry, _retry_delay?) when retry in [false, :safe_transient, :transient],
+    do: retry
+
+  defp retry_option(retry, retry_delay?) when is_function(retry, 2),
+    do: guard_retry(retry, retry_delay?)
+
+  defp retry_option(retry, _retry_delay?) do
+    Logger.warning(
+      "BambooHR.HTTPClient.Req: ignoring retry: #{inspect(retry)}, expected false, " <>
+        ":safe_transient, :transient or a 2-arity function; not retrying"
+    )
+
+    false
+  end
+
+  # Req raises on any other result, or when the function raises, after
+  # the response is in. It also raises on `{:delay, ms}` when
+  # `:retry_delay` is set.
+  defp guard_retry(retry, retry_delay?) do
+    fn request, response_or_exception ->
+      try do
+        case retry.(request, response_or_exception) do
+          result when is_boolean(result) -> result
+          nil -> false
+          {:delay, ms} when is_integer(ms) and ms >= 0 and retry_delay? -> true
+          {:delay, ms} = delay when is_integer(ms) and ms >= 0 -> delay
+          other -> warn_bad_retry("returned #{inspect(other)}")
+        end
+      rescue
+        exception -> warn_bad_retry("raised #{Exception.message(exception)}")
+      catch
+        kind, value -> warn_bad_retry("#{kind} #{inspect(value)}")
+      end
+    end
+  end
+
+  defp warn_bad_retry(what) do
+    Logger.warning("BambooHR.HTTPClient.Req: the :retry function #{what}; not retrying")
+    false
+  end
 
   defp decode_success(body, _status, headers, expose_headers, true) do
     wrap_success(body, headers, expose_headers)

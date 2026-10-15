@@ -84,7 +84,7 @@ defmodule BambooHR.HTTPClient.ReqTest do
   end
 
   describe "request/1 retry behaviour" do
-    test "retry: :unprocessed does not retry a GET on 500", %{bypass: bypass, config: config} do
+    test "retry_unprocessed?/2 does not retry a GET on 500", %{bypass: bypass, config: config} do
       # The default policy would retry this GET; expect_once fails the test
       # on a second request.
       Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
@@ -92,10 +92,10 @@ defmodule BambooHR.HTTPClient.ReqTest do
       end)
 
       assert {:error, %BambooHR.Error{status: 500}} =
-               BambooHR.Client.get("/path", config, retry: :unprocessed)
+               BambooHR.Client.get("/path", config, retry: &ReqClient.retry_unprocessed?/2)
     end
 
-    test "retry: :unprocessed retries a 429", %{bypass: bypass, config: config} do
+    test "retry_unprocessed?/2 retries a 429", %{bypass: bypass, config: config} do
       counter = :counters.new(1, [])
 
       Bypass.expect(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
@@ -116,7 +116,7 @@ defmodule BambooHR.HTTPClient.ReqTest do
 
       assert {:ok, %{"ok" => true}} =
                BambooHR.Client.get("/path", config,
-                 retry: :unprocessed,
+                 retry: &ReqClient.retry_unprocessed?/2,
                  retry_delay: 0,
                  retry_log_level: false
                )
@@ -211,6 +211,115 @@ defmodule BambooHR.HTTPClient.ReqTest do
       assert {:error, %{status: 429}} = BambooHR.Client.get("/path", config, retry: false)
 
       assert :counters.get(counter, 1) == 1
+    end
+
+    test "uses its own policy for retry: nil", %{bypass: bypass, config: config} do
+      counter = :counters.new(1, [])
+
+      Bypass.expect(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
+        :counters.add(counter, 1, 1)
+        Plug.Conn.resp(conn, 500, "")
+      end)
+
+      assert {:error, %{status: 500}} =
+               BambooHR.Client.get("/path", config,
+                 retry: nil,
+                 retry_delay: 0,
+                 max_retries: 1,
+                 retry_log_level: false
+               )
+
+      assert :counters.get(counter, 1) == 2
+    end
+
+    test "does not retry or raise on a retry value Req does not accept", %{
+      bypass: bypass,
+      config: config
+    } do
+      # Req would raise on these, but only after the response is in.
+      for retry <- [true, :never, "false"] do
+        Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
+          Plug.Conn.resp(conn, 500, "")
+        end)
+
+        log =
+          ExUnit.CaptureLog.capture_log(fn ->
+            assert {:error, %{status: 500}} = BambooHR.Client.get("/path", config, retry: retry)
+          end)
+
+        assert log =~ "ignoring retry: #{inspect(retry)}"
+      end
+    end
+
+    test "reads a retry function's bad result, or a raise, as no retry", %{
+      bypass: bypass,
+      config: config
+    } do
+      bad = [
+        {fn _request, _response -> :maybe end, "returned :maybe"},
+        {fn _request, _response -> {:delay, -1} end, "returned {:delay, -1}"},
+        {fn _request, _response -> raise "boom" end, "raised boom"},
+        {fn _request, _response -> throw(:stop) end, "throw :stop"}
+      ]
+
+      for {retry, logged} <- bad do
+        Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
+          Plug.Conn.resp(conn, 500, "")
+        end)
+
+        log =
+          ExUnit.CaptureLog.capture_log(fn ->
+            assert {:error, %{status: 500}} = BambooHR.Client.get("/path", config, retry: retry)
+          end)
+
+        assert log =~ "the :retry function #{logged}"
+      end
+    end
+
+    test "reads nil from a retry function as no retry, quietly", %{
+      bypass: bypass,
+      config: config
+    } do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
+        Plug.Conn.resp(conn, 500, "")
+      end)
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:error, %{status: 500}} =
+                   BambooHR.Client.get("/path", config, retry: fn _request, _response -> nil end)
+        end)
+
+      refute log =~ ":retry function"
+    end
+
+    test "lets :retry_delay decide the wait when a retry function returns a delay", %{
+      bypass: bypass,
+      config: config
+    } do
+      counter = :counters.new(1, [])
+
+      Bypass.expect(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
+        :counters.add(counter, 1, 1)
+
+        case :counters.get(counter, 1) do
+          1 -> Plug.Conn.resp(conn, 500, "")
+          _ -> Plug.Conn.resp(conn, 200, "{}")
+        end
+      end)
+
+      # Req raises when both are set.
+      assert {:ok, %{}} =
+               BambooHR.Client.get("/path", config,
+                 retry: fn
+                   _request, %{status: 500} -> {:delay, 60_000}
+                   _request, _response -> false
+                 end,
+                 retry_delay: 0,
+                 retry_log_level: false
+               )
+
+      assert :counters.get(counter, 1) == 2
     end
   end
 

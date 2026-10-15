@@ -69,8 +69,6 @@ defmodule BambooHR.Scheduling do
   so it is an error too, rather than being sent as the string `"null"`.
   """
 
-  require Logger
-
   alias BambooHR.Client
 
   @typedoc """
@@ -229,11 +227,12 @@ defmodule BambooHR.Scheduling do
       `:include_time_off`, and `:retry`. `:retry` defaults to
       `:unprocessed` (described above), and also takes `false`,
       `:safe_transient`, `:transient`, or a 2-arity function, as Req
-      does. A function should return `true`, `false` or
-      `{:delay, milliseconds}`; anything else, or a function that
-      raises, counts as `false`, with a warning. Any other `:retry`
-      value is ignored with a warning. An empty `:employee_ids` list
-      returns an `:empty_filter` error; see "Empty values" above
+      does. A function should return `true`, `false`, `nil` (the same
+      as `false`) or `{:delay, milliseconds}`. With the default HTTP
+      client, anything else, or a function that raises, counts as
+      `false`, with a warning. Any other `:retry` value returns an
+      `:invalid_argument` error. An empty `:employee_ids` list returns
+      an `:empty_filter` error; see "Empty values" above
 
   ## Examples
 
@@ -252,14 +251,15 @@ defmodule BambooHR.Scheduling do
              (is_binary(end_ymd) or is_struct(end_ymd, Date)) do
     with {:ok, id} <- segment(schedule_id),
          {:ok, opts} <- keyword(opts),
-         {:ok, optional} <- pdf_params(opts) do
+         {:ok, optional} <- pdf_params(opts),
+         {:ok, retry} <- retry_opt(opts) do
       params =
         [{"startYmd", format_ymd(start_ymd)}, {"endYmd", format_ymd(end_ymd)}] ++ optional
 
       Client.get(
         "/scheduling/schedules/#{id}/pdf",
         client,
-        [params: params, raw_response: true, expose_headers: true] ++ retry_opt(opts)
+        [params: params, raw_response: true, expose_headers: true] ++ retry
       )
     end
   end
@@ -626,55 +626,31 @@ defmodule BambooHR.Scheduling do
   end
 
   # Each retry renders the PDF again, so by default only a request that
-  # BambooHR certainly did not process is retried. Only the `:retry`
-  # values Req accepts are passed on. Req raises on any other value, and
-  # only once the response is in — after the PDF has been rendered — so
-  # anything else is dropped with a warning.
+  # BambooHR certainly did not process is retried. The default goes out
+  # as a function, which a custom client built on Req can pass straight
+  # to it. A value no client can use is turned away before the request is
+  # sent; `HTTPClient.Req` guards what a function returns.
   defp retry_opt(opts) do
     case List.keyfind(opts, :retry, 0) do
-      {:retry, retry} when retry in [false, :unprocessed, :safe_transient, :transient] ->
-        [retry: retry]
+      {:retry, retry} when retry in [nil, :unprocessed] ->
+        {:ok, [retry: &BambooHR.HTTPClient.Req.retry_unprocessed?/2]}
+
+      {:retry, retry} when retry in [false, :safe_transient, :transient] ->
+        {:ok, [retry: retry]}
 
       {:retry, retry} when is_function(retry, 2) ->
-        [retry: safe_retry(retry)]
+        {:ok, [retry: retry]}
 
-      {:retry, other} when other != nil ->
-        Logger.warning(
-          "BambooHR.Scheduling: ignoring retry: #{inspect(other)}, expected false, " <>
-            ":unprocessed, :safe_transient, :transient or a 2-arity function"
-        )
+      {:retry, other} ->
+        {:error,
+         invalid_argument(
+           ":retry is #{inspect(other)}, so the request was not sent. Pass false, " <>
+             ":unprocessed, :safe_transient, :transient or a 2-arity function."
+         )}
 
-        [retry: :unprocessed]
-
-      _not_given ->
-        [retry: :unprocessed]
+      nil ->
+        {:ok, [retry: &BambooHR.HTTPClient.Req.retry_unprocessed?/2]}
     end
-  end
-
-  # Req has no clause for a retry function's result other than these, and
-  # raises when it meets one, as it does when the function itself raises.
-  # Either way that is after the PDF has rendered, so a bad result or a
-  # raise is read as "do not retry".
-  defp safe_retry(retry) do
-    fn request, response_or_exception ->
-      try do
-        case retry.(request, response_or_exception) do
-          true -> true
-          {:delay, ms} = delay when is_integer(ms) and ms >= 0 -> delay
-          no when no in [false, nil] -> false
-          other -> warn_bad_retry("returned #{inspect(other)}")
-        end
-      rescue
-        exception -> warn_bad_retry("raised #{Exception.message(exception)}")
-      catch
-        kind, value -> warn_bad_retry("#{kind} #{inspect(value)}")
-      end
-    end
-  end
-
-  defp warn_bad_retry(what) do
-    Logger.warning("BambooHR.Scheduling: the :retry function #{what}; not retrying")
-    false
   end
 
   # Takes options `keyword/1` has already read, since some callers need
