@@ -111,13 +111,21 @@ defmodule BambooHR.HTTPClient.Req do
   Retry predicate for a request that must not run twice.
 
   Retries only when BambooHR certainly did not process the request: a
-  `429`, which it turns away before doing any work, and a refused
-  connection, which never reached it. A `5xx` or a timeout is not
-  retried, because the work may have been done.
+  `429`, which it turns away before doing any work, a refused
+  connection, which never reached it, and the two HTTP/2 errors that
+  mean the request was never sent (`:unprocessed`, when the server
+  closed the connection before taking it, and `:pool_not_available`).
+  A `5xx` or a timeout is not retried, because the work may have been
+  done.
   """
   @spec retry_unprocessed?(Req.Request.t(), Req.Response.t() | Exception.t()) :: boolean()
   def retry_unprocessed?(_request, %Req.Response{status: 429}), do: true
   def retry_unprocessed?(_request, %Req.TransportError{reason: :econnrefused}), do: true
+
+  def retry_unprocessed?(_request, %Req.HTTPError{protocol: :http2, reason: reason})
+      when reason in [:unprocessed, :pool_not_available],
+      do: true
+
   def retry_unprocessed?(_request, _response_or_exception), do: false
 
   defp decode_body(""), do: {:ok, nil}

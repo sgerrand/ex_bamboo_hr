@@ -27,7 +27,8 @@ defmodule BambooHR.HTTPClient do
       implementation uses its own policy. Otherwise one of:
         * `false` — never retry
         * `:unprocessed` — retry only when BambooHR certainly did not
-          process the request: a `429`, or a refused connection. For a
+          process the request: a `429`, a refused connection, or an
+          HTTP/2 request the server never took. For a
           request that is costly or unsafe to run twice, such as the
           schedule PDF, which BambooHR renders again on every attempt
         * anything else — a value in the HTTP library's own terms.

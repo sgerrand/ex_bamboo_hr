@@ -101,7 +101,8 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   cannot raise after the request has been sent.
   `:retry` is in the behaviour's option list too. `false` means never
   retry. `:unprocessed` means retry only what BambooHR certainly did not
-  process (a `429`, or a refused connection); `HTTPClient.Req` maps it
+  process (a `429`, a refused connection, or Req's HTTP/2 `:unprocessed`
+  and `:pool_not_available` errors); `HTTPClient.Req` maps it
   to `retry_unprocessed?/2`. Any other value is in the HTTP library's
   own terms. An option used in `lib/` but missing from that list is a
   bug: a custom client is written against it.

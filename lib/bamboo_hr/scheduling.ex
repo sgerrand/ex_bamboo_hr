@@ -209,7 +209,8 @@ defmodule BambooHR.Scheduling do
   the client's default 15s `:timeout`, and a failed render comes back as
   a `500`. Each retry would render the PDF again, so by default this
   call retries only when BambooHR certainly did not start a render: a
-  `429`, or a refused connection. A `500` or a timeout is not retried.
+  `429`, a refused connection, or an HTTP/2 request the server never
+  took. A `500` or a timeout is not retried.
   For a large schedule, give it a client with a longer `:timeout`. To
   retry more, or not at all, pass `:retry` (see below).
 

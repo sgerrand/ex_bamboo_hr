@@ -51,6 +51,23 @@ defmodule BambooHR.HTTPClient.ReqTest do
       assert ReqClient.retry_unprocessed?(request, %Req.TransportError{reason: :econnrefused})
     end
 
+    test "retries the HTTP/2 errors that mean the request was never sent" do
+      request = %Req.Request{method: :get}
+
+      for reason <- [:unprocessed, :pool_not_available] do
+        assert ReqClient.retry_unprocessed?(
+                 request,
+                 %Req.HTTPError{protocol: :http2, reason: reason}
+               ),
+               "expected a retry on #{reason}"
+      end
+
+      refute ReqClient.retry_unprocessed?(
+               request,
+               %Req.HTTPError{protocol: :http2, reason: :closed}
+             )
+    end
+
     test "does not retry anything BambooHR may have started work on" do
       request = %Req.Request{method: :get}
 
