@@ -501,9 +501,15 @@ defmodule BambooHR.Scheduling do
   @spec publish_shifts(Client.t(), list(String.t())) :: Client.response()
   def publish_shifts(client, shift_ids) when is_list(shift_ids) do
     # The headers are asked for so a partial publish keeps its request ID.
-    "/scheduling/shifts/publish"
-    |> Client.post(client, json: %{"shiftIds" => shift_ids}, expose_headers: true)
-    |> partial_publish_to_error()
+    # A direct call, not a pipe: scripts/spec_drift.exs reads the path
+    # from the first argument.
+    result =
+      Client.post("/scheduling/shifts/publish", client,
+        json: %{"shiftIds" => shift_ids},
+        expose_headers: true
+      )
+
+    partial_publish_to_error(result)
   end
 
   # A 207 is a 2xx, so the HTTP client returns it as a success. BambooHR
