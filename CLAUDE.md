@@ -87,18 +87,15 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   The opts keyword list passed to implementations is documented in the
   behaviour's `@moduledoc`, including `:expose_headers` (surface response
   headers alongside the body — needed when a header, not the body, carries
-  the useful data, e.g. a `Location` header), `:partial_success` (a map
-  of 2xx status to error reason, for a 2xx that is not a clean success,
-  e.g. `%{207 => :partial_publish}`) and `:raw_response` (skip
+  the useful data, e.g. a `Location` header) and `:raw_response` (skip
   JSON-decoding — needed for binary responses like file downloads).
   A decode error always gets the real response headers and status,
   whatever `:expose_headers` says, so it keeps the `X-Request-ID`.
-  `:partial_success` is handled in `HTTPClient.Req`, not in the resource
-  module, so the telemetry span records it as an error and the error
-  keeps the raw body. It applies to 2xx statuses only. It takes a map,
-  or a list of `{status, reason}` pairs (not a keyword list: the keys
-  are integers). `nil`, or any other value, means none, so a bad value
-  cannot raise after the request has been sent.
+  Prefer solving a resource's quirk in the resource module with the
+  options that already exist. A new behaviour option breaks every
+  custom client that hands its options to Req, since Req raises on an
+  option it does not know; that is why a partial publish is spotted in
+  `Scheduling`, not in `HTTPClient.Req`.
   `:retry` is in the behaviour's option list too. `false` means never
   retry. `:unprocessed` means retry only what BambooHR certainly did not
   process (a `429`, a refused connection, or Req's HTTP/2 `:unprocessed`
@@ -284,17 +281,16 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   is and BambooHR reads it as two IDs there. The PDF window takes a
   `Date` as well as a string.
   `publish_shifts/2` can half-succeed: BambooHR answers 207 when only
-  some shifts published. It passes `partial_success: %{207 =>
-  :partial_publish}`, so a 207 comes back as an error, and `{:ok, _}`
-  always means every shift published. The error's `:body` is the raw
-  JSON, with both lists. A custom `HTTPClient` that ignores the option
-  hands the 207 back as a success, so `publish_shifts/2` also turns any
-  success with a non-empty `"failed"` into the same error. That error's
-  body is the result encoded again (or `inspect/1` of it, if the client
-  handed back something JSON cannot hold), with no request ID, and
-  telemetry has already recorded the call as `:ok`. `shiftIds` takes 1
-  to 100
-  IDs; BambooHR answers 422 outside that, and the client does not check.
+  some shifts published. The HTTP client cannot see that, so
+  `publish_shifts/2` asks for `expose_headers: true` and turns any
+  success with a non-empty `"failed"` into a `:partial_publish` error
+  with status 207. `{:ok, _}` always means every shift published. The
+  error's `:body` is the result encoded as JSON again (or `inspect/1` of
+  it, if a custom client handed back something JSON cannot hold), and
+  the headers give it the request ID. Telemetry records the call as
+  `:ok`, because the HTTP request itself succeeded. `shiftIds` takes 1
+  to 100 IDs; BambooHR answers 422 outside that, and the client does
+  not check.
   Enum values are lowercase (`planned`, `published`; `instance`,
   `future`, `all` for `recurrenceEditOption`). `color` is 6 hex digits
   with no `#`. A publish failure is keyed `shiftId`, not `id`.
@@ -346,8 +342,8 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   Bypass port) in the test context.
 - Tests run `async: true`.
 - To test a path that only a custom `BambooHR.HTTPClient` reaches (one
-  that ignores `:expose_headers` or `:partial_success`), define a small
-  fake module in the test. `request/1` runs in the test's own process,
+  that ignores `:expose_headers`, or one that hands its options to Req),
+  define a small fake module in the test. `request/1` runs in the test's own process,
   so the fake can read its canned response from `Process.get/1`.
 - Telemetry handlers are global, so a test's handler also sees events
   from other async tests. Attach with `&__MODULE__.forward_telemetry/4`
@@ -365,9 +361,9 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
 - Every failure is `{:error, %BambooHR.Error{}}` — see `lib/bamboo_hr/error.ex`.
   `BambooHR.HTTPClient.Req` builds it with `from_response/3` (non-2xx),
   `from_exception/1` (transport), `from_decode_error/4` (bad JSON in a
-  2xx), or `from_partial_success/4` (a 2xx listed in `:partial_success`,
-  e.g. a 207 publish). A resource module may also build one itself for
-  a request it will not send (`:empty_filter` and `:invalid_argument`
+  2xx). A resource module may also build one itself:
+  `from_partial_success/4` for a 2xx that is not a clean success (a 207
+  publish), or a bare struct for a request it will not send (`:empty_filter` and `:invalid_argument`
   in `Scheduling`). Those have a `nil` status, like a transport error,
   but a retry cannot help, so never treat a `nil` status alone as "try
   again". Callers match on `:reason`, not the status code. The struct is a

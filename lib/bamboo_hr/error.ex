@@ -62,7 +62,7 @@ defmodule BambooHR.Error do
     * `:decode_error` - the body was not valid JSON
     * `:partial_publish` - a `207` from
       `BambooHR.Scheduling.publish_shifts/2`: some shifts published and
-      some did not. `:body` holds both lists, as BambooHR sent them.
+      some did not. `:body` holds both lists, as JSON.
       Part of the work is done, so do not send the same call again
       without reading them
 
@@ -155,9 +155,10 @@ defmodule BambooHR.Error do
   @doc """
   Builds an error from a 2xx response that reports partial success.
 
-  A 2xx like this is not a clean success, so the caller asks for it to
-  be treated as an error (see the `:partial_success` option in
-  `BambooHR.HTTPClient`) and names the `reason`.
+  A 2xx like this is not a clean success, so the resource module that
+  spots one in the result turns it into an error and names the
+  `reason`, e.g. `:partial_publish` in
+  `BambooHR.Scheduling.publish_shifts/2`.
   """
   @spec from_partial_success(reason(), non_neg_integer(), binary() | nil, map()) :: t()
   def from_partial_success(reason, status, body, headers \\ %{}) do

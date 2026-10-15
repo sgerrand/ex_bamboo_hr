@@ -460,17 +460,16 @@ defmodule BambooHR.Scheduling do
   published and `409` when none did. Both come back as an error, so a
   caller that matches `{:ok, _}` cannot mistake a partial run for a
   clean one: `207` is `:partial_publish` and `409` is `:conflict`. Each
-  error's `:body` holds the JSON with both lists, as BambooHR sent it, so
-  the shifts that did publish and the reason for each failure are still
-  there.
+  error's `:body` holds the JSON with both lists, so the shifts that did
+  publish and the reason for each failure are still there.
 
-  This holds for a custom `BambooHR.HTTPClient` too. One that does not
-  know the `:partial_success` option hands a `207` back as a success,
-  so a result with anything in `"failed"` is turned into the same
-  `:partial_publish` error here. In that case `:body` is the result
-  encoded as JSON again, or as `inspect/1` prints it if it holds
-  something JSON cannot, and there is no `:request_id`, because the
-  client has already dropped the response headers.
+  The HTTP client hands a `207` back as a success, like any 2xx, so
+  this function turns a result with anything in `"failed"` into the
+  `:partial_publish` error. That works the same with a custom
+  `BambooHR.HTTPClient`. The `:body` of that error is the result encoded
+  as JSON again, or as `inspect/1` prints it if a custom client handed
+  back something JSON cannot hold. Telemetry sees the HTTP request,
+  which succeeded, so it records a `207` as `:ok`.
 
   ## Parameters
 
@@ -489,29 +488,36 @@ defmodule BambooHR.Scheduling do
        %BambooHR.Error{
          reason: :partial_publish,
          status: 207,
-         body: ~s({"published":[{"id":"9c14..."}],"failed":[{"shiftId":"2b77..."}]})
+         body: ~s({"failed":[{"shiftId":"2b77..."}],"published":[{"id":"9c14..."}]})
        }}
   """
   @spec publish_shifts(Client.t(), list(String.t())) :: Client.response()
   def publish_shifts(client, shift_ids) when is_list(shift_ids) do
-    # A 207 is a 2xx, so without this it would look like a clean run.
-    result =
-      Client.post("/scheduling/shifts/publish", client,
-        json: %{"shiftIds" => shift_ids},
-        partial_success: %{207 => :partial_publish}
-      )
-
-    partial_publish_to_error(result)
+    # The headers are asked for so a partial publish keeps its request ID.
+    "/scheduling/shifts/publish"
+    |> Client.post(client, json: %{"shiftIds" => shift_ids}, expose_headers: true)
+    |> partial_publish_to_error()
   end
 
-  # An HTTP client that does not know `:partial_success` returns the 207
-  # as a success. BambooHR only reports failures on a 207 or a 409, and a
-  # 409 is already an error, so a success with failures in it was a 207.
-  defp partial_publish_to_error({:ok, %{"failed" => [_ | _]} = result}) do
-    {:error, BambooHR.Error.from_partial_success(:partial_publish, 207, encode(result))}
+  # A 207 is a 2xx, so the HTTP client returns it as a success. BambooHR
+  # only reports failures on a 207 or a 409, and a 409 is already an
+  # error, so a success with failures in it was a 207. This is done here
+  # rather than in the HTTP client, so a custom client needs no new
+  # option for it. A client that ignores `:expose_headers` hands back the
+  # bare body, which is checked the same way.
+  defp partial_publish_to_error({:ok, %{body: body, headers: headers}}),
+    do: failed_to_error(body, headers)
+
+  defp partial_publish_to_error({:ok, body}), do: failed_to_error(body, %{})
+  defp partial_publish_to_error(error), do: error
+
+  defp failed_to_error(%{"failed" => [_ | _]} = body, headers) do
+    headers = if is_map(headers), do: headers, else: %{}
+
+    {:error, BambooHR.Error.from_partial_success(:partial_publish, 207, encode(body), headers)}
   end
 
-  defp partial_publish_to_error(result), do: result
+  defp failed_to_error(body, _headers), do: {:ok, body}
 
   # A custom client can hand back a term JSON cannot hold, such as a
   # tuple. `Jason.encode!/1` would raise on it.

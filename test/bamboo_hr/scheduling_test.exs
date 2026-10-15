@@ -354,11 +354,11 @@ defmodule BambooHR.SchedulingTest do
       assert Jason.decode!(body) == response_409()
     end
 
-    defmodule IgnoresPartialSuccess do
+    defmodule IgnoresExposeHeaders do
       @behaviour BambooHR.HTTPClient
 
-      # Returns the decoded body, as a custom client that does not know
-      # about :partial_success would.
+      # Returns the bare decoded body, as a custom client that ignores
+      # :expose_headers would.
       @impl true
       def request(_opts) do
         {:ok,
@@ -383,12 +383,12 @@ defmodule BambooHR.SchedulingTest do
       def request(_opts), do: {:ok, %{"published" => [%{"id" => "w"}], "failed" => []}}
     end
 
-    test "still returns an error when a custom client ignores partial_success" do
+    test "still returns an error when a custom client ignores expose_headers" do
       config =
         BambooHR.Client.new(
           company_domain: "test_company",
           api_key: "test_key",
-          http_client: IgnoresPartialSuccess
+          http_client: IgnoresExposeHeaders
         )
 
       assert {:error, %BambooHR.Error{reason: :partial_publish, status: 207, body: body}} =
@@ -413,6 +413,55 @@ defmodule BambooHR.SchedulingTest do
                BambooHR.Scheduling.publish_shifts(config, ["x"])
 
       assert body =~ ~s(shift: "x")
+    end
+
+    defmodule PassesOptionsToReq do
+      @behaviour BambooHR.HTTPClient
+
+      # Handles the options the behaviour listed before scheduling was
+      # added and hands everything else to Req, which raises on an option
+      # it does not know.
+      @impl true
+      def request(opts) do
+        {expose_headers, opts} = Keyword.pop(opts, :expose_headers, false)
+        {_raw_response, opts} = Keyword.pop(opts, :raw_response, false)
+
+        case Req.request(opts) do
+          {:ok, %{status: status, body: body, headers: headers}} when status in 200..299 ->
+            body = if body == "", do: nil, else: Jason.decode!(body)
+            if expose_headers, do: {:ok, %{body: body, headers: headers}}, else: {:ok, body}
+
+          {:ok, %{status: status, body: body, headers: headers}} ->
+            {:error, BambooHR.Error.from_response(status, body, headers)}
+
+          {:error, exception} ->
+            {:error, BambooHR.Error.from_exception(exception)}
+        end
+      end
+    end
+
+    test "works with a custom client that passes its options to Req", %{bypass: bypass} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/gateway.php/test_company/v1/scheduling/shifts/publish",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("x-request-id", "req-207")
+          |> Plug.Conn.resp(207, Jason.encode!(%{"published" => [], "failed" => [%{}]}))
+        end
+      )
+
+      config =
+        BambooHR.Client.new(
+          company_domain: "test_company",
+          api_key: "test_key",
+          base_url: bypass_url(bypass, "/api/gateway.php"),
+          http_client: PassesOptionsToReq
+        )
+
+      assert {:error, %BambooHR.Error{reason: :partial_publish, request_id: "req-207"}} =
+               BambooHR.Scheduling.publish_shifts(config, ["x"])
     end
 
     test "leaves a custom client's clean publish as a success" do
