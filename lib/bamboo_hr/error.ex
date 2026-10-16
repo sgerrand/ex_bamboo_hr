@@ -135,6 +135,7 @@ defmodule BambooHR.Error do
 
   @message_headers ["x-bamboohr-error-message", "x-bamboohr-message"]
   @request_id_header "x-request-id"
+  @unsent_reasons [:empty_filter, :invalid_argument]
 
   @doc """
   Builds an error from a non-2xx response.
@@ -195,6 +196,11 @@ defmodule BambooHR.Error do
     |> Enum.reject(&is_nil/1)
     |> Enum.join(" ")
   end
+
+  # The client turned these away itself, so nothing reached BambooHR.
+  # Saying "failed" would read like a network or server fault.
+  defp status_part(%{status: nil, reason: reason}) when reason in @unsent_reasons,
+    do: "BambooHR request not sent (#{reason}):"
 
   defp status_part(%{status: nil, reason: reason}), do: "BambooHR request failed (#{reason}):"
 

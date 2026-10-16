@@ -104,6 +104,14 @@ defmodule BambooHR.ErrorTest do
                "BambooHR request failed (transport_error): connection refused"
     end
 
+    test "says a request the client turned away was not sent" do
+      for reason <- [:empty_filter, :invalid_argument] do
+        error = %Error{reason: reason, message: "ids is empty"}
+
+        assert Exception.message(error) == "BambooHR request not sent (#{reason}): ids is empty"
+      end
+    end
+
     test "includes the request id when present" do
       error = Error.from_response(422, "", %{"x-request-id" => ["req-9"]})
 
