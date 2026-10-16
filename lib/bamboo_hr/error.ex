@@ -31,7 +31,10 @@ defmodule BambooHR.Error do
       `:invalid_argument`). Only the first can work on another try, so
       check `:reason` before retrying on a `nil` status.
     * `:body` - Raw response body, undecoded. `nil` when there was no
-      response.
+      response. `:partial_publish` is the one exception: it is spotted
+      after the body has been decoded, so `:body` is that result encoded
+      as JSON again. The content is the same, but key order and number
+      formatting may differ from what BambooHR sent.
     * `:message` - BambooHR's own description of the failure, from the
       `x-bamboohr-error-message` or `X-BambooHR-Message` header. These
       distinguish cases the status code alone does not — a `404` on an
@@ -62,8 +65,9 @@ defmodule BambooHR.Error do
     * `:decode_error` - the body was not valid JSON
     * `:partial_publish` - a `207` from
       `BambooHR.Scheduling.publish_shifts/2`: some shifts published and
-      some did not. `:body` holds both lists, as JSON.
-      Part of the work is done, so do not send the same call again
+      some did not. `:body` holds both lists, as JSON. `:status` is
+      always `207`, the status BambooHR documents for this, because the
+      HTTP client does not hand back the status of a 2xx. Part of the work is done, so do not send the same call again
       without reading them
 
   With no response:

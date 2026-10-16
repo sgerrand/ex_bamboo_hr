@@ -298,7 +298,12 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   with status 207. `{:ok, _}` always means every shift published. The
   error's `:body` is the result encoded as JSON again (or `inspect/1` of
   it, if a custom client handed back something JSON cannot hold), and
-  the headers give it the request ID. Telemetry records the call as
+  the headers give it the request ID. That is the one place `:body` is
+  not the raw response, and the 207 is assumed, since the behaviour
+  does not hand back a 2xx status; both are documented in
+  `BambooHR.Error` and `publish_shifts/2`. `raw_response: true` would
+  keep the raw body but still not the status, and it changes `Accept`
+  to `*/*`. Telemetry records the call as
   `:ok`, because the HTTP request itself succeeded. `shiftIds` takes 1
   to 100 IDs; BambooHR answers 422 outside that, and the client does
   not check.

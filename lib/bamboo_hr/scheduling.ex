@@ -476,7 +476,10 @@ defmodule BambooHR.Scheduling do
   `:partial_publish` error. That works the same with a custom
   `BambooHR.HTTPClient`. The `:body` of that error is the result encoded
   as JSON again, or as `inspect/1` prints it if a custom client handed
-  back something JSON cannot hold. Telemetry sees the HTTP request,
+  back something JSON cannot hold. So unlike other errors, it is not
+  the raw response: the content is the same, but key order and number
+  formatting may differ. Its `:status` is always `207`, because the
+  HTTP client does not hand back the status of a success. Telemetry sees the HTTP request,
   which succeeded, so it records a `207` as `:ok`.
 
   ## Parameters
