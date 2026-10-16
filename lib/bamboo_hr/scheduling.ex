@@ -37,7 +37,12 @@ defmodule BambooHR.Scheduling do
   drop the filter and return everything, where a list that worked out
   empty most likely means nothing should match. An empty string, or a
   list that holds one, is treated the same way: `String.split("", ",")`
-  gives `[""]`, not `[]`. A string of only spaces counts as empty. The
+  gives `[""]`, not `[]`. A string of only spaces counts as empty.
+
+  A list filter given as a comma-joined string, such as `"10, 20"`, is
+  split into its pieces, with spaces trimmed. So an empty piece, as in
+  `"10,"`, counts as empty too, and the same string means the same in
+  every call. The
   filters are `:ids`, `:employee_ids`, `:schedule_ids`, `:statuses` and
   `:filter`. The call returns
   `{:error, %BambooHR.Error{reason: :empty_filter}}` without contacting
@@ -577,6 +582,7 @@ defmodule BambooHR.Scheduling do
   defp shift_params(opts) do
     with {:ok, opts} <- keyword(opts) do
       opts
+      |> split_lists([:ids, :employee_ids, :schedule_ids, :statuses])
       |> end_of_day_for(:end)
       |> build_params(
         ids: "ids",
@@ -623,7 +629,7 @@ defmodule BambooHR.Scheduling do
   # The PDF endpoint takes employeeIds[] as a repeated parameter rather
   # than a comma-separated list, so each ID gets its own entry.
   defp pdf_params(opts) do
-    opts = split_employee_ids(opts)
+    opts = split_lists(opts, [:employee_ids])
 
     with {:ok, params} <-
            build_params(
@@ -643,18 +649,20 @@ defmodule BambooHR.Scheduling do
     end
   end
 
-  # `list_shifts/2` sends a string as it is, and BambooHR reads "10,20"
-  # there as two IDs. Sent as one employeeIds[] entry it would be one ID
-  # that matches nobody, so the string is split here to mean the same.
-  # An empty piece stays, so `"10,"` still gets the `:empty_filter` error.
-  defp split_employee_ids(opts) do
-    case List.keyfind(opts, :employee_ids, 0) do
-      {:employee_ids, ids} when is_binary(ids) ->
-        split = ids |> String.split(",") |> Enum.map(&String.trim/1)
-        List.keystore(opts, :employee_ids, 0, {:employee_ids, split})
-
-      _not_a_string ->
-        opts
+  # A list filter given as a string, such as `"10,20"`, is split into
+  # its pieces, with spaces trimmed, so it means the same in every call.
+  # The PDF sends each ID as its own employeeIds[] entry, where the whole
+  # string would be one ID that matches nobody, and `list_shifts/2` joins
+  # the pieces back with commas. An empty piece stays, so `"10,"` gets
+  # the `:empty_filter` error instead of going out as `ids=10,`. Not
+  # `:filter`, which is an OData string and may hold a comma.
+  defp split_lists(opts, keys) do
+    for {key, value} <- opts do
+      if key in keys and is_binary(value) do
+        {key, value |> String.split(",") |> Enum.map(&String.trim/1)}
+      else
+        {key, value}
+      end
     end
   end
 

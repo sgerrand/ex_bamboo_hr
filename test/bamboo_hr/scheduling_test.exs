@@ -672,6 +672,67 @@ defmodule BambooHR.SchedulingTest do
                )
     end
 
+    test "trims a comma-joined list filter for list_shifts/2", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/shifts",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params["employeeIds"] == "10,20"
+          assert conn.query_params["statuses"] == "planned,published"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, _} =
+               BambooHR.Scheduling.list_shifts(config,
+                 start: "2024-01-01T00:00:00Z",
+                 end: "2024-01-07T23:59:59Z",
+                 employee_ids: "10, 20",
+                 statuses: "planned , published"
+               )
+    end
+
+    test "returns an empty filter error for an empty piece of a list_shifts/2 string", %{
+      config: config
+    } do
+      # No Bypass expectation: `ids=a,` must not go out.
+      for {key, value} <- [
+            ids: "a,",
+            employee_ids: "10, ",
+            schedule_ids: ",x",
+            statuses: "planned,,published"
+          ] do
+        assert {:error, %BambooHR.Error{reason: :empty_filter, message: message}} =
+                 BambooHR.Scheduling.list_shifts(config, [{key, value}])
+
+        assert message =~ inspect(key)
+      end
+    end
+
+    test "leaves a comma in an OData filter alone", %{bypass: bypass, config: config} do
+      Bypass.expect_once(
+        bypass,
+        "GET",
+        "/api/gateway.php/test_company/v1/scheduling/shift-assessments",
+        fn conn ->
+          conn = Plug.Conn.fetch_query_params(conn)
+          assert conn.query_params["filter"] == "employeeId in (1,2)"
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"data" => []}))
+        end
+      )
+
+      assert {:ok, _} =
+               BambooHR.Scheduling.list_shift_assessments(config, filter: "employeeId in (1,2)")
+    end
+
     test "returns an empty filter error for an empty piece of the PDF's ID string", %{
       config: config
     } do

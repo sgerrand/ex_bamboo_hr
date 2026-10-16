@@ -288,9 +288,11 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   function reads, or Dialyzer rejects a call the code supports.
   The PDF wants repeated `employeeIds[]` params, not a comma-joined
   list. Plug parses the `[]` suffix back into a list, which is what the
-  test checks. `split_employee_ids/1` splits a string like `"10,20"`
-  into one entry each, because `list_shifts/2` sends that string as it
-  is and BambooHR reads it as two IDs there. The PDF window takes a
+  test checks. `split_lists/2` splits a list filter given as a string,
+  like `"10, 20"`, into trimmed pieces in both `list_shifts/2` and the
+  PDF, so the same string means the same in each and an empty piece
+  (`"10,"`) gets `:empty_filter` instead of going out as `ids=10,`.
+  `:filter` is never split: it is an OData string. The PDF window takes a
   `Date` as well as a string. It does not go through `build_params/3`,
   so `check_window/1` turns away a blank one itself.
   `publish_shifts/2` can half-succeed: BambooHR answers 207 when only
