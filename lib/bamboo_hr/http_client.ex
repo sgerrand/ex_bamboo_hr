@@ -7,8 +7,12 @@ defmodule BambooHR.HTTPClient do
   (where `decoded_body` is the JSON-decoded payload, or `nil` for an empty
   body) or `{:error, %BambooHR.Error{}}` otherwise. `BambooHR.Error` has
   constructors for each failure kind — `from_response/3`,
-  `from_exception/1`, and `from_decode_error/3`. See
+  `from_exception/1`, and `from_decode_error/4`. See
   `t:BambooHR.Client.response/0` for the full shape.
+
+  New options can be added to the list below. An implementation must
+  drop any option it does not recognise rather than pass it on — `Req`,
+  for one, raises on an option it does not know.
 
   ## Options passed to `request/1`
 
@@ -19,6 +23,15 @@ defmodule BambooHR.HTTPClient do
       normally, or `Accept: */*` when `:raw_response` is `true`, so binary
       downloads aren't forced into requesting a JSON representation)
     * `:receive_timeout` — milliseconds
+    * `:retry` — how to retry this one request (optional), in `Req`'s
+      terms: `false`, `:safe_transient`, `:transient`, or a 2-arity
+      function that takes a `Req.Request` and a `Req.Response` or an
+      exception. Left out, or `nil`, the implementation uses its own
+      policy. `BambooHR.Scheduling.get_schedule_pdf/5` passes
+      `&BambooHR.HTTPClient.Req.retry_unprocessed?/2` by default, because
+      BambooHR renders the PDF again on every attempt. An implementation
+      that is not built on `Req`, or cannot honour a value, should treat
+      it as `false` rather than fall back to retrying freely
     * `:params` — query string parameters (optional)
     * `:json` — request body to JSON-encode (optional)
     * `:form_multipart` — request body to encode as `multipart/form-data`,

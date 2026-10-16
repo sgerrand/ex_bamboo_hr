@@ -425,4 +425,43 @@ defmodule BambooHR.BreaksTest do
                BambooHR.Breaks.list_employee_break_availabilities(config, 123)
     end
   end
+
+  describe "IDs in the request path" do
+    test "percent-encodes an ID so it stays one path segment", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, fn conn ->
+        # Plug splits the path, so check the raw request path.
+        assert conn.request_path ==
+                 "/api/gateway.php/test_company/v1/time-tracking/breaks/a%2F..%2Fb%3Fx%3D1"
+
+        assert conn.query_string == ""
+        Plug.Conn.resp(conn, 204, "")
+      end)
+
+      assert {:ok, nil} = BambooHR.Breaks.delete_break(config, "a/../b?x=1")
+    end
+
+    test "does not send a request for an empty ID, . or ..", %{config: config} do
+      # No Bypass expectation: a request reaching it would fail the test.
+      calls = [
+        &BambooHR.Breaks.get_policy(config, &1),
+        &BambooHR.Breaks.update_policy(config, &1, %{}),
+        &BambooHR.Breaks.sync_policy(config, &1, %{}),
+        &BambooHR.Breaks.delete_policy(config, &1),
+        &BambooHR.Breaks.list_policy_breaks(config, &1),
+        &BambooHR.Breaks.create_policy_break(config, &1, %{}),
+        &BambooHR.Breaks.replace_policy_breaks(config, &1, []),
+        &BambooHR.Breaks.get_break(config, &1),
+        &BambooHR.Breaks.update_break(config, &1, %{}),
+        &BambooHR.Breaks.delete_break(config, &1),
+        &BambooHR.Breaks.list_policy_employees(config, &1),
+        &BambooHR.Breaks.assign_employees(config, &1, [1]),
+        &BambooHR.Breaks.set_employees(config, &1, [1]),
+        &BambooHR.Breaks.unassign_employees(config, &1, [1])
+      ]
+
+      for call <- calls, id <- ["", "  ", ".", ".."] do
+        assert {:error, %BambooHR.Error{reason: :invalid_argument, status: nil}} = call.(id)
+      end
+    end
+  end
 end

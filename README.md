@@ -39,6 +39,7 @@ The library is organized into several modules, each representing different API r
 - `BambooHR.Company` - Company information and EINs
 - `BambooHR.Employee` - Employee management
 - `BambooHR.Metadata` - Field, tabular, and list field metadata
+- `BambooHR.Scheduling` - Schedules, shifts, and the schedule PDF
 - `BambooHR.TimeTracking` - Time entries, timesheets, projects and tasks
 
 ### Examples
@@ -197,6 +198,15 @@ The same struct covers requests that never reached BambooHR
 (`:transport_error`) and replies that were not valid JSON
 (`:decode_error`). It also carries BambooHR's own `:message` and the
 `:request_id` when the response includes them.
+
+Decide on `:reason`, not on `:status`. Two kinds of error show why:
+
+- A request the client did not send, because an argument could not be
+  used (`:empty_filter`, `:invalid_argument`). Its `:status` is `nil`,
+  like a transport error, but trying again gives the same error.
+- A `207` from `BambooHR.Scheduling.publish_shifts/2`
+  (`:partial_publish`). It is an error even though the status is a 2xx,
+  because only some of the shifts published.
 
 #### Time Tracking
 
