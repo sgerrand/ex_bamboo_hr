@@ -20,7 +20,9 @@ defmodule BambooHR.HTTPClient.Req do
 
   Callers can override by passing `retry:` in `opts`: `false` to
   disable, `:safe_transient` or `:transient` for Req's own policies, or
-  a 2-arity function. `retry_unprocessed?/2` is one, for a request that
+  a 2-arity function. Req's older forms work too: `:safe` is read as
+  `:safe_transient`, `:never` as `false`, and a 1-arity function is
+  called with just the response or error. `retry_unprocessed?/2` is one, for a request that
   must not run twice. `nil` means this client's own policy.
 
   Req checks `:retry` only once a response or error is in, and raises
@@ -73,6 +75,18 @@ defmodule BambooHR.HTTPClient.Req do
 
   defp retry_option(retry, retry_delay?) when is_function(retry, 2),
     do: guard_retry(retry, retry_delay?)
+
+  # Req still takes these older forms, with a deprecation warning, so
+  # they keep working here. Each is mapped to the form that replaced it.
+  defp retry_option(:safe, _retry_delay?), do: :safe_transient
+  defp retry_option(:never, _retry_delay?), do: false
+
+  defp retry_option(retry, retry_delay?) when is_function(retry, 1),
+    do:
+      guard_retry(
+        fn _request, response_or_exception -> retry.(response_or_exception) end,
+        retry_delay?
+      )
 
   defp retry_option(retry, _retry_delay?) do
     Logger.warning(

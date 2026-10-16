@@ -249,12 +249,41 @@ defmodule BambooHR.HTTPClient.ReqTest do
       assert :counters.get(counter, 1) == 2
     end
 
+    test "keeps Req's older retry forms working", %{bypass: bypass, config: config} do
+      counter = :counters.new(1, [])
+
+      Bypass.expect(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
+        :counters.add(counter, 1, 1)
+        Plug.Conn.resp(conn, 503, "")
+      end)
+
+      get = fn retry ->
+        :counters.put(counter, 1, 0)
+
+        assert {:error, %{status: 503}} =
+                 BambooHR.Client.get("/path", config,
+                   retry: retry,
+                   retry_delay: 0,
+                   max_retries: 1,
+                   retry_log_level: false
+                 )
+
+        :counters.get(counter, 1)
+      end
+
+      # :safe is :safe_transient, so a GET is retried; :never is false.
+      assert get.(:safe) == 2
+      assert get.(:never) == 1
+      assert get.(fn %Req.Response{status: 503} -> true end) == 2
+      assert get.(fn _response -> false end) == 1
+    end
+
     test "does not retry or raise on a retry value Req does not accept", %{
       bypass: bypass,
       config: config
     } do
       # Req would raise on these, but only after the response is in.
-      for retry <- [true, :never, "false"] do
+      for retry <- [true, :sometimes, "false"] do
         Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
           Plug.Conn.resp(conn, 500, "")
         end)
