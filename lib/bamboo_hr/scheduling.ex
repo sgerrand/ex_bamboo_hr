@@ -484,8 +484,9 @@ defmodule BambooHR.Scheduling do
   back something JSON cannot hold. So unlike other errors, it is not
   the raw response: the content is the same, but key order and number
   formatting may differ. Its `:status` is always `207`, because the
-  HTTP client does not hand back the status of a success. Telemetry sees the HTTP request,
-  which succeeded, so it records a `207` as `:ok`.
+  HTTP client does not hand back the status of a success. Telemetry
+  sees the HTTP request, which succeeded, so it records a `207` as
+  `:ok`.
 
   ## Parameters
 

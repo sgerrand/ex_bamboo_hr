@@ -20,19 +20,20 @@ defmodule BambooHR.HTTPClient.Req do
 
   Callers can override by passing `retry:` in `opts`: `false` to
   disable, `:safe_transient` or `:transient` for Req's own policies, or
-  a 2-arity function. Req's older forms work too: `:safe` is read as
+  a 2-arity function. `retry_unprocessed?/2` is one such function, for
+  a request that must not run twice. `nil` means this client's own
+  policy. Req's older forms work too: `:safe` is read as
   `:safe_transient`, `:never` as `false`, and a 1-arity function is
-  called with just the response or error. `retry_unprocessed?/2` is one, for a request that
-  must not run twice. `nil` means this client's own policy.
+  called with just the response or error.
 
-  Req checks `:retry` only once a response or error is in, and raises
-  on a value it does not accept, by then too late for the request to be
-  taken back. So a value it does not accept counts as `false`, with a
-  warning. A function is guarded the same way: a result other than
-  `true`, `false`, `nil` or `{:delay, milliseconds}`, or a raise or a
-  throw, counts as `false`, with a warning. An exit is not caught. `{:delay, milliseconds}` with
-  `:retry_delay` also set counts as `true`, so `:retry_delay` decides
-  the wait.
+  Req checks `:retry` only once a response or error is in. It raises
+  on a value it does not accept, and by then the request has been sent.
+  So a value Req does not accept counts as `false`, with a warning. A
+  function is guarded the same way. A result other than `true`,
+  `false`, `nil` or `{:delay, milliseconds}`, or a raise or a throw,
+  counts as `false`, with a warning. An exit is not caught.
+  `{:delay, milliseconds}` with `:retry_delay` also set counts as
+  `true`, so `:retry_delay` decides the wait.
   """
 
   require Logger

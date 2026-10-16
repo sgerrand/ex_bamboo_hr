@@ -67,8 +67,9 @@ defmodule BambooHR.Error do
       `BambooHR.Scheduling.publish_shifts/2`: some shifts published and
       some did not. `:body` holds both lists, as JSON. `:status` is
       always `207`, the status BambooHR documents for this, because the
-      HTTP client does not hand back the status of a 2xx. Part of the work is done, so do not send the same call again
-      without reading them
+      HTTP client does not hand back the status of a 2xx. Some shifts
+      are already published, so read `:body` before you send the same
+      call again.
 
   With no response:
 
