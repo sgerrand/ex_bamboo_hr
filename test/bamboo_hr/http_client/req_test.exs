@@ -32,6 +32,16 @@ defmodule BambooHR.HTTPClient.ReqTest do
       end
     end
 
+    test "retries any method on the HTTP/2 errors that mean the request was never sent" do
+      for method <- [:get, :post], reason <- [:unprocessed, :pool_not_available] do
+        assert ReqClient.retry?(
+                 %Req.Request{method: method},
+                 %Req.HTTPError{protocol: :http2, reason: reason}
+               ),
+               "expected a #{method} retry on #{reason}"
+      end
+    end
+
     test "does not retry POST on transport errors" do
       err = %Req.TransportError{reason: :timeout}
       refute ReqClient.retry?(%Req.Request{method: :post}, err)
@@ -49,6 +59,13 @@ defmodule BambooHR.HTTPClient.ReqTest do
 
       assert ReqClient.retry_unprocessed?(request, %Req.Response{status: 429})
       assert ReqClient.retry_unprocessed?(request, %Req.TransportError{reason: :econnrefused})
+    end
+
+    test "retries a host name that did not resolve" do
+      assert ReqClient.retry_unprocessed?(
+               %Req.Request{method: :get},
+               %Req.TransportError{reason: :nxdomain}
+             )
     end
 
     test "retries the HTTP/2 errors that mean the request was never sent" do

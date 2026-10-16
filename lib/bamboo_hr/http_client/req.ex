@@ -11,6 +11,8 @@ defmodule BambooHR.HTTPClient.Req do
       limits apply per-key regardless of verb, and 429 means the request
       was not processed so retrying a POST is safe. The `Retry-After`
       header is honoured by Req's default `:retry_delay`.
+    * Req's HTTP/2 `:unprocessed` and `:pool_not_available` errors are
+      retried for all methods too. Both mean the request was never sent.
     * GET and HEAD additionally retry on 408/500/502/503/504 and the
       same transient transport errors as Req's `:safe_transient` mode.
     * POST is **not** retried on 5xx — those could indicate partial
@@ -37,6 +39,10 @@ defmodule BambooHR.HTTPClient.Req do
 
   @transient_statuses [408, 500, 502, 503, 504]
   @transient_transport_reasons [:timeout, :econnrefused, :closed]
+  # Errors from before a request is sent: the connection was refused, or
+  # the host name did not resolve.
+  @unsent_transport_reasons [:econnrefused, :nxdomain]
+  @unsent_http2_reasons [:unprocessed, :pool_not_available]
 
   @impl true
   def request(opts) do
@@ -128,6 +134,10 @@ defmodule BambooHR.HTTPClient.Req do
   @spec retry?(Req.Request.t(), Req.Response.t() | Exception.t()) :: boolean()
   def retry?(_request, %Req.Response{status: 429}), do: true
 
+  def retry?(_request, %Req.HTTPError{protocol: :http2, reason: reason})
+      when reason in @unsent_http2_reasons,
+      do: true
+
   def retry?(%Req.Request{method: method}, response_or_exception)
       when method in [:get, :head] do
     case response_or_exception do
@@ -144,18 +154,22 @@ defmodule BambooHR.HTTPClient.Req do
 
   Retries only when BambooHR certainly did not process the request: a
   `429`, which it turns away before doing any work, a refused
-  connection, which never reached it, and the two HTTP/2 errors that
-  mean the request was never sent (`:unprocessed`, when the server
-  closed the connection before taking it, and `:pool_not_available`).
+  connection or a host name that did not resolve (`:nxdomain`), which
+  never reached it, and the two HTTP/2 errors that mean the request was
+  never sent (`:unprocessed`, when the server closed the connection
+  before taking it, and `:pool_not_available`).
   A `5xx` or a timeout is not retried, because the work may have been
   done.
   """
   @spec retry_unprocessed?(Req.Request.t(), Req.Response.t() | Exception.t()) :: boolean()
   def retry_unprocessed?(_request, %Req.Response{status: 429}), do: true
-  def retry_unprocessed?(_request, %Req.TransportError{reason: :econnrefused}), do: true
+
+  def retry_unprocessed?(_request, %Req.TransportError{reason: reason})
+      when reason in @unsent_transport_reasons,
+      do: true
 
   def retry_unprocessed?(_request, %Req.HTTPError{protocol: :http2, reason: reason})
-      when reason in [:unprocessed, :pool_not_available],
+      when reason in @unsent_http2_reasons,
       do: true
 
   def retry_unprocessed?(_request, _response_or_exception), do: false

@@ -100,8 +100,10 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   only, so a custom client that hands it to Req works. `nil` means the
   client's own policy. `HTTPClient.Req.retry_unprocessed?/2` retries
   only what BambooHR certainly did not process (a `429`, a refused
-  connection, or Req's HTTP/2 `:unprocessed` and `:pool_not_available`
-  errors). Req checks `:retry` only once the response is in, and raises
+  connection, `:nxdomain`, or Req's HTTP/2 `:unprocessed` and
+  `:pool_not_available` errors). The default `retry?/2` retries those
+  HTTP/2 errors for every method, like a `429`, so the strict policy
+  never retries more than the default. Req checks `:retry` only once the response is in, and raises
   on a value it does not accept, so `HTTPClient.Req.retry_option/2`
   guards it for every caller: a value Req does not accept becomes
   `false`, with a warning, and a function is wrapped so a bad result or
