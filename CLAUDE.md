@@ -106,9 +106,10 @@ Reports / Scheduling / Tables / TimeOff / TimeTracking
   never retries more than the default. Req checks `:retry` only once the response is in, and raises
   on a value it does not accept, so `HTTPClient.Req.retry_option/2`
   guards it for every caller: a value Req does not accept becomes
-  `false`, with a warning, and a function is wrapped so a bad result or
-  a raise reads as `false`. `{:delay, ms}` with `:retry_delay` also set
-  becomes `true`, since Req raises on that pair too.
+  `false`, with a warning, and a function is wrapped so a bad result, a
+  raise or a throw reads as `false`. An exit is not caught, so a crash
+  in the function still spreads. `{:delay, ms}` with `:retry_delay`
+  also set becomes `true`, since Req raises on that pair too.
   An option used in `lib/` but missing from that list is a bug: a
   custom client is written against it.
   An implementation must drop options it does not recognise rather than

@@ -236,8 +236,8 @@ defmodule BambooHR.Scheduling do
       `:safe_transient`, `:transient`, or a 2-arity function, as Req
       does. A function should return `true`, `false`, `nil` (the same
       as `false`) or `{:delay, milliseconds}`. With the default HTTP
-      client, anything else, or a function that raises, counts as
-      `false`, with a warning. Any other `:retry` value returns an
+      client, anything else, or a function that raises or throws,
+      counts as `false`, with a warning. Any other `:retry` value returns an
       `:invalid_argument` error. An empty `:employee_ids` list returns
       an `:empty_filter` error; see "Empty values" above
 

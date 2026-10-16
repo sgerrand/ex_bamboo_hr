@@ -27,8 +27,8 @@ defmodule BambooHR.HTTPClient.Req do
   on a value it does not accept, by then too late for the request to be
   taken back. So a value it does not accept counts as `false`, with a
   warning. A function is guarded the same way: a result other than
-  `true`, `false`, `nil` or `{:delay, milliseconds}`, or a raise, counts
-  as `false`, with a warning. `{:delay, milliseconds}` with
+  `true`, `false`, `nil` or `{:delay, milliseconds}`, or a raise or a
+  throw, counts as `false`, with a warning. An exit is not caught. `{:delay, milliseconds}` with
   `:retry_delay` also set counts as `true`, so `:retry_delay` decides
   the wait.
   """
@@ -93,7 +93,9 @@ defmodule BambooHR.HTTPClient.Req do
       rescue
         exception -> warn_bad_retry("raised #{Exception.message(exception)}")
       catch
-        kind, value -> warn_bad_retry("#{kind} #{inspect(value)}")
+        # An exit is left alone: it is how a process stops, such as a
+        # GenServer call to one that has died, and must spread.
+        :throw, value -> warn_bad_retry("threw #{inspect(value)}")
       end
     end
   end

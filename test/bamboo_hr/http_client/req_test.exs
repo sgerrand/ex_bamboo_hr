@@ -276,7 +276,7 @@ defmodule BambooHR.HTTPClient.ReqTest do
         {fn _request, _response -> :maybe end, "returned :maybe"},
         {fn _request, _response -> {:delay, -1} end, "returned {:delay, -1}"},
         {fn _request, _response -> raise "boom" end, "raised boom"},
-        {fn _request, _response -> throw(:stop) end, "throw :stop"}
+        {fn _request, _response -> throw(:stop) end, "threw :stop"}
       ]
 
       for {retry, logged} <- bad do
@@ -291,6 +291,18 @@ defmodule BambooHR.HTTPClient.ReqTest do
 
         assert log =~ "the :retry function #{logged}"
       end
+    end
+
+    test "lets an exit from a retry function spread", %{bypass: bypass, config: config} do
+      Bypass.expect_once(bypass, "GET", "/api/gateway.php/test_company/v1/path", fn conn ->
+        Plug.Conn.resp(conn, 500, "")
+      end)
+
+      assert catch_exit(
+               BambooHR.Client.get("/path", config,
+                 retry: fn _request, _response -> exit(:boom) end
+               )
+             ) == :boom
     end
 
     test "reads nil from a retry function as no retry, quietly", %{
