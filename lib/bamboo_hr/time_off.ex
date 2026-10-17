@@ -5,6 +5,32 @@ defmodule BambooHR.TimeOff do
   Covers employee time off policies, balances, requests, and history.
   Company-wide time off metadata (types, policy list) lives in
   `BambooHR.Metadata`.
+
+  ## Two families of request endpoints
+
+  BambooHR has two current sets of time off request endpoints, and this
+  module covers both.
+
+  The older ones are employee-scoped and take their parameters as plain
+  maps: `create_time_off_request/3`, `get_time_off_requests/2` and
+  `get_who_is_out/2`.
+
+  The newer `/time-off/requests` family (note the hyphen) treats a
+  request as a resource: `list_requests/2`, `create_request/2`,
+  `get_request/3`, `update_request/4`, the decisions `approve_request/3`,
+  `deny_request/3` and `cancel_request/2`, and comments. `list_whos_out/4`
+  belongs with them. They page with `:page` and `:page_size` and filter
+  with an OData-style `:filter` string, and the request list sorts with
+  `:order_by`.
+
+  Neither family is deprecated.
+
+  ## Request ids can change
+
+  Editing a request that is still `REQUESTED` replaces it with a new one
+  and restarts its approval workflow. **The response carries a new id**,
+  and the old id returns a `410` error — reason `:gone` — from then on.
+  Always keep the id from the latest response. See `update_request/4`.
   """
 
   alias BambooHR.Client
@@ -336,5 +362,244 @@ defmodule BambooHR.TimeOff do
   @spec get_who_is_out(Client.t(), map()) :: Client.response()
   def get_who_is_out(client, params \\ %{}) do
     Client.get("/time_off/whos_out", client, params: params)
+  end
+
+  @doc """
+  Lists time off requests, one page at a time.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `opts` - Optional keyword list:
+      * `:filter` - OData filter, e.g. `"status eq 'REQUESTED'"`
+      * `:order_by` - e.g. `"startDate asc"`; defaults to
+        `"requestedAt desc"`
+      * `:page`, `:page_size` (defaults to 100)
+      * `:return_actions` - when `true`, each request carries a
+        `"_links"` block naming the state changes you may make to it
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.list_requests(client, filter: "employeeId eq 123")
+      {:ok, %{
+        "data" => [%{"id" => 1348, "employeeId" => 123, "status" => "REQUESTED"}],
+        "meta" => %{"page" => 1, "pageSize" => 100, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_requests(Client.t(), keyword()) :: Client.response()
+  def list_requests(client, opts \\ []) do
+    Client.get("/time-off/requests", client,
+      params:
+        rest_params(opts,
+          filter: "filter",
+          order_by: "orderBy",
+          page: "page",
+          page_size: "pageSize",
+          return_actions: "returnActions"
+        )
+    )
+  end
+
+  @doc """
+  Creates a time off request on an employee's behalf.
+
+  The request starts as `"REQUESTED"` and enters the approval workflow.
+
+  Send **exactly one** of `"amount"` — the total for the whole range, in
+  the category's unit — or `"dailyAmounts"`, a per-day breakdown. Both,
+  or neither, is a `422` error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `request_data` - Map with `"employeeId"`, `"categoryId"`,
+      `"startDate"` and `"endDate"` (inclusive, `YYYY-MM-DD`), one of
+      `"amount"` or `"dailyAmounts"`, and optionally `"employeeNote"` (up
+      to 1024 characters)
+    * `opts` - Optional keyword list: `:return_actions`
+
+  ## Examples
+
+      iex> request_data = %{
+      ...>   "employeeId" => 123,
+      ...>   "categoryId" => 4,
+      ...>   "startDate" => "2024-02-01",
+      ...>   "endDate" => "2024-02-02",
+      ...>   "amount" => 16
+      ...> }
+      iex> BambooHR.TimeOff.create_request(client, request_data)
+      {:ok, %{"id" => 1348, "status" => "REQUESTED", "amount" => 16}}
+  """
+  @spec create_request(Client.t(), map(), keyword()) :: Client.response()
+  def create_request(client, request_data, opts \\ []) when is_map(request_data) do
+    Client.post("/time-off/requests", client,
+      json: request_data,
+      params: rest_params(opts, return_actions: "returnActions")
+    )
+  end
+
+  @doc """
+  Retrieves a time off request.
+
+  An id that a later edit replaced returns a `410` error — reason
+  `:gone`. See `update_request/4`.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `request_id` - The request's ID
+    * `opts` - Optional keyword list: `:return_actions`
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.get_request(client, 1348)
+      {:ok, %{"id" => 1348, "employeeId" => 123, "status" => "REQUESTED"}}
+  """
+  @spec get_request(Client.t(), integer(), keyword()) :: Client.response()
+  def get_request(client, request_id, opts \\ []) when is_integer(request_id) do
+    Client.get("/time-off/requests/#{request_id}", client,
+      params: rest_params(opts, return_actions: "returnActions")
+    )
+  end
+
+  @doc """
+  Updates a time off request.
+
+  Only the fields you pass are changed, and `"employeeNote" => nil`
+  clears the note.
+
+  **Editing a `"REQUESTED"` request gives it a new id.** BambooHR
+  replaces the stored request and restarts its approval workflow, so the
+  `"id"` in the response differs from `request_id`. That new id is the
+  one to keep: the old one returns a `410` error — reason `:gone` — on
+  every call from then on. `"requestedAt"` carries over. Editing an
+  `"APPROVED"` request updates it in place, keeping both the id and
+  `"requestedAt"`.
+
+  Changing `"startDate"` or `"endDate"` means sending `"dailyAmounts"` in
+  the same call, covering the new range — BambooHR will not spread the
+  amount for you, and returns a `422` error otherwise.
+
+  A `"DENIED"` or `"CANCELED"` request cannot be edited, nor can an
+  `"APPROVED"` one that has already started unless you may edit past
+  requests; each returns a `409` error.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `request_id` - The request's ID
+    * `changes` - Map of fields to change: `"categoryId"`, `"startDate"`,
+      `"endDate"`, `"employeeNote"`, `"dailyAmounts"`
+    * `opts` - Optional keyword list: `:return_actions`
+
+  ## Examples
+
+      iex> {:ok, %{"id" => new_id}} =
+      ...>   BambooHR.TimeOff.update_request(client, 1348, %{"employeeNote" => "Family trip"})
+      iex> new_id
+      1351
+  """
+  @spec update_request(Client.t(), integer(), map(), keyword()) :: Client.response()
+  def update_request(client, request_id, changes, opts \\ [])
+      when is_integer(request_id) and is_map(changes) do
+    Client.patch("/time-off/requests/#{request_id}", client,
+      json: changes,
+      params: rest_params(opts, return_actions: "returnActions")
+    )
+  end
+
+  @doc """
+  Lists the comments on a time off request.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `request_id` - The request's ID
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.list_request_comments(client, 1348)
+      {:ok, %{"data" => [%{"id" => 7, "employeeId" => 5, "comment" => "Covered by Sam."}]}}
+  """
+  @spec list_request_comments(Client.t(), integer()) :: Client.response()
+  def list_request_comments(client, request_id) when is_integer(request_id) do
+    Client.get("/time-off/requests/#{request_id}/comments", client)
+  end
+
+  @doc """
+  Adds a comment to a time off request.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `request_id` - The request's ID
+    * `comment` - The comment text
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.create_request_comment(client, 1348, "Covered by Sam.")
+      {:ok, %{"id" => 7, "employeeId" => 5, "comment" => "Covered by Sam."}}
+  """
+  @spec create_request_comment(Client.t(), integer(), String.t()) :: Client.response()
+  def create_request_comment(client, request_id, comment)
+      when is_integer(request_id) and is_binary(comment) do
+    Client.post("/time-off/requests/#{request_id}/comments", client,
+      json: %{"comment" => comment}
+    )
+  end
+
+  @doc """
+  Lists approved time off overlapping a date range.
+
+  Dates are inclusive, in the company timezone, and the range can span at
+  most 366 days. Results are sorted by start date, then id.
+
+  Time off the caller is not allowed to see is **left out without any
+  error**, so an empty result does not mean nobody is out.
+
+  ## Parameters
+
+    * `client` - Client configuration created with `BambooHR.Client.new/1`
+    * `start_date` - First day, as `YYYY-MM-DD`
+    * `end_date` - Last day, as `YYYY-MM-DD`
+    * `opts` - Optional keyword list:
+      * `:filter` - OData filter on `employeeId`, `department`,
+        `division` or `location`, using `eq`, `in` and `and`
+      * `:direct_reports_only` - only the caller's direct reports; a
+        caller with none gets an empty result
+      * `:include_persons` - add a `"persons"` map of employee display
+        data, keyed by employee id
+      * `:page`, `:page_size` (defaults to 100)
+
+  ## Examples
+
+      iex> BambooHR.TimeOff.list_whos_out(client, "2024-02-01", "2024-02-07", include_persons: true)
+      {:ok, %{
+        "data" => [%{"id" => 1, "employeeId" => 123, "start" => "2024-02-01", "end" => "2024-02-02"}],
+        "persons" => %{"123" => %{"displayName" => "Jane Smith"}},
+        "meta" => %{"page" => 1, "pageSize" => 100, "totalItems" => 1, "totalPages" => 1}
+      }}
+  """
+  @spec list_whos_out(Client.t(), String.t(), String.t(), keyword()) :: Client.response()
+  def list_whos_out(client, start_date, end_date, opts \\ [])
+      when is_binary(start_date) and is_binary(end_date) do
+    params =
+      [{"start", start_date}, {"end", end_date}] ++
+        rest_params(opts,
+          filter: "filter",
+          direct_reports_only: "directReportsOnly",
+          include_persons: "includePersons",
+          page: "page",
+          page_size: "pageSize"
+        )
+
+    Client.get("/whos-out", client, params: params)
+  end
+
+  # Maps keyword options onto the query parameter names the newer
+  # endpoints use. A nil or false option is left out, which matches each
+  # parameter's default.
+  defp rest_params(opts, mapping) do
+    for {key, param} <- mapping, value = opts[key], do: {param, value}
   end
 end

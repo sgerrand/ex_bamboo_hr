@@ -112,6 +112,22 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   They return the updated request. `change_request_status/3` is a
   `@deprecated` wrapper that routes on `"status"` and maps `"note"` to
   `"managerNote"`.
+  Like `TimeTracking`, `TimeOff` spans two current families. The older
+  employee-scoped ones (`create_time_off_request/3`,
+  `get_time_off_requests/2`, `get_who_is_out/2`) take plain param maps;
+  the newer `/time-off/requests` resource family uses the unprefixed
+  `*_request` names (`list_requests/2`, `create_request/3`,
+  `get_request/3`, `update_request/4`, plus the approve/deny/cancel
+  decisions and comments) and `list_whos_out/4`, with keyword opts.
+  **`update_request/4` on a `REQUESTED` request returns a new id**, and
+  the replaced id is a 410 (`:gone`) from then on — the moduledoc and
+  function doc both say so, and `BambooHR.Error` names 410 for that
+  reason. Date changes need `dailyAmounts` in the same body; create
+  takes exactly one of `amount`/`dailyAmounts`. `rest_params/2` drops
+  nil and false options, which matches every parameter's default here.
+  Still uncovered in this area: time off policies, categories and
+  per-employee policy assignments (`/time-off/policies`,
+  `/time-off/categories`, `/employees/{id}/time-off/policies`).
   `BambooHR.Employee` covers single-employee reads and writes, the
   directory, the cursor-paginated `GET /employees` list, and
   `get_changed/3` (`GET /employees/changed`) for sync jobs — feed its
