@@ -278,6 +278,11 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
 - Compilation, tests, and docs all use `--warnings-as-errors`.
 - Dialyzer PLTs are cached at `priv/plts/` and keyed by OS / OTP / Elixir /
   `mix.lock` hash in CI.
+- Every cache key uses the versions `setup-beam` actually installed
+  (`steps.setup-beam.outputs.otp-version` / `elixir-version`), not the
+  matrix values like `1.20`. That way a new patch release starts with a
+  fresh `_build` instead of reusing one built by the older patch. Any
+  new job that caches `_build` needs `id: setup-beam` on its setup step.
 - `actionlint` runs shellcheck on `run:` blocks.
   Use `# shellcheck disable=SC1010` for `mix do` steps (false positive — `do` is a Mix keyword, not a shell keyword).
 
