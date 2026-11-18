@@ -261,15 +261,17 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   no longer gets fixes from the Erlang team. When adding a new Elixir
   or OTP version, check that table in Elixir's
   `compatibility-and-deprecations.md`.
-  Linting runs on the Elixir 1.20 + OTP 29 cell. The `include:` entry
-  matches that cell, so it adds `lint: true` to it rather than creating
-  a new job. Keep the `include:` in step with `.tool-versions`.
-- `coverage`, `dialyzer`, and `docs` are separate jobs pinned to
+  The test job only compiles and runs tests; every cell does the same.
+- `lint` is its own job: `mix deps.get --check-locked`,
+  `mix format --check-formatted`, `mix deps.unlock --check-unused` and
+  `mix credo --strict`. It fetches all deps, not just `--only test`, so
+  the lock and unused-dep checks see the whole `mix.lock`.
+- `coverage`, `dialyzer`, `docs`, and `lint` are separate jobs pinned to
   `.tool-versions` (currently Elixir 1.20.5-otp-29 / OTP 29.1.2).
-  `dialyzer` and `docs` are in the `required` job's `needs:` list;
-  `coverage` is not.
+  `dialyzer`, `docs`, and `lint` are in the `required` job's `needs:`
+  list; `coverage` is not.
 - `required` is the one job branch protection checks. It needs `test`,
-  `docs`, `dialyzer`, and `lint-markdown`. It runs with `if: always()` and
+  `docs`, `dialyzer`, `lint`, and `lint-markdown`. It runs with `if: always()` and
   exits 1 if any of those failed, was cancelled, or was skipped. Both
   parts matter: without `if: always()` a failed dependency would leave
   `required` skipped, and branch protection treats a skipped check as not
