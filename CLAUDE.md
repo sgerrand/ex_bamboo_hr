@@ -254,8 +254,9 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
 
 ## CI
 
-- Test matrix: Elixir 1.17/1.18/1.19 × OTP 25/26/27/28.
-  Unsupported combinations excluded: 1.17+28, 1.18+28, 1.19+25.
+- Test matrix: Elixir 1.17/1.18/1.19 × OTP 26/27/28.
+  Unsupported combinations excluded: 1.17+28, 1.18+28. OTP 25 is not
+  tested: it no longer gets fixes from the Erlang team.
   Linting runs on a separate `include:` entry pinned to the newest
   default toolchain (currently Elixir 1.20 + OTP 29) rather than a member
   of the matrix arrays above — bumping the default doesn't require

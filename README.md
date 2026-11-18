@@ -267,7 +267,7 @@ oauth_config =
 
 ### Requirements
 
-- Elixir 1.17+ / Erlang/OTP 25+ (see `.tool-versions` for exact versions used locally)
+- Elixir 1.17+ / Erlang/OTP 26+ (see `.tool-versions` for exact versions used locally)
 - [Homebrew](https://brew.sh) (macOS/Linux) for dev tooling
 
 ### Setup
