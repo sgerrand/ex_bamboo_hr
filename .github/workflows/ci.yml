@@ -17,6 +17,7 @@ jobs:
       - test
       - docs
       - dialyzer
+      - lint
       - lint-markdown
     runs-on: ubuntu-latest
     permissions: {}
@@ -145,6 +146,47 @@ jobs:
     - name: Generate documentation
       run: mix docs --warnings-as-errors
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    env:
+      MIX_ENV: test
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - name: Set up Elixir
+      id: setup-beam
+      uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+      with:
+        version-file: '.tool-versions'
+        version-type: 'strict'
+    - name: Cache dependencies
+      id: cache-deps
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          _build
+          deps
+        key: ${{ runner.os }}-lint-${{ steps.setup-beam.outputs.otp-version }}-${{ steps.setup-beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
+        restore-keys: ${{ runner.os }}-lint-${{ steps.setup-beam.outputs.otp-version }}-${{ steps.setup-beam.outputs.elixir-version }}-
+    # Fetch with --check-locked on every run, before anything else touches
+    # deps. A plain `mix deps.get` would rewrite a stale mix.lock first, and
+    # the check would then pass.
+    - name: Fetch dependencies and check that mix.lock is up to date
+      run: mix deps.get --check-locked
+    - name: Compile dependencies
+      if: steps.cache-deps.outputs.cache-hit != 'true'
+      run: mix deps.compile
+    - name: Check that files are formatted
+      run: mix format --check-formatted
+    - name: Check for unused dependencies
+      run: mix deps.unlock --check-unused
+    - name: Run static code analysis
+      run: mix credo --strict
+
   lint-markdown:
     name: Markdown lint
     runs-on: ubuntu-latest
@@ -181,10 +223,6 @@ jobs:
             otp: '29'
           - elixir: '1.20'
             otp: '26'
-        include:
-          - elixir: '1.20'
-            otp: '29'
-            lint: true
 
     env:
       MIX_ENV: test
@@ -213,19 +251,7 @@ jobs:
       run: |
         # shellcheck disable=SC1010
         mix do deps.get --only test, deps.compile
-    - name: Check that mix.lock is up to date
-      run: mix deps.get --check-locked
-      if: ${{ matrix.lint }}
-    - name: Check that files are formatted
-      run: mix format --check-formatted
-      if: ${{ matrix.lint }}
-    - name: Check for unused dependencies
-      run: mix deps.unlock --check-unused
-      if: ${{ matrix.lint }}
     - name: Compile code
       run: mix compile --warnings-as-errors
-    - name: Run static code analysis
-      run: mix credo --strict
-      if: ${{ matrix.lint }}
     - name: Run tests
       run: mix test --warnings-as-errors
