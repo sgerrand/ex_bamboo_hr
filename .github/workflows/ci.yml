@@ -186,6 +186,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Set up Elixir
+      id: setup-beam
       uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
       with:
         elixir-version: ${{matrix.elixir}}
@@ -197,8 +198,8 @@ jobs:
         path: |
           _build
           deps
-        key: ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
-        restore-keys: ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-
+        key: ${{ runner.os }}-mix-${{ steps.setup-beam.outputs.otp-version }}-${{ steps.setup-beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
+        restore-keys: ${{ runner.os }}-mix-${{ steps.setup-beam.outputs.otp-version }}-${{ steps.setup-beam.outputs.elixir-version }}-
     - name: Install and compile dependencies
       if: steps.cache-deps.outputs.cache-hit != 'true'
       run: |
