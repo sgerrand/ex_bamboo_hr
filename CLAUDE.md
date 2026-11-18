@@ -254,13 +254,16 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
 
 ## CI
 
-- Test matrix: Elixir 1.17/1.18/1.19 × OTP 26/27/28.
-  Unsupported combinations excluded: 1.17+28, 1.18+28. OTP 25 is not
-  tested: it no longer gets fixes from the Erlang team.
-  Linting runs on a separate `include:` entry pinned to the newest
-  default toolchain (currently Elixir 1.20 + OTP 29) rather than a member
-  of the matrix arrays above — bumping the default doesn't require
-  touching the compatibility matrix or its exclude list.
+- Test matrix: Elixir 1.17/1.18/1.19/1.20 × OTP 26/27/28/29.
+  The excludes follow Elixir's own support table (1.17 and 1.18: OTP
+  25-27; 1.19: 26-28; 1.20: 27-29), so 1.17+28, 1.17+29, 1.18+28,
+  1.18+29, 1.19+29 and 1.20+26 are skipped. OTP 25 is not tested: it
+  no longer gets fixes from the Erlang team. When adding a new Elixir
+  or OTP version, check that table in Elixir's
+  `compatibility-and-deprecations.md`.
+  Linting runs on the Elixir 1.20 + OTP 29 cell. The `include:` entry
+  matches that cell, so it adds `lint: true` to it rather than creating
+  a new job. Keep the `include:` in step with `.tool-versions`.
 - `coverage`, `dialyzer`, and `docs` are separate jobs pinned to
   `.tool-versions` (currently Elixir 1.20.2-otp-29 / OTP 29.0.3).
   `dialyzer` and `docs` are in the `required` job's `needs:` list;
