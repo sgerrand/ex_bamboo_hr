@@ -266,6 +266,9 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   `mix format --check-formatted`, `mix deps.unlock --check-unused` and
   `mix credo --strict`. It fetches all deps, not just `--only test`, so
   the lock and unused-dep checks see the whole `mix.lock`.
+  `mix deps.get --check-locked` is the fetch step itself and runs on
+  every run, cache hit or not. Never put a plain `mix deps.get` before
+  it: that rewrites a stale `mix.lock`, and the check then passes.
 - `coverage`, `dialyzer`, `docs`, and `lint` are separate jobs pinned to
   `.tool-versions` (currently Elixir 1.20.5-otp-29 / OTP 29.1.2).
   `dialyzer`, `docs`, and `lint` are in the `required` job's `needs:`
