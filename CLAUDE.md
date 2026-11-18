@@ -265,7 +265,7 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
   matches that cell, so it adds `lint: true` to it rather than creating
   a new job. Keep the `include:` in step with `.tool-versions`.
 - `coverage`, `dialyzer`, and `docs` are separate jobs pinned to
-  `.tool-versions` (currently Elixir 1.20.2-otp-29 / OTP 29.0.3).
+  `.tool-versions` (currently Elixir 1.20.5-otp-29 / OTP 29.1.2).
   `dialyzer` and `docs` are in the `required` job's `needs:` list;
   `coverage` is not.
 - `required` is the one job branch protection checks. It needs `test`,
