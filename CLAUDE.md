@@ -217,6 +217,10 @@ Company / Datasets / Employee / Files / Hiring / Metadata / Reports / Tables / T
 ### Testing Patterns
 
 - Bypass library mocks the HTTP layer at the TCP level for integration-style tests.
+  It pulls in cowboy, cowlib, ranch, plug, plug_cowboy and plug_crypto as
+  test-only deps. `mix hex.audit` checks them for advisories. Bump them
+  with `mix deps.update cowboy cowlib plug plug_cowboy plug_crypto`:
+  cowboy pins an exact cowlib version, so they must move together.
 - Resource-module tests `use BambooHR.BypassCase` (in `test/support/bypass_case.ex`)
   which provides `bypass` and `config` (a `Client.t()` pointing at the local
   Bypass port) in the test context.
